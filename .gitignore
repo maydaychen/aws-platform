@@ -38,6 +38,21 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 *.swp
 *.swo
 *~
+
+# VS Code
+.vscode/
+
+# JetBrains (AppCode)
+.idea/
+
+# Secrets
+*.pem
+*.key
+.env
+.env.local

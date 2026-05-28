@@ -1,0 +1,109 @@
+import SwiftUI
+
+struct ContentView: View {
+    @StateObject private var profileVM = ProfileViewModel()
+    @StateObject private var ec2VM = EC2ViewModel()
+    @StateObject private var lambdaVM = LambdaViewModel()
+    @StateObject private var s3VM = S3ViewModel()
+
+    @State private var selectedService: AWSService = .ec2
+    @State private var s3BrowsingBucket: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ProfileBarView(vm: profileVM)
+            Divider()
+            HSplitView {
+                ServiceSidebarView(selectedService: $selectedService)
+                middlePane
+                    .frame(minWidth: 320)
+                detailPane
+            }
+        }
+        .onAppear {
+            profileVM.loadProfiles()
+            reconfigureServices()
+        }
+        .onChange(of: profileVM.selectedProfileID) { _ in
+            s3BrowsingBucket = nil
+            reconfigureServices()
+        }
+        .onChange(of: profileVM.selectedRegion) { _ in
+            s3BrowsingBucket = nil
+            reconfigureServices()
+        }
+        .onChange(of: selectedService) { _ in
+            s3BrowsingBucket = nil
+            reconfigureServices()
+        }
+    }
+
+    @ViewBuilder
+    private var middlePane: some View {
+        switch selectedService {
+        case .ec2:
+            EC2ListView(vm: ec2VM)
+        case .lambda:
+            LambdaListView(vm: lambdaVM)
+        case .s3:
+            if let bucketName = s3BrowsingBucket {
+                S3ObjectListView(vm: s3VM, bucketName: bucketName)
+            } else {
+                S3BucketListView(vm: s3VM)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailPane: some View {
+        switch selectedService {
+        case .ec2:
+            if let instance = ec2VM.selectedInstance {
+                EC2DetailView(instance: instance)
+            } else {
+                EmptyStateView(text: "Select an EC2 instance")
+            }
+        case .lambda:
+            if let function = lambdaVM.selectedFunction {
+                LambdaDetailView(function: function) {
+                    Task { await lambdaVM.loadCodeForSelection() }
+                }
+            } else {
+                EmptyStateView(text: "Select a Lambda function")
+            }
+        case .s3:
+            if let bucket = s3VM.selectedBucket, s3BrowsingBucket == nil {
+                S3BucketDetailView(bucket: bucket) {
+                    s3BrowsingBucket = bucket.name
+                    Task { await s3VM.loadObjects(bucket: bucket.name) }
+                }
+            } else if let bucketName = s3BrowsingBucket {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button("Back to Buckets") {
+                            s3BrowsingBucket = nil
+                        }
+                        Spacer()
+                        Text(bucketName)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    Divider()
+                    if let object = s3VM.selectedObject {
+                        S3ObjectDetailView(object: object)
+                    } else {
+                        EmptyStateView(text: "Select an object or folder")
+                    }
+                }
+            } else {
+                EmptyStateView(text: "Select an S3 bucket")
+            }
+        }
+    }
+
+    private func reconfigureServices() {
+        ec2VM.configure(provider: profileVM.provider)
+        lambdaVM.configure(provider: profileVM.provider)
+        s3VM.configure(provider: profileVM.provider)
+    }
+}

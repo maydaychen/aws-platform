@@ -72,13 +72,7 @@ struct ContentView: View {
             }
         case .lambda:
             if let function = lambdaVM.selectedFunction {
-                LambdaDetailView(
-                    function: function,
-                    isCodeLoading: lambdaVM.isCodeLoading,
-                    onLoadCode: {
-                        lambdaVM.loadCodeForSelection()
-                    }
-                )
+                LambdaDetailView(function: function, vm: lambdaVM)
             } else {
                 EmptyStateView(text: "Select a Lambda function")
             }

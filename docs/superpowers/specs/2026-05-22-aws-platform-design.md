@@ -105,11 +105,27 @@
 
 ### Lambda
 
-**列表列：** Function Name / Runtime / Last Modified / Memory
+**列表列：** Function Name / Runtime / Package Type / Memory / Last Modified / State / Last Update Status
 
-**详情：** 上述全部 + ARN / Handler / Role / Code Size / Timeout / Environment Variables / VPC Config / Tags / Code
+**列表筛选：** 搜索 + Function State + Package Type。
 
-**Code Tab：** 根据 `GetFunction` 返回的预签名 URL 下载代码 zip，解压后展示文件列表。点击文件可查看源码（支持常见扩展名高亮）。Container Image 类型的函数显示镜像 URI。
+**详情页签：**
+
+- **Overview** — State、Last Update Status、失败原因、Runtime、Version、Architecture、Memory、Timeout、Ephemeral Storage、代码和配置哈希、Tags。
+- **Configuration** — Role、VPC / Subnet / Security Group、Layers、EFS、DLQ、Tracing、Logging、KMS、SnapStart、Container Image 配置和 Resource Policy。Environment Variable 值默认遮罩，仅允许用户手动显示后复制。
+- **Triggers** — Event Source Mapping、异步调用目的地和 Function URL；无鉴权的 Function URL 明确标记为 Public。
+- **Versions** — Versions、Aliases、Reserved Concurrency 和 Provisioned Concurrency。
+- **Code** — 用户手动触发 `GetFunction` 获取最新预签名 URL；ZIP 解压后显示文件树和源码预览，Container Image 显示镜像 URI。
+
+**数据获取：**
+
+- 列表调用 `ListFunctions` 分页加载。
+- 选中函数后调用 `GetFunction` 获取主详情；其失败只影响详情区，不清空列表。
+- Event Source Mapping、异步调用配置、Function URL、Versions、Aliases 和 Provisioned Concurrency 分别通过分页接口加载。
+- Resource Policy 调用 `GetPolicy` 并解析 Statement 摘要；函数没有 Policy 时显示空状态。
+- 增强接口独立降级，失败项转为具体警告，其余页签继续可用。
+- 切换函数、Profile 或 Region 时取消旧详情和代码任务；旧请求结果不得覆盖当前选择。
+- 保持只读，不调用 Invoke 或任何创建、修改、删除接口。
 
 ### S3
 
@@ -124,16 +140,17 @@
 1. 启动 → ProfileVM 读取 `~/.aws/config` 填充 Profile 列表
 2. 用户选择 Profile + Region → `AWSServiceProvider` 初始化 Soto Client
 3. 用户点击服务 Tab → 对应 ViewModel 调用 AWS SDK 拉列表
-4. 用户点击列表中资源 → DetailView 按需加载详情；EC2 的状态、磁盘和安全组增强信息独立降级
+4. 用户点击列表中资源 → DetailView 按需加载详情；EC2 和 Lambda 的增强信息独立降级
 5. 切换 Region → 重新初始化 Client，刷新列表
 6. 切换 Profile → 重置所有状态，重新走 2
 
 ## 错误处理
 
 - 凭据过期 / 未登录：提示用户重新执行 `aws sso login`
-- API 调用失败：列表/详情内内行展示错误文字，不影响其他模块
+- API 调用失败：列表或详情内联展示错误文字，不影响其他模块
 - 无权限：显示具体服务返回的 AccessDenied 信息
 - AMI 名称等增强信息读取失败时保留 EC2 主列表
+- Lambda Trigger、Version、Concurrency 或 Policy 增强信息读取失败时保留主详情
 
 ## 后续可扩展
 

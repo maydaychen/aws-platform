@@ -12,12 +12,37 @@ struct LambdaListView: View {
                 onRefresh: { vm.refresh() },
                 onCancel: { vm.cancelLoading() }
             )
+            HStack(spacing: 8) {
+                Picker("State", selection: $vm.stateFilter) {
+                    ForEach(vm.availableStates, id: \.self) { state in
+                        Text(state == "All" ? "All states" : state).tag(state)
+                    }
+                }
+                Picker("Package", selection: $vm.packageFilter) {
+                    ForEach(vm.availablePackageTypes, id: \.self) { packageType in
+                        Text(packageType == "All" ? "All packages" : packageType)
+                            .tag(packageType)
+                    }
+                }
+            }
+            .labelsHidden()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+
             List(vm.filteredFunctions, selection: $vm.selectedFunction) { function in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(function.functionName)
-                        .fontWeight(.medium)
+                    HStack {
+                        Text(function.functionName)
+                            .fontWeight(.medium)
+                        Spacer()
+                        statusIndicator(for: function)
+                    }
                     HStack(spacing: 8) {
                         Text(function.runtime ?? "-")
+                        if let packageType = function.packageType {
+                            Text(packageType)
+                        }
                         if let memorySize = function.memorySize {
                             Text("\(memorySize) MB")
                         }
@@ -39,6 +64,27 @@ struct LambdaListView: View {
                     EmptyStateView(text: "No Lambda functions")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func statusIndicator(for function: LambdaFunctionModel) -> some View {
+        if function.state == "Failed" || function.lastUpdateStatus == "Failed" {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+                .help("Function state or last update failed")
+        } else if function.state == "Pending" || function.lastUpdateStatus == "InProgress" {
+            Image(systemName: "clock.fill")
+                .foregroundColor(.orange)
+                .help("Function update is in progress")
+        } else if function.state == "Active" {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .help("Function is active")
+        } else {
+            Image(systemName: "minus.circle")
+                .foregroundColor(.secondary)
+                .help(function.state ?? "Function state unavailable")
         }
     }
 }

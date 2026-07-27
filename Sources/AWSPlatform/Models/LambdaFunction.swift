@@ -3,6 +3,8 @@ import Foundation
 struct LambdaFunctionModel: Identifiable, Hashable {
     var functionName: String
     var runtime: String?
+    var state: String?
+    var lastUpdateStatus: String?
     var lastModified: String?
     var memorySize: Int?
     var arn: String?

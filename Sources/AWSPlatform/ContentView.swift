@@ -66,7 +66,7 @@ struct ContentView: View {
         switch selectedService {
         case .ec2:
             if let instance = ec2VM.selectedInstance {
-                EC2DetailView(instance: instance)
+                EC2DetailView(instance: instance, vm: ec2VM)
             } else {
                 EmptyStateView(text: "Select an EC2 instance")
             }

@@ -82,11 +82,26 @@
 
 ### EC2
 
-**列表列：** Name / Instance ID / Type / State / Private IP / Public IP / OS
+**列表列：** Name / Instance ID / Type / State / Private IP / Public IP / OS / Status Checks
 
-**详情：** 上述全部 + VPC / Subnet / AZ / Security Groups / AMI ID / AMI Name / Key Pair / Launch Time / Architecture / Tags
+**列表筛选：** 搜索 + Instance State + Status Check 是否需要关注。
 
-**OS 信息获取：** 调用 `DescribeImages` 传入 AMI ID，取 Image Description 或 Image Name 作为 OS 详情展示。
+**详情页签：**
+
+- **Overview** — 基础字段、AMI、IAM Instance Profile、CPU、虚拟化、生命周期、容量预留和 Tags。
+- **Network** — VPC / Subnet / AZ、DNS、IPv4 / IPv6、ENI、ENI Security Groups 和 Source/Destination Check。
+- **Storage** — EBS Volume ID / Name / Device / State / Type / Size / IOPS / Throughput / Encryption / Delete on Termination。
+- **Security** — IMDS / IMDSv2 配置，以及 Security Group 入站、出站规则。
+- **Status** — System / Instance / Attached EBS Status Checks、Detailed Monitoring、State Transition Reason 和 Scheduled Events。
+
+**数据获取：**
+
+- 列表调用 `DescribeInstances` 分页加载。
+- AMI 名称调用 `DescribeImages` 增强；失败时保留实例列表。
+- 列表状态调用 `DescribeInstanceStatus`，每批最多 100 个 Instance ID；失败时状态显示不可用，不影响实例列表。
+- 选中实例后单独调用 `DescribeInstances` 拉取详情，再调用 `DescribeInstanceStatus`、`DescribeVolumes` 和 `DescribeSecurityGroups` 增强。
+- 状态、磁盘或安全组增强调用失败时，对应页签显示具体警告，其余详情保持可用。
+- 切换实例、Profile 或 Region 时取消旧详情任务；旧请求结果不得覆盖当前选择。
 
 ### Lambda
 
@@ -109,7 +124,7 @@
 1. 启动 → ProfileVM 读取 `~/.aws/config` 填充 Profile 列表
 2. 用户选择 Profile + Region → `AWSServiceProvider` 初始化 Soto Client
 3. 用户点击服务 Tab → 对应 ViewModel 调用 AWS SDK 拉列表
-4. 用户点击列表中资源 → DetailView 展示详情（某些详情字段可能需要额外 API 调用）
+4. 用户点击列表中资源 → DetailView 按需加载详情；EC2 的状态、磁盘和安全组增强信息独立降级
 5. 切换 Region → 重新初始化 Client，刷新列表
 6. 切换 Profile → 重置所有状态，重新走 2
 

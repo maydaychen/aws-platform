@@ -12,12 +12,30 @@ struct EC2ListView: View {
                 onRefresh: { vm.refresh() },
                 onCancel: { vm.cancelLoading() }
             )
+            HStack(spacing: 8) {
+                Picker("State", selection: $vm.stateFilter) {
+                    ForEach(vm.availableStates, id: \.self) { state in
+                        Text(state == "All" ? "All states" : state).tag(state)
+                    }
+                }
+                Picker("Health", selection: $vm.healthFilter) {
+                    ForEach(EC2ViewModel.HealthFilter.allCases) { filter in
+                        Text(filter.title).tag(filter)
+                    }
+                }
+            }
+            .labelsHidden()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+
             List(vm.filteredInstances, selection: $vm.selectedInstance) { instance in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(instance.name)
                             .fontWeight(.medium)
                         Spacer()
+                        healthIndicator(for: instance)
                         Text(instance.instanceType)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -45,6 +63,24 @@ struct EC2ListView: View {
                     EmptyStateView(text: "No EC2 instances")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func healthIndicator(for instance: EC2InstanceModel) -> some View {
+        let health = vm.instanceHealth[instance.instanceId]
+        if health?.needsAttention == true {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+                .help(health?.summary ?? "Needs attention")
+        } else if health?.summary == "Checks passed" {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .help("Status checks passed")
+        } else {
+            Image(systemName: "minus.circle")
+                .foregroundColor(.secondary)
+                .help(health?.summary ?? "Status checks unavailable")
         }
     }
 }

@@ -12,7 +12,8 @@ MVP 稳定与真实 AWS 只读验收。
 - S3 Bucket 列表、四项 Public Access Block 状态、对象分页和前缀浏览。
 - 过滤 AWS 配置中的 `sso-session`、`services` 等非 Profile section。
 - 移除应用内 SSO 登录和 Lambda Invoke，保持只读产品边界。
-- ConfigReader、Profile、EC2、Lambda、S3 的 16 个单元测试。
+- 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3 的 18 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
@@ -23,7 +24,7 @@ MVP 稳定与真实 AWS 只读验收。
 ## 待办
 
 - 为 S3 Bucket 详情的各类 AWS 错误增加更细粒度的模拟测试。
-- 补充 Profile 快速切换和请求取消的竞争条件测试。
+- 补充 EC2、Lambda、S3 请求取消的竞争条件测试。
 - 确定签名、打包和发布方式。
 
 ## 阻塞
@@ -32,7 +33,8 @@ MVP 稳定与真实 AWS 只读验收。
 
 ## 最近验证
 
-- 2026-07-27：`swift test`，16 个测试通过。
+- 2026-07-27：`swift test`，18 个测试通过；覆盖快速 Profile 重配置和旧校验结果隔离。
+- 2026-07-27：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，18 个测试通过。
 - 2026-07-27：`swift build` 通过。
 - 2026-07-27：`swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过。
 - 2026-07-27：`.build/debug/AWSPlatform` 启动并持续运行；Swift Package 裸可执行文件无法由 UI 自动化定位，窗口视觉验收仍待人工完成。

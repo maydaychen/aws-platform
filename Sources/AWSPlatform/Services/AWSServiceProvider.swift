@@ -29,20 +29,26 @@ actor AWSServiceProvider {
             return
         }
 
-        await shutdown()
-
         let credentialProvider: CredentialProviderFactory = profile.isSSO
             ? .sso(profileName: profile.name)
             : .configFile(profile: profile.name)
 
-        let awsClient = AWSClient(credentialProvider: credentialProvider)
+        let previousClient = awsClient
+        let nextClient = AWSClient(credentialProvider: credentialProvider)
 
-        self.awsClient = awsClient
-        self.ec2 = EC2(client: awsClient, region: .init(rawValue: region))
-        self.lambda = Lambda(client: awsClient, region: .init(rawValue: region))
-        self.sts = STS(client: awsClient, region: .init(rawValue: region))
+        // Replace the actor state before the first suspension point. A second
+        // configure call can then only replace and close this new client; an
+        // older call can no longer resume and overwrite a newer client.
+        self.awsClient = nextClient
+        self.ec2 = EC2(client: nextClient, region: .init(rawValue: region))
+        self.lambda = Lambda(client: nextClient, region: .init(rawValue: region))
+        self.sts = STS(client: nextClient, region: .init(rawValue: region))
         self.currentProfileName = profile.name
         self.currentRegion = region
+
+        if let previousClient {
+            await Self.shutdown(previousClient)
+        }
     }
 
     func ec2Client() throws -> EC2 {
@@ -83,6 +89,10 @@ actor AWSServiceProvider {
 
         guard let awsClient else { return }
 
+        await Self.shutdown(awsClient)
+    }
+
+    private nonisolated static func shutdown(_ awsClient: AWSClient) async {
         // Detach cleanup from the caller's cancellation state. Reconfigure and
         // window teardown paths frequently cancel tasks, but the Soto client
         // still must be fully shut down before deinit.

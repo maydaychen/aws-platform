@@ -38,7 +38,6 @@ struct ContentView: View {
         .onChange(of: selectedService) { _ in
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
-            reconfigureServices()
         }
         .onDisappear {
             reconfigureTask?.cancel()
@@ -120,6 +119,11 @@ struct ContentView: View {
         s3VM.reset()
 
         reconfigureTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 75_000_000)
+            } catch {
+                return
+            }
             let isValid = await profileVM.configureProvider()
             guard !Task.isCancelled, isValid else { return }
             ec2VM.configure(provider: profileVM.provider)

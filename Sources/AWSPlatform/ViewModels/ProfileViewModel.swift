@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class ProfileViewModel: ObservableObject {
+    typealias ProfileValidator = (AWSProfile, String) async throws -> AWSIdentity
+
     @Published var profiles: [AWSProfile] = []
     @Published var selectedProfileID: AWSProfile.ID?
     @Published var selectedRegion = "us-east-1"
@@ -11,6 +13,8 @@ final class ProfileViewModel: ObservableObject {
     private let savedProfileKey = "selectedProfileID"
     private let savedRegionKey = "selectedRegion"
     private let defaults: UserDefaults
+    private let profileValidator: ProfileValidator?
+    private var configurationGeneration = 0
 
     let provider = AWSServiceProvider()
 
@@ -22,8 +26,12 @@ final class ProfileViewModel: ObservableObject {
         "ca-central-1", "sa-east-1"
     ]
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        profileValidator: ProfileValidator? = nil
+    ) {
         self.defaults = defaults
+        self.profileValidator = profileValidator
     }
 
     var selectedProfile: AWSProfile? {
@@ -55,34 +63,56 @@ final class ProfileViewModel: ObservableObject {
     }
 
     func configureProvider() async -> Bool {
+        configurationGeneration += 1
+        let generation = configurationGeneration
+        let profile = selectedProfile
+        let region = selectedRegion
+
         saveSelection()
         isValidatingProfile = true
         profileStatus = .checking
-        defer { isValidatingProfile = false }
+        defer {
+            if generation == configurationGeneration {
+                isValidatingProfile = false
+            }
+        }
 
-        await provider.configure(profile: selectedProfile, region: selectedRegion)
-        guard selectedProfile != nil else {
+        guard let profile else {
+            await provider.configure(profile: nil, region: region)
+            guard generation == configurationGeneration else { return false }
             profileStatus = .failed("No AWS profile found. Configure `~/.aws/config` first.")
             return false
         }
 
         do {
             try Task.checkCancellation()
-            let identity = try await provider.validateIdentity()
+            let identity: AWSIdentity
+            if let profileValidator {
+                identity = try await profileValidator(profile, region)
+            } else {
+                await provider.configure(profile: profile, region: region)
+                try Task.checkCancellation()
+                identity = try await provider.validateIdentity()
+            }
             try Task.checkCancellation()
+            guard generation == configurationGeneration else { return false }
             profileStatus = .valid(identity)
             return true
         } catch is CancellationError {
-            profileStatus = .idle
+            if generation == configurationGeneration {
+                profileStatus = .idle
+            }
             return false
         } catch {
-            let profileName = selectedProfile?.name ?? "default"
-            profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profileName))
+            guard generation == configurationGeneration else { return false }
+            profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profile.name))
             return false
         }
     }
 
     func shutdown() async {
+        configurationGeneration += 1
+        isValidatingProfile = false
         await provider.shutdown()
     }
 

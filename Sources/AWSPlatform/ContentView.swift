@@ -6,8 +6,10 @@ struct ContentView: View {
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
 
+    @AppStorage("selectedService") private var selectedServiceID = AWSService.ec2.rawValue
     @State private var selectedService: AWSService = .ec2
     @State private var s3BrowsingBucket: String?
+    @State private var reconfigureTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +24,7 @@ struct ContentView: View {
         }
         .onAppear {
             profileVM.loadProfiles()
+            selectedService = AWSService(rawValue: selectedServiceID) ?? .ec2
             reconfigureServices()
         }
         .onChange(of: profileVM.selectedProfileID) { _ in
@@ -34,7 +37,12 @@ struct ContentView: View {
         }
         .onChange(of: selectedService) { _ in
             s3BrowsingBucket = nil
+            selectedServiceID = selectedService.rawValue
             reconfigureServices()
+        }
+        .onDisappear {
+            reconfigureTask?.cancel()
+            Task { await profileVM.shutdown() }
         }
     }
 
@@ -65,9 +73,13 @@ struct ContentView: View {
             }
         case .lambda:
             if let function = lambdaVM.selectedFunction {
-                LambdaDetailView(function: function) {
-                    Task { await lambdaVM.loadCodeForSelection() }
-                }
+                LambdaDetailView(
+                    function: function,
+                    isCodeLoading: lambdaVM.isCodeLoading,
+                    onLoadCode: {
+                        lambdaVM.loadCodeForSelection()
+                    }
+                )
             } else {
                 EmptyStateView(text: "Select a Lambda function")
             }
@@ -75,7 +87,7 @@ struct ContentView: View {
             if let bucket = s3VM.selectedBucket, s3BrowsingBucket == nil {
                 S3BucketDetailView(bucket: bucket) {
                     s3BrowsingBucket = bucket.name
-                    Task { await s3VM.loadObjects(bucket: bucket.name) }
+                    s3VM.navigateToPrefix(bucket: bucket.name, prefix: "")
                 }
             } else if let bucketName = s3BrowsingBucket {
                 VStack(spacing: 0) {
@@ -102,8 +114,17 @@ struct ContentView: View {
     }
 
     private func reconfigureServices() {
-        ec2VM.configure(provider: profileVM.provider)
-        lambdaVM.configure(provider: profileVM.provider)
-        s3VM.configure(provider: profileVM.provider)
+        reconfigureTask?.cancel()
+        ec2VM.reset()
+        lambdaVM.reset()
+        s3VM.reset()
+
+        reconfigureTask = Task {
+            let isValid = await profileVM.configureProvider()
+            guard !Task.isCancelled, isValid else { return }
+            ec2VM.configure(provider: profileVM.provider)
+            lambdaVM.configure(provider: profileVM.provider)
+            s3VM.configure(provider: profileVM.provider)
+        }
     }
 }

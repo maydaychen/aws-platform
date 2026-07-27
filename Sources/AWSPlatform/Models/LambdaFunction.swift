@@ -8,7 +8,7 @@ struct LambdaFunctionModel: Identifiable, Hashable {
     var arn: String?
     var handler: String?
     var role: String?
-    var codeSize: Int?
+    var codeSize: Int64?
     var timeout: Int?
     var environment: [String: String]
     var vpcConfig: String?

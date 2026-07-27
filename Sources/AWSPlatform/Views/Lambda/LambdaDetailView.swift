@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LambdaDetailView: View {
     let function: LambdaFunctionModel
+    let isCodeLoading: Bool
     let onLoadCode: () -> Void
 
     var body: some View {
@@ -19,7 +20,7 @@ struct LambdaDetailView: View {
                         ("Role", function.role ?? "-"),
                         ("Memory", function.memorySize.map { "\($0) MB" } ?? "-"),
                         ("Timeout", function.timeout.map { "\($0)s" } ?? "-"),
-                        ("Code Size", function.codeSize.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) } ?? "-"),
+                        ("Code Size", function.codeSize.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "-"),
                         ("Last Modified", function.lastModified ?? "-"),
                         ("Package Type", function.packageType ?? "-"),
                         ("VPC", function.vpcConfig ?? "-")
@@ -43,14 +44,20 @@ struct LambdaDetailView: View {
                         }
                     }
 
-                    Button("Load Code Metadata", action: onLoadCode)
+                    Button(isCodeLoading ? "Loading Code..." : "Load Code", action: onLoadCode)
                         .buttonStyle(.borderedProminent)
+                        .disabled(isCodeLoading)
                 }
                 .padding()
             }
             Divider()
             LambdaCodeView(function: function)
                 .frame(minHeight: 180)
+                .overlay {
+                    if isCodeLoading {
+                        ProgressView()
+                    }
+                }
         }
     }
 }

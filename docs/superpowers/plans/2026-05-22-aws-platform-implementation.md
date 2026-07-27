@@ -1,5 +1,7 @@
 # AWS Platform Implementation Plan
 
+> 本文是初始实施记录，不作为当前进度源。项目真实状态、最近验证和后续待办以仓库根目录的 `ROADMAP.md` 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a macOS native AWS resource browser with EC2, Lambda, and S3 read-only views.

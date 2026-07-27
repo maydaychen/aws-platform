@@ -10,6 +10,10 @@ struct AWSProfile: Identifiable, Hashable {
 
     var id: String { name }
 
+    var isSSO: Bool {
+        ssoStartURL != nil || ssoAccountID != nil || ssoRoleName != nil
+    }
+
     var displayName: String {
         guard let ssoRoleName, !ssoRoleName.isEmpty else { return name }
         return "\(name) (\(ssoRoleName))"

@@ -5,6 +5,12 @@ final class ProfileViewModel: ObservableObject {
     @Published var profiles: [AWSProfile] = []
     @Published var selectedProfileID: AWSProfile.ID?
     @Published var selectedRegion = "us-east-1"
+    @Published var isValidatingProfile = false
+    @Published var profileStatus: ProfileStatus = .idle
+
+    private let savedProfileKey = "selectedProfileID"
+    private let savedRegionKey = "selectedRegion"
+    private let defaults: UserDefaults
 
     let provider = AWSServiceProvider()
 
@@ -16,13 +22,23 @@ final class ProfileViewModel: ObservableObject {
         "ca-central-1", "sa-east-1"
     ]
 
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
     var selectedProfile: AWSProfile? {
         profiles.first { $0.id == selectedProfileID }
     }
 
-    func loadProfiles() {
-        profiles = ConfigReader.readProfiles()
-        if let profile = selectedProfile ?? profiles.first {
+    func loadProfiles(_ profiles: [AWSProfile]? = nil) {
+        self.profiles = profiles ?? ConfigReader.readProfiles()
+        let savedProfileID = defaults.string(forKey: savedProfileKey)
+        let savedRegion = defaults.string(forKey: savedRegionKey)
+
+        if let savedProfileID, let profile = self.profiles.first(where: { $0.id == savedProfileID }) {
+            selectedProfileID = profile.id
+            selectedRegion = savedRegion ?? profile.region
+        } else if let profile = selectedProfile ?? self.profiles.first {
             selectedProfileID = profile.id
             selectedRegion = profile.region
         } else {
@@ -35,9 +51,50 @@ final class ProfileViewModel: ObservableObject {
         guard let profile = profiles.first(where: { $0.id == id }) else { return }
         selectedProfileID = id
         selectedRegion = profile.region
+        saveSelection()
     }
 
-    func configureProvider() async {
+    func configureProvider() async -> Bool {
+        saveSelection()
+        isValidatingProfile = true
+        profileStatus = .checking
+        defer { isValidatingProfile = false }
+
         await provider.configure(profile: selectedProfile, region: selectedRegion)
+        guard selectedProfile != nil else {
+            profileStatus = .failed("No AWS profile found. Configure `~/.aws/config` first.")
+            return false
+        }
+
+        do {
+            try Task.checkCancellation()
+            let identity = try await provider.validateIdentity()
+            try Task.checkCancellation()
+            profileStatus = .valid(identity)
+            return true
+        } catch is CancellationError {
+            profileStatus = .idle
+            return false
+        } catch {
+            let profileName = selectedProfile?.name ?? "default"
+            profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profileName))
+            return false
+        }
     }
+
+    func shutdown() async {
+        await provider.shutdown()
+    }
+
+    private func saveSelection() {
+        defaults.set(selectedProfileID, forKey: savedProfileKey)
+        defaults.set(selectedRegion, forKey: savedRegionKey)
+    }
+}
+
+enum ProfileStatus: Hashable {
+    case idle
+    case checking
+    case valid(AWSIdentity)
+    case failed(String)
 }

@@ -6,16 +6,22 @@ let package = Package(
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/soto-project/soto.git", from: "7.0.0"),
+        .package(url: "https://github.com/soto-project/soto-core.git", from: "7.0.0"),
     ],
     targets: [
         .executableTarget(
             name: "AWSPlatform",
             dependencies: [
-                .product(name: "SotoCore", package: "soto"),
+                .product(name: "SotoCore", package: "soto-core"),
                 .product(name: "SotoEC2", package: "soto"),
                 .product(name: "SotoLambda", package: "soto"),
                 .product(name: "SotoS3", package: "soto"),
+                .product(name: "SotoSTS", package: "soto"),
             ]
+        ),
+        .testTarget(
+            name: "AWSPlatformTests",
+            dependencies: ["AWSPlatform"]
         ),
     ]
 )

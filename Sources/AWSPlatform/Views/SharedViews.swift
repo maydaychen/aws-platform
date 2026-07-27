@@ -35,3 +35,38 @@ struct DetailGrid: View {
         }
     }
 }
+
+struct ListToolbar: View {
+    let title: String
+    let isLoading: Bool
+    @Binding var searchText: String
+    let onRefresh: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                if isLoading {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .help("Cancel")
+                }
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isLoading)
+                .help("Refresh")
+            }
+            TextField("Search", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+}

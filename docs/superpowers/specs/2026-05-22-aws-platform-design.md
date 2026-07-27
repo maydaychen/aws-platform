@@ -100,7 +100,7 @@
 
 **Bucket 列表：** Bucket Name / Region / Creation Date
 
-**Bucket 详情：** Versioning / Encryption / Public Access Block Settings / Tags
+**Bucket 详情：** Versioning / Encryption / 四项 Public Access Block Settings / Tags。无权限读取的字段显示未知和具体错误，不得显示为 Disabled。
 
 **桶内文件浏览：** 点击 Bucket 进入文件列表，支持前缀/目录向下钻取。每项显示 Key / Size / Last Modified / Storage Class。当前只读查看，不支持上传/下载操作。
 
@@ -118,6 +118,7 @@
 - 凭据过期 / 未登录：提示用户重新执行 `aws sso login`
 - API 调用失败：列表/详情内内行展示错误文字，不影响其他模块
 - 无权限：显示具体服务返回的 AccessDenied 信息
+- AMI 名称等增强信息读取失败时保留 EC2 主列表
 
 ## 后续可扩展
 
@@ -132,3 +133,4 @@
 - 不处理 SSO 登录流程（用户终端自行完成）
 - 不做鉴权/密钥管理
 - 不提供资源创建/修改/删除能力
+- 不提供 Lambda Invoke 等可能产生外部副作用的操作

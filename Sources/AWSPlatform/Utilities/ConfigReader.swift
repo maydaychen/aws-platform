@@ -9,12 +9,13 @@ struct ConfigReader {
             return []
         }
 
+        return readProfiles(configContent: content)
+    }
+
+    static func readProfiles(configContent content: String) -> [AWSProfile] {
         let sections = parseINI(content: content)
         return sections.compactMap { section in
-            let normalized = normalizeSectionName(section.name)
-            guard !normalized.isEmpty, normalized != "default" || !section.values.isEmpty else {
-                return normalized.isEmpty ? nil : makeProfile(name: normalized, values: section.values)
-            }
+            guard let normalized = normalizeProfileSectionName(section.name) else { return nil }
             return makeProfile(name: normalized, values: section.values)
         }
     }
@@ -30,13 +31,15 @@ struct ConfigReader {
         )
     }
 
-    private static func normalizeSectionName(_ section: String) -> String {
+    private static func normalizeProfileSectionName(_ section: String) -> String? {
         let trimmed = section.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed == "default" { return "default" }
         if trimmed.hasPrefix("profile ") {
-            return String(trimmed.dropFirst("profile ".count))
+            let name = String(trimmed.dropFirst("profile ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
         }
-        return trimmed
+        return nil
     }
 
     private static func parseINI(content: String) -> [(name: String, values: [String: String])] {

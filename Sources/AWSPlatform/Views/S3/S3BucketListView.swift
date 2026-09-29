@@ -32,11 +32,9 @@ struct S3BucketListView: View {
                 }
             }
             .overlay {
-                if vm.isLoading {
-                    ProgressView()
-                } else if let error = vm.error {
+                if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error)
-                } else if vm.filteredBuckets.isEmpty {
+                } else if !vm.isLoading && vm.filteredBuckets.isEmpty {
                     EmptyStateView(text: "No S3 buckets")
                 }
             }

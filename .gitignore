@@ -1,4 +1,5 @@
 # Xcode
+.tmp/
 *.xcodeproj
 *.xcworkspace
 *.xcuserdata

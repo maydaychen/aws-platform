@@ -51,11 +51,9 @@ struct S3ObjectListView: View {
             }
         }
         .overlay {
-            if vm.isLoading {
-                ProgressView()
-            } else if let error = vm.error {
+            if !vm.isLoading, let error = vm.error {
                 EmptyStateView(text: error)
-            } else if vm.filteredObjects.isEmpty {
+            } else if !vm.isLoading && vm.filteredObjects.isEmpty {
                 EmptyStateView(text: "No objects at this prefix")
             }
         }

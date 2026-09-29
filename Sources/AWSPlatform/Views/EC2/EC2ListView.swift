@@ -55,11 +55,9 @@ struct EC2ListView: View {
                 .padding(.vertical, 4)
             }
             .overlay {
-                if vm.isLoading {
-                    ProgressView()
-                } else if let error = vm.error {
+                if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error)
-                } else if vm.filteredInstances.isEmpty {
+                } else if !vm.isLoading && vm.filteredInstances.isEmpty {
                     EmptyStateView(text: "No EC2 instances")
                 }
             }

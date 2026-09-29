@@ -37,6 +37,7 @@ struct DetailGrid: View {
 }
 
 struct ListToolbar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     let isLoading: Bool
     @Binding var searchText: String
@@ -50,6 +51,11 @@ struct ListToolbar: View {
                     .font(.headline)
                 Spacer()
                 if isLoading {
+                    HStack(spacing: 6) {
+                        if !reduceMotion { ProgressView().controlSize(.small) }
+                        Text("Refreshing…").font(.caption).foregroundColor(.secondary)
+                    }
+                    .transition(.opacity)
                     Button(action: onCancel) {
                         Image(systemName: "xmark.circle")
                     }
@@ -61,6 +67,7 @@ struct ListToolbar: View {
                 .disabled(isLoading)
                 .help("Refresh")
             }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isLoading)
             TextField("Search", text: $searchText)
                 .textFieldStyle(.roundedBorder)
         }

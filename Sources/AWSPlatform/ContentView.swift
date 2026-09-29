@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var profileVM = ProfileViewModel()
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
@@ -20,6 +21,9 @@ struct ContentView: View {
                 middlePane
                     .frame(minWidth: 320)
                 detailPane
+                    .contentTransition(reduceMotion ? .identity : .opacity)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
+                    .id([profileVM.selectedProfileID ?? "", profileVM.selectedRegion])
             }
         }
         .onAppear {
@@ -58,6 +62,14 @@ struct ContentView: View {
             } else {
                 S3BucketListView(vm: s3VM)
             }
+        }
+    }
+
+    private var detailSelectionID: String {
+        switch selectedService {
+        case .ec2: return "ec2/" + (ec2VM.selectedInstance?.instanceId ?? "")
+        case .lambda: return "lambda/" + (lambdaVM.selectedFunction?.functionName ?? "")
+        case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
         }
     }
 

@@ -113,6 +113,88 @@ final class ConfigReaderTests: XCTestCase {
         XCTAssertTrue(profiles[1].isSSO)
     }
 
+    func testNamedSSOSessionKeepsProfileResourceRegionAndIdentity() {
+        let profiles = ConfigReader.readProfiles(configContent: """
+        [default]
+        region = ap-south-1
+
+        [profile work]
+        region = ap-southeast-1
+        sso_session = company
+        sso_account_id = 111122223333
+        sso_role_name = ReadOnlyAccess
+
+        [sso-session company]
+        sso_start_url = https://example.invalid/start
+        sso_region = us-east-1
+        sso_registration_scopes = sso:account:access
+        """)
+
+        XCTAssertEqual(profiles.map(\.name), ["default", "work"])
+        XCTAssertFalse(profiles[0].isSSO)
+        XCTAssertTrue(profiles[1].isSSO)
+        XCTAssertEqual(profiles[1].region, "ap-southeast-1")
+        XCTAssertEqual(profiles[1].ssoAccountID, "111122223333")
+        XCTAssertEqual(profiles[1].ssoRoleName, "ReadOnlyAccess")
+        XCTAssertEqual(profiles[1].displayName, "work (ReadOnlyAccess)")
+    }
+
+    func testProfilesSharingSSOSessionKeepSeparateAccountsRolesAndRegions() {
+        let profiles = ConfigReader.readProfiles(configContent: """
+        [sso-session company]
+        sso_start_url = https://example.invalid/start
+        sso_region = us-east-1
+
+        [profile development]
+        sso_session = company
+        sso_account_id = 111122223333
+        sso_role_name = DeveloperAccess
+        region = eu-west-1
+
+        [profile production]
+        sso_session = company
+        sso_account_id = 444455556666
+        sso_role_name = ReadOnlyAccess
+        region = ap-southeast-1
+        """)
+
+        XCTAssertEqual(profiles.map(\.name), ["development", "production"])
+        XCTAssertTrue(profiles.allSatisfy(\.isSSO))
+        XCTAssertEqual(profiles.map(\.ssoAccountID), ["111122223333", "444455556666"])
+        XCTAssertEqual(profiles.map(\.ssoRoleName), ["DeveloperAccess", "ReadOnlyAccess"])
+        XCTAssertEqual(profiles.map(\.region), ["eu-west-1", "ap-southeast-1"])
+        XCTAssertEqual(Set(profiles.map(\.id)).count, 2)
+    }
+
+    func testInterleavedSSOSessionsDoNotBecomeProfilesOrOverrideProfileMetadata() {
+        let profiles = ConfigReader.readProfiles(configContent: """
+        [profile first]
+        sso_session = first-session
+        sso_account_id = 111122223333
+        sso_role_name = ReadOnlyAccess
+        region = eu-central-1
+
+        [sso-session first-session]
+        sso_start_url = https://first.example.invalid/start
+        sso_region = us-east-1
+
+        [profile second]
+        sso_session = second-session
+        sso_account_id = 444455556666
+        sso_role_name = DeveloperAccess
+
+        [sso-session second-session]
+        sso_start_url = https://second.example.invalid/start
+        sso_region = ap-southeast-1
+        """)
+
+        XCTAssertEqual(profiles.map(\.name), ["first", "second"])
+        XCTAssertTrue(profiles.allSatisfy(\.isSSO))
+        XCTAssertEqual(profiles.map(\.ssoAccountID), ["111122223333", "444455556666"])
+        XCTAssertEqual(profiles.map(\.ssoRoleName), ["ReadOnlyAccess", "DeveloperAccess"])
+        XCTAssertEqual(profiles.map(\.region), ["eu-central-1", "us-east-1"])
+    }
+
     func testReadProfilesIgnoresEmptyNamedProfile() {
         let profiles = ConfigReader.readProfiles(configContent: """
         [profile   ]

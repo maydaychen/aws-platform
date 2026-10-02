@@ -126,6 +126,29 @@ Profile 列表合并 `config` 和 `credentials` 中的名称，同名时使用 `
 
 默认配置路径下的 SSO 使用 Soto 的凭据提供器。自定义 `AWS_CONFIG_FILE` 下的 SSO 使用本机 AWS CLI v2 的 `configure export-credentials`；CLI 需安装在 `/opt/homebrew/bin/aws` 或 `/usr/local/bin/aws`（也支持 `/usr/bin/aws`），并支持该命令。应用只在内存管道中解析凭据，不显示或保存命令输出。登录时必须使用相同的环境变量和 Profile，完成后点击 `Retry Connection`。
 
+支持多个 Profile 共用一个具名 SSO session，例如：
+
+```ini
+[profile development]
+sso_session = company
+sso_account_id = 111122223333
+sso_role_name = DeveloperAccess
+region = eu-west-1
+
+[profile production]
+sso_session = company
+sso_account_id = 444455556666
+sso_role_name = ReadOnlyAccess
+region = ap-southeast-1
+
+[sso-session company]
+sso_start_url = https://example.awsapps.com/start
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+```
+
+将示例替换为实际配置后，执行 `aws sso login --profile development` 即可登录共用的 `company` session；在会话有效且具备对应账号／角色权限时，应用切换到 `production` 可复用登录状态。每个 Profile 仍独立决定账号、角色和资源 Region；`sso_region` 是身份中心区域。标准格式中一个 Profile 引用一个 session，不同 session 需要分别登录；应用不会自动枚举或创建其他账号的 Profile。配置方式见 [AWS CLI SSO 官方文档](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) 。
+
 Region 列表包含 SDK 已知的常用区域以及配置中的区域，也可以通过 Region 旁的编辑按钮输入其他区域代码。区域是否启用、所属分区和服务权限仍由 AWS 决定。
 
 Lambda 列表通过 `GetFunction` 补充状态和标签，最多同时读取 4 个函数。部分函数权限不足或读取失败时，列表仍保留，显示提示；状态筛选不包含状态未知的函数。相关权限至少包括 `lambda:ListFunctions` 和用于补充信息的 `lambda:GetFunction`。

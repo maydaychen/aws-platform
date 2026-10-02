@@ -4,10 +4,12 @@ import SwiftUI
 @main
 struct AWSPlatformApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var favoritesVM = FavoritesViewModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(favoritesVM)
                 .frame(minWidth: 960, minHeight: 600)
         }
         .windowResizability(.contentMinSize)

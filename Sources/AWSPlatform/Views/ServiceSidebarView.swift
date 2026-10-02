@@ -1,31 +1,28 @@
 import SwiftUI
 
-enum AWSService: String, CaseIterable, Identifiable {
-    case ec2 = "EC2"
-    case lambda = "Lambda"
-    case s3 = "S3"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .ec2:
-            return "server.rack"
-        case .lambda:
-            return "function"
-        case .s3:
-            return "externaldrive"
-        }
-    }
-}
-
 struct ServiceSidebarView: View {
     @Binding var selectedService: AWSService
+    @Binding var showingFavorites: Bool
 
     var body: some View {
         VStack(spacing: 8) {
+            Button {
+                showingFavorites = true
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: "star").font(.title3)
+                    Text("Favorites").font(.caption2)
+                }
+                .frame(width: 72, height: 60)
+                .background(showingFavorites ? Color.accentColor.opacity(0.18) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            Divider()
             ForEach(AWSService.allCases) { service in
                 Button {
+                    showingFavorites = false
                     selectedService = service
                 } label: {
                     VStack(spacing: 6) {
@@ -35,7 +32,7 @@ struct ServiceSidebarView: View {
                             .font(.caption2)
                     }
                     .frame(width: 72, height: 60)
-                    .background(selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .background(!showingFavorites && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)

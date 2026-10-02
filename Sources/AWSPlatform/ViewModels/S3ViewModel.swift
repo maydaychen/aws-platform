@@ -60,7 +60,7 @@ final class S3ViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider) {
+    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
         reset()
         self.provider = provider
         bucketLoader = {
@@ -71,7 +71,7 @@ final class S3ViewModel: ObservableObject {
             try await Self.fetchBucketDetails(bucket: bucket, provider: provider)
         }
         objectLoader = nil
-        refresh()
+        if refreshImmediately { refresh() }
     }
 
     func refresh() {

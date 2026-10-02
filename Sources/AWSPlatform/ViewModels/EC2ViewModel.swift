@@ -47,6 +47,7 @@ final class EC2ViewModel: ObservableObject {
     private var imageNameLoader: ImageNameLoader?
     private var healthLoader: HealthLoader?
     private var detailLoader: DetailLoader?
+    private var listGeneration = 0
 
     init(
         instanceLoader: InstanceLoader? = nil,
@@ -90,7 +91,7 @@ final class EC2ViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider) {
+    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
         instanceLoader = {
             let client = try await provider.ec2Client()
             return try await Self.fetchInstances(client: client)
@@ -108,7 +109,7 @@ final class EC2ViewModel: ObservableObject {
             return try await Self.fetchDetail(instanceId: instanceId, client: client)
         }
         reset()
-        refresh()
+        if refreshImmediately { refresh() }
     }
 
     func refresh() {
@@ -117,6 +118,7 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        listGeneration += 1
         loadTask?.cancel()
         isLoading = false
     }
@@ -136,14 +138,19 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func loadInstances() async {
-        guard let instanceLoader else { return }
+        guard !Task.isCancelled, let instanceLoader else { return }
+        listGeneration += 1
+        let generation = listGeneration
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        defer {
+            if generation == listGeneration { isLoading = false }
+        }
 
         do {
             let rows = try await instanceLoader()
             try Task.checkCancellation()
+            guard generation == listGeneration else { return }
 
             let imageIDs = Array(Set(rows.compactMap(\.imageId)))
             let imageNames: [String: String]
@@ -156,6 +163,7 @@ final class EC2ViewModel: ObservableObject {
             }
 
             try Task.checkCancellation()
+            guard generation == listGeneration else { return }
             let loadedInstances = rows.map { row in
                 EC2InstanceModel(
                     instanceId: row.instanceId,
@@ -188,6 +196,7 @@ final class EC2ViewModel: ObservableObject {
             }
 
             try Task.checkCancellation()
+            guard generation == listGeneration else { return }
             let selectedID = selectedInstance?.instanceId
             instances = loadedInstances
             instanceHealth = loadedHealth
@@ -202,7 +211,8 @@ final class EC2ViewModel: ObservableObject {
                 stateFilter = "All"
             }
         } catch {
-            if error is CancellationError { return }
+            guard generation == listGeneration, !Task.isCancelled,
+                  !(error is CancellationError) else { return }
             instances = []
             selectedInstance = nil
             instanceHealth = [:]
@@ -236,7 +246,7 @@ final class EC2ViewModel: ObservableObject {
                 instanceHealth[instanceId] = health
             }
         } catch {
-            if error is CancellationError { return }
+            if Task.isCancelled || error is CancellationError { return }
             guard selectedInstance?.instanceId == instanceId else { return }
             detailError = UserFacingError.message(for: error)
         }

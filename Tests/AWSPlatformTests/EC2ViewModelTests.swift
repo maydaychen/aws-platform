@@ -2,6 +2,29 @@ import XCTest
 @testable import AWSPlatform
 
 final class EC2ViewModelTests: XCTestCase {
+    @MainActor
+    func testOldListFailureCannotClearNewFavoriteDestination() async {
+        let gate = TestGate()
+        let instance = makeInstance(imageID: nil)
+        var calls = 0
+        let vm = EC2ViewModel(instanceLoader: {
+            calls += 1
+            if calls == 1 {
+                await gate.wait()
+                throw TestError.failed
+            }
+            return [instance]
+        })
+        let old = Task { await vm.loadInstances() }
+        await gate.waitForEntry()
+        vm.reset()
+        await vm.loadInstances()
+        await gate.open()
+        await old.value
+        XCTAssertEqual(vm.instances, [instance])
+        XCTAssertNil(vm.error)
+    }
+
     func testImageLookupFailureKeepsInstancesVisible() async {
         let instance = makeInstance(imageID: "ami-123")
         let vm = await MainActor.run {

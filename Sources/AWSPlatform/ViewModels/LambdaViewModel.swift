@@ -78,7 +78,7 @@ final class LambdaViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider) {
+    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
         reset()
         self.provider = provider
         functionLoader = {
@@ -101,7 +101,7 @@ final class LambdaViewModel: ObservableObject {
             let client = try await provider.lambdaClient()
             return try await Self.fetchDetail(functionName: functionName, client: client)
         }
-        refresh()
+        if refreshImmediately { refresh() }
     }
 
     func refresh() {
@@ -226,7 +226,7 @@ final class LambdaViewModel: ObservableObject {
                 selectedFunction = functions[index]
             }
         } catch {
-            if error is CancellationError { return }
+            if Task.isCancelled || error is CancellationError { return }
             guard selectedFunction?.functionName == functionName else { return }
             detailError = UserFacingError.message(for: error)
         }
@@ -328,7 +328,7 @@ final class LambdaViewModel: ObservableObject {
             functions[index] = updated
             selectedFunction = updated
         } catch {
-            if error is CancellationError { return }
+            if Task.isCancelled || error is CancellationError { return }
             guard selectedFunction?.functionName == functionName else { return }
             codeError = UserFacingError.message(for: error)
         }

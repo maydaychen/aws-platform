@@ -2,20 +2,23 @@
 
 ## 当前阶段
 
-只读浏览审查的 5 项修复已完成本地回归，等待用户进行真实 AWS 账号验收。
+只读浏览审查的 5 项修复和本地资源收藏已完成本地回归，等待用户进行真实 AWS 账号验收。
 
 ## 最近完成
 
+- 2026-10-03 02:33：增加 EC2、Lambda、S3 Bucket 本地收藏、搜索、取消收藏和侧栏快捷入口；按 Profile、账号、浏览 Region、服务和资源 ID 隔离，打开时恢复作用域并校验账号。不可用收藏保留并提示，损坏存储保留原始数据且禁用编辑。补充 EC2 列表请求代次校验，阻止旧请求错误清空新收藏目标列表。
 - 2026-10-03 01:10：修复 S3 列表、详情和对象请求的过期结果／错误回填；补全 Lambda 列表状态与标签并限制补充请求并发为 4；增加连接重试与凭据客户端重建；合并 config／credentials Profile 并支持自定义路径；扩展 Region 选择与手动输入。自定义配置路径的 SSO 使用本机 AWS CLI v2 凭据桥接，输出仅在内存中解析。
 - 2026-09-29 16:40：刷新等待态移入列表工具栏并短暂淡化，刷新期间保留资源行；详情文本按资源身份交接，保留详情页状态，Profile／Region 切换重置展示作用域，支持系统减少动态效果。请求和权限逻辑未变。
 
 ## 最近验证
 
+- 2026-10-03 02:35：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过；新增 14 项收藏存储／导航测试和 1 项先失败后修复的 EC2 迟到错误回归。覆盖持久化、去重、损坏数据保护、搜索、账号隔离、资源定位及失效收藏保留。模拟数据的独立收藏组件完成浅色／深色离线渲染检查，文字与星标可辨；`git diff --check` 通过。未调用真实 AWS，未验收完整窗口交互或 macOS 13 运行时。
 - 2026-10-03 01:10：先以两个失败回归复现 S3 重置后旧数据回填、旧错误清空新数据；最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，51 项测试通过，较原有增加 20 项。覆盖迟到成功／失败、目录切换、加载状态归属、Lambda 状态缺失与权限降级、连接重试、配置路径、Region 恢复及凭据输出隔离。`git diff --check` 通过；未连接真实 AWS，未运行实际 CLI 凭据导出，未验证窗口渲染。
 - 2026-09-29 16:40：最终代码 `swift test` 构建成功，31 项模拟服务单元测试通过；`git diff --check` 通过。未调用真实 AWS 服务，macOS 13 运行时、窗口视觉及真实账号切换仍需后续验收。
 
 ## 已完成
 
+- 本地资源收藏、搜索与定位；仅保存资源定位元数据，应用窗口共享列表，重启后恢复。
 - SwiftUI 三栏界面和 Profile、Region、服务切换。
 - EC2 实例列表、分页、搜索、实例状态筛选、Status Check 筛选和 AMI 名称降级加载。
 - EC2 五页签详情：Overview、Network、Storage、Security、Status。
@@ -31,7 +34,7 @@
 - 过滤 AWS 配置中的 `sso-session`、`services` 等非 Profile section。
 - 移除应用内 SSO 登录和 Lambda Invoke，保持只读产品边界。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3 和自定义 SSO 凭据桥接的 51 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、收藏存储／导航和自定义 SSO 凭据桥接的 66 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
@@ -39,6 +42,7 @@
 - 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 正常路径和权限不足路径。
 - macOS 窗口布局、长文本和源码浏览交互验收。
 - 用户验收重点：首次 SSO 失败后终端登录并重试；仅 credentials 的 Profile；自定义配置路径的普通凭据和 SSO；列表外 Region；快速切换账号／S3 目录；Lambda 部分 GetFunction 无权限。
+- 收藏真实账号验收：三个服务的添加／取消／搜索、重启恢复、跨 Profile／Region 定位、快速连续打开；Profile 缺失、账号变更、资源删除和权限不足时保留收藏并提示。
 
 ## 待办
 

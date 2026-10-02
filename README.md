@@ -9,6 +9,7 @@ macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **多 Profile 支持** - 快速切换 AWS 配置文件和 Region
 - **连接恢复** - 终端登录或配置文件变更后，使用 `Retry Connection` 重新加载并验证
+- **资源收藏** - 本地保存 EC2 实例、Lambda 函数和 S3 Bucket，搜索并恢复收藏时的 Profile 和 Region
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
 
@@ -52,6 +53,14 @@ open Package.swift
 
 在 Xcode 中直接 Cmd+R 运行。
 
+### 资源收藏
+
+在资源详情顶部点击 `Add Favorite` 收藏，再次点击 `Remove Favorite` 取消。侧栏 `Favorites`（快捷键 `Cmd+Shift+F`）集中展示收藏，可按资源名称、ID、服务、Profile、账号或 Region 搜索；点击条目打开资源，点击星标或使用右键菜单移除收藏。
+
+打开收藏时，应用切换到保存的 Profile 和 Region，校验当前账号，再刷新列表并定位资源。Profile 缺失、账号不匹配、资源已删除或访问失败时会显示提示，收藏仍会保留。S3 收藏保存的是收藏时的浏览 Region，Bucket 实际位置由现有加载流程另行解析。
+
+收藏通过本机 UserDefaults 保存，重启后恢复，同一应用进程的多个窗口共享收藏列表。保存内容仅包含 Profile 名称、账号 ID、Region、服务、资源 ID 和显示名称；不保存凭据、资源详情或环境变量，不进行云端同步。相同资源在不同 Profile、账号或浏览 Region 下分别保存。
+
 ## 项目结构
 
 ```
@@ -60,6 +69,8 @@ Sources/AWSPlatform/
 ├── ContentView.swift            # 主视图
 ├── Models/                      # 数据模型
 │   ├── AWSProfile.swift
+│   ├── AWSService.swift
+│   ├── ResourceFavorite.swift
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   └── S3Bucket.swift
@@ -71,6 +82,8 @@ Sources/AWSPlatform/
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
 │   ├── EC2ViewModel.swift
+│   ├── FavoriteNavigation.swift
+│   ├── FavoritesViewModel.swift
 │   ├── LambdaViewModel.swift
 │   ├── ProfileViewModel.swift
 │   └── S3ViewModel.swift
@@ -78,6 +91,7 @@ Sources/AWSPlatform/
     ├── EC2/
     ├── Lambda/
     ├── S3/
+    ├── FavoritesListView.swift
     ├── ProfileBarView.swift
     ├── ServiceSidebarView.swift
     └── SharedViews.swift

@@ -16,6 +16,12 @@ struct EC2DetailView: View {
     @ObservedObject var vm: EC2ViewModel
     @State private var selectedTab: Tab = .overview
 
+    init(instance: EC2InstanceModel, vm: EC2ViewModel, tab: Tab = .overview) {
+        self.instance = instance
+        self.vm = vm
+        _selectedTab = State(initialValue: tab)
+    }
+
     private var detail: EC2InstanceDetailModel? {
         guard vm.instanceDetail?.instanceId == instance.instanceId else { return nil }
         return vm.instanceDetail
@@ -55,20 +61,25 @@ struct EC2DetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(instance.name)
                         .font(.title2)
                         .fontWeight(.semibold)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                        .help(instance.name)
                     HStack(spacing: 6) {
                         Text(instance.instanceId)
-                            .font(.caption)
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.secondary)
+                            .textSelection(.enabled)
                         copyButton(instance.instanceId, label: "Copy instance ID")
                     }
                 }
                 Spacer()
                 statusBadge
+                    .fixedSize()
             }
 
             if let detailError = vm.detailError {
@@ -329,17 +340,10 @@ struct EC2DetailView: View {
     }
 
     private func warningBanner(_ warnings: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label("Some EC2 details could not be loaded", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundColor(.orange)
-            ForEach(warnings, id: \.self) { warning in
-                Text(warning)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+        ScrollView {
+            NoticeBanner(message: (["Some EC2 details could not be loaded"] + warnings).joined(separator: "\n"))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: 100)
         .padding(.horizontal)
         .padding(.bottom, 8)
     }
@@ -376,26 +380,11 @@ struct EC2DetailView: View {
     }
 
     private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
+        DetailSectionTitle(title: title)
     }
 
     private func keyValueRows(_ values: [String: String]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(values.keys.sorted(), id: \.self) { key in
-                HStack(alignment: .top) {
-                    Text(key)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Text(values[key] ?? "")
-                        .foregroundColor(.secondary)
-                        .textSelection(.enabled)
-                }
-                .font(.caption)
-                .padding(.vertical, 6)
-                Divider()
-            }
-        }
+        DetailKeyValueRows(values: values)
     }
 
     private func emptyDetail(_ text: String) -> some View {
@@ -417,6 +406,7 @@ struct EC2DetailView: View {
         }
         .buttonStyle(.borderless)
         .help(label)
+        .accessibilityLabel(label)
     }
 
     private var stateColor: Color {

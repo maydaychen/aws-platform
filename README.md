@@ -10,8 +10,15 @@ macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
 - **多 Profile 支持** - 快速切换 AWS 配置文件和 Region
 - **连接恢复** - 终端登录或配置文件变更后，使用 `Retry Connection` 重新加载并验证
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数和 S3 Bucket，搜索并恢复收藏时的 Profile 和 Region
+- **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
+
+以下是使用模拟资源渲染的应用组件示例：
+
+![浅色 EC2 概览](docs/ui-overview-light.png)
+
+![深色 Lambda 代码页](docs/ui-code-dark.png)
 
 ## 技术栈
 

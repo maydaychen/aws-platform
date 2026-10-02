@@ -5,40 +5,51 @@ struct ServiceSidebarView: View {
     @Binding var showingFavorites: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("WORKSPACE")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
             Button {
                 showingFavorites = true
             } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: "star").font(.title3)
-                    Text("Favorites").font(.caption2)
-                }
-                .frame(width: 72, height: 60)
+                Label("Favorites", systemImage: showingFavorites ? "star.fill" : "star")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
                 .background(showingFavorites ? Color.accentColor.opacity(0.18) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
             .keyboardShortcut("f", modifiers: [.command, .shift])
-            Divider()
+            Text("SERVICES")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
             ForEach(AWSService.allCases) { service in
                 Button {
                     showingFavorites = false
                     selectedService = service
                 } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: service.icon)
-                            .font(.title3)
-                        Text(service.rawValue)
-                            .font(.caption2)
-                    }
-                    .frame(width: 72, height: 60)
+                    Label(service.rawValue, systemImage: service.icon)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
                     .background(!showingFavorites && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }
             Spacer()
+            Label("Read only", systemImage: "lock")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(10)
         }
-        .padding(12)
+        .padding(8)
+        .frame(width: 144)
+        .frame(maxHeight: .infinity)
+        .background(.bar)
     }
 }

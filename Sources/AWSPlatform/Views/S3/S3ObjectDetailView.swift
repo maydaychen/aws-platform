@@ -6,9 +6,14 @@ struct S3ObjectDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(object.key)
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(object.isPrefix ? "FOLDER" : "S3 OBJECT", systemImage: object.isPrefix ? "folder" : "doc")
+                        .font(.caption).foregroundColor(.secondary)
+                    Text(object.key)
+                        .font(.title3.weight(.semibold))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 DetailGrid(items: [
                     ("Type", object.isPrefix ? "Prefix" : "Object"),
@@ -18,6 +23,7 @@ struct S3ObjectDetailView: View {
                 ])
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

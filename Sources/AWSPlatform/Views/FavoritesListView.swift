@@ -13,16 +13,13 @@ struct FavoritesListView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Favorites").font(.headline)
-                TextField("Search favorites", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
+                ResourceSearchField(text: $searchText, placeholder: "Search favorites")
             }
             .padding(12)
+            Divider()
 
             if let error = vm.storageError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .textSelection(.enabled)
+                NoticeBanner(message: error)
                     .padding(.horizontal, 12)
             }
 
@@ -53,7 +50,7 @@ struct FavoritesListView: View {
                     Button {
                         vm.remove(favorite)
                     } label: {
-                        Image(systemName: "star.fill").foregroundColor(.yellow)
+                        Image(systemName: "star.fill").foregroundColor(.orange)
                     }
                     .buttonStyle(.borderless)
                     .disabled(vm.storageError != nil)
@@ -67,15 +64,17 @@ struct FavoritesListView: View {
                         .disabled(vm.storageError != nil)
                 }
             }
+            .listStyle(.inset)
             .overlay {
                 if filtered.isEmpty {
                     EmptyStateView(text: vm.favorites.isEmpty
                         ? "Star an EC2 instance, Lambda function, or S3 bucket to save it here."
-                        : "No matching favorites")
+                        : "No matching favorites", icon: "star")
                     .padding()
                     .allowsHitTesting(false)
                 }
             }
+            ResourceListFooter(visible: filtered.count, total: vm.favorites.count)
         }
     }
 }

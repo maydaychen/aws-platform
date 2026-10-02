@@ -23,9 +23,7 @@ struct ContentView: View {
             }
             if let message = favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
-                    Image(systemName: "exclamationmark.triangle").foregroundColor(.orange)
-                    Text(message).font(.caption).textSelection(.enabled)
-                    Spacer()
+                    NoticeBanner(message: message)
                     if favoriteNavigation.error != nil {
                         Button("Dismiss") { favoriteNavigation.cancel() }
                     }
@@ -37,9 +35,10 @@ struct ContentView: View {
             HSplitView {
                 ServiceSidebarView(selectedService: $selectedService, showingFavorites: $showingFavorites)
                 middlePane
-                    .frame(minWidth: 320)
+                    .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
                     .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil))
                 resourceDetail
+                    .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                     .contentTransition(reduceMotion ? .identity : .opacity)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
                     .id([profileVM.selectedProfileID ?? "", profileVM.selectedRegion])
@@ -105,7 +104,7 @@ struct ContentView: View {
     @ViewBuilder
     private var resourceDetail: some View {
         if showingFavorites {
-            EmptyStateView(text: "Open a favorite to switch to its saved profile and region.")
+            EmptyStateView(text: "Open a favorite to switch to its saved profile and region.", icon: "star")
                 .padding()
         } else if let target = favoriteNavigation.target {
             VStack(spacing: 12) {
@@ -119,6 +118,8 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 if let favorite = currentFavorite {
                     HStack {
+                        Label(selectedService.rawValue, systemImage: selectedService.icon)
+                            .font(.caption).foregroundColor(.secondary)
                         Spacer()
                         Button {
                             favoritesVM.toggle(favorite)
@@ -130,7 +131,8 @@ struct ContentView: View {
                         .help("Save this resource with its current account, profile, and region")
                     }
                     .padding(.horizontal)
-                    .padding(.top, 8)
+                    .padding(.vertical, 8)
+                    .overlay(alignment: .bottom) { Divider() }
                 }
                 detailPane
             }
@@ -190,13 +192,13 @@ struct ContentView: View {
             if let instance = ec2VM.selectedInstance {
                 EC2DetailView(instance: instance, vm: ec2VM)
             } else {
-                EmptyStateView(text: "Select an EC2 instance")
+                EmptyStateView(text: "Select an EC2 instance", icon: "server.rack")
             }
         case .lambda:
             if let function = lambdaVM.selectedFunction {
                 LambdaDetailView(function: function, vm: lambdaVM)
             } else {
-                EmptyStateView(text: "Select a Lambda function")
+                EmptyStateView(text: "Select a Lambda function", icon: "function")
             }
         case .s3:
             if let bucket = s3VM.selectedBucket, s3BrowsingBucket == nil {
@@ -214,17 +216,20 @@ struct ContentView: View {
                         Spacer()
                         Text(bucketName)
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(bucketName)
                     }
                     .padding()
                     Divider()
                     if let object = s3VM.selectedObject {
                         S3ObjectDetailView(object: object)
                     } else {
-                        EmptyStateView(text: "Select an object or folder")
+                        EmptyStateView(text: "Select an object or folder", icon: "doc")
                     }
                 }
             } else {
-                EmptyStateView(text: "Select an S3 bucket")
+                EmptyStateView(text: "Select an S3 bucket", icon: "externaldrive")
             }
         }
     }

@@ -21,25 +21,34 @@ struct S3ObjectListView: View {
                     Text(vm.currentPrefix)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(vm.currentPrefix)
                     Spacer()
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(nsColor: .controlBackgroundColor))
             }
+            Divider()
 
             List(vm.filteredObjects, selection: $vm.selectedObject) { object in
                 HStack {
                     Image(systemName: object.isPrefix ? "folder" : "doc")
                         .foregroundColor(object.isPrefix ? .blue : .secondary)
                     Text(lastComponent(of: object.key))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(object.key)
                     Spacer()
                     if let size = object.size {
                         Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .fixedSize()
                     }
                 }
+                .padding(.vertical, 4)
+                .tag(object)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if object.isPrefix {
@@ -49,13 +58,15 @@ struct S3ObjectListView: View {
                     }
                 }
             }
-        }
-        .overlay {
-            if !vm.isLoading, let error = vm.error {
-                EmptyStateView(text: error)
-            } else if !vm.isLoading && vm.filteredObjects.isEmpty {
-                EmptyStateView(text: "No objects at this prefix")
+            .listStyle(.inset)
+            .overlay {
+                if !vm.isLoading, let error = vm.error {
+                    EmptyStateView(text: error, icon: "exclamationmark.triangle")
+                } else if !vm.isLoading && vm.filteredObjects.isEmpty {
+                    EmptyStateView(text: vm.objects.isEmpty ? "No objects at this prefix" : "No matching objects", icon: "folder")
+                }
             }
+            ResourceListFooter(visible: vm.filteredObjects.count, total: vm.objects.count)
         }
     }
 

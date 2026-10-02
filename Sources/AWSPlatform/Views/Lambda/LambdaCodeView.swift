@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LambdaCodeView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let function: LambdaFunctionModel
 
     @State private var selectedFileID: LambdaCodeFile.ID?
@@ -16,11 +17,15 @@ struct LambdaCodeView: View {
                     List(function.codeFiles, selection: $selectedFileID) { file in
                         Label(file.path, systemImage: file.isBinary ? "doc" : "doc.text")
                             .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(file.path)
                     }
-                    .frame(minWidth: 180, idealWidth: 240)
+                    .listStyle(.inset)
+                    .frame(minWidth: 140, idealWidth: 180, maxWidth: 240)
 
                     codePreview
-                        .frame(minWidth: 320)
+                        .frame(minWidth: 300)
                 }
                 .onAppear(perform: selectFirstFileIfNeeded)
                 .onChange(of: function.functionName) { _ in
@@ -43,6 +48,7 @@ struct LambdaCodeView: View {
                 Text(imageUri)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -56,6 +62,9 @@ struct LambdaCodeView: View {
                 Text(file.path)
                     .font(.caption)
                     .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(file.path)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
                     .background(Color(nsColor: .controlBackgroundColor))
@@ -63,7 +72,8 @@ struct LambdaCodeView: View {
                 if let content = file.content {
                     ScrollView([.horizontal, .vertical]) {
                         highlightedText(content, path: file.path)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(size: 12, design: .monospaced))
+                            .lineSpacing(4)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -112,7 +122,7 @@ struct LambdaCodeView: View {
             }
 
             let token = String(content[matchRange])
-            result = result + Text(token).foregroundColor(Self.color(for: token))
+            result = result + Text(token).foregroundColor(color(for: token))
             cursor = matchRange.upperBound
         }
 
@@ -122,12 +132,12 @@ struct LambdaCodeView: View {
         return result
     }
 
-    private static func color(for token: String) -> Color {
+    private func color(for token: String) -> Color {
         if token.hasPrefix("//") || token.hasPrefix("#") {
-            return .green
+            return .secondary
         }
         if token.hasPrefix("\"") || token.hasPrefix("'") {
-            return .orange
+            return colorScheme == .dark ? .orange : .brown
         }
         if token.first?.isNumber == true {
             return .blue

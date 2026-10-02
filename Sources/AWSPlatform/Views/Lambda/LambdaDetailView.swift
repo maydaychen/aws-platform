@@ -17,6 +17,12 @@ struct LambdaDetailView: View {
     @State private var selectedTab: Tab = .overview
     @State private var revealedEnvironmentKeys: Set<String> = []
 
+    init(function: LambdaFunctionModel, vm: LambdaViewModel, tab: Tab = .overview) {
+        self.function = function
+        self.vm = vm
+        _selectedTab = State(initialValue: tab)
+    }
+
     private var detail: LambdaFunctionDetailModel? {
         guard vm.functionDetail?.functionName == function.functionName else { return nil }
         return vm.functionDetail
@@ -57,23 +63,29 @@ struct LambdaDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(function.functionName)
                         .font(.title2)
                         .fontWeight(.semibold)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                        .help(function.functionName)
                     if let arn = function.arn {
                         HStack(spacing: 6) {
                             Text(arn)
-                                .font(.caption)
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(arn)
                             copyButton(arn, label: "Copy function ARN")
                         }
                     }
                 }
                 Spacer()
                 statusBadge
+                    .fixedSize()
             }
 
             if let detailError = vm.detailError {
@@ -405,41 +417,45 @@ struct LambdaDetailView: View {
     private var environmentSection: some View {
         sectionTitle("Environment Variables")
         if let environment = detail?.environment, !environment.isEmpty {
-            VStack(spacing: 0) {
+            VStack(spacing: 8) {
                 ForEach(environment.keys.sorted(), id: \.self) { key in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text(key)
-                            .fontWeight(.medium)
-                            .frame(minWidth: 120, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(key)
+                                .font(.caption.weight(.medium))
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Button {
+                                if revealedEnvironmentKeys.contains(key) {
+                                    revealedEnvironmentKeys.remove(key)
+                                } else {
+                                    revealedEnvironmentKeys.insert(key)
+                                }
+                            } label: {
+                                Image(systemName: revealedEnvironmentKeys.contains(key) ? "eye.slash" : "eye")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(revealedEnvironmentKeys.contains(key) ? "Hide value" : "Reveal value")
+                            .accessibilityLabel(revealedEnvironmentKeys.contains(key) ? "Hide \(key)" : "Reveal \(key)")
+                            if revealedEnvironmentKeys.contains(key), let value = environment[key] {
+                                copyButton(value, label: "Copy environment value")
+                            }
+                        }
                         if revealedEnvironmentKeys.contains(key) {
                             Text(environment[key] ?? "")
                                 .font(.system(.caption, design: .monospaced))
                                 .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
                         } else {
                             Text("••••••••")
                                 .foregroundColor(.secondary)
                         }
-                        Spacer()
-                        Button {
-                            if revealedEnvironmentKeys.contains(key) {
-                                revealedEnvironmentKeys.remove(key)
-                            } else {
-                                revealedEnvironmentKeys.insert(key)
-                            }
-                        } label: {
-                            Image(systemName: revealedEnvironmentKeys.contains(key)
-                                ? "eye.slash"
-                                : "eye")
-                        }
-                        .buttonStyle(.borderless)
-                        .help(revealedEnvironmentKeys.contains(key) ? "Hide value" : "Reveal value")
-                        if revealedEnvironmentKeys.contains(key), let value = environment[key] {
-                            copyButton(value, label: "Copy environment value")
-                        }
                     }
                     .font(.caption)
-                    .padding(.vertical, 7)
-                    Divider()
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         } else {
@@ -517,42 +533,20 @@ struct LambdaDetailView: View {
     }
 
     private func warningBanner(_ warnings: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label("Some Lambda details could not be loaded", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundColor(.orange)
-            ForEach(warnings, id: \.self) { warning in
-                Text(warning)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+        ScrollView {
+            NoticeBanner(message: (["Some Lambda details could not be loaded"] + warnings).joined(separator: "\n"))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: 100)
         .padding(.horizontal)
         .padding(.bottom, 8)
     }
 
     private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
+        DetailSectionTitle(title: title)
     }
 
     private func keyValueRows(_ values: [String: String]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(values.keys.sorted(), id: \.self) { key in
-                HStack(alignment: .top) {
-                    Text(key)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Text(values[key] ?? "")
-                        .foregroundColor(.secondary)
-                        .textSelection(.enabled)
-                }
-                .font(.caption)
-                .padding(.vertical, 6)
-                Divider()
-            }
-        }
+        DetailKeyValueRows(values: values)
     }
 
     private func emptyDetail(_ text: String) -> some View {
@@ -574,6 +568,7 @@ struct LambdaDetailView: View {
         }
         .buttonStyle(.borderless)
         .help(label)
+        .accessibilityLabel(label)
     }
 
     private var statusColor: Color {

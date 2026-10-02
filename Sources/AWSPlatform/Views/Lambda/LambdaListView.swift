@@ -28,13 +28,10 @@ struct LambdaListView: View {
             .labelsHidden()
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor))
+            Divider()
 
             if let warning = vm.summaryWarning {
-                Text(warning)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .textSelection(.enabled)
+                NoticeBanner(message: warning)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
             }
@@ -44,6 +41,8 @@ struct LambdaListView: View {
                     HStack {
                         Text(function.functionName)
                             .fontWeight(.medium)
+                            .lineLimit(1)
+                            .help(function.functionName)
                         Spacer()
                         statusIndicator(for: function)
                     }
@@ -55,22 +54,23 @@ struct LambdaListView: View {
                         if let memorySize = function.memorySize {
                             Text("\(memorySize) MB")
                         }
-                        if let lastModified = function.lastModified {
-                            Text(lastModified)
-                        }
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
                 }
                 .padding(.vertical, 4)
+                .tag(function)
             }
+            .listStyle(.inset)
             .overlay {
                 if !vm.isLoading, let error = vm.error {
-                    EmptyStateView(text: error)
+                    EmptyStateView(text: error, icon: "exclamationmark.triangle")
                 } else if !vm.isLoading && vm.filteredFunctions.isEmpty {
-                    EmptyStateView(text: "No Lambda functions")
+                    EmptyStateView(text: vm.functions.isEmpty ? "No Lambda functions in this region" : "No matching functions. Try another search or filter.", icon: "function")
                 }
             }
+            ResourceListFooter(visible: vm.filteredFunctions.count, total: vm.functions.count)
         }
     }
 

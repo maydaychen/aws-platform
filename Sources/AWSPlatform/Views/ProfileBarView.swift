@@ -8,12 +8,14 @@ struct ProfileBarView: View {
     @State private var regionError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Label("AWS Platform", systemImage: "cloud.fill")
                     .font(.headline)
-                profileStatusView
                 Spacer()
+                profileStatusView
+            }
+            HStack(spacing: 12) {
                 Picker("Profile", selection: Binding(
                     get: { vm.selectedProfileID ?? "" },
                     set: { vm.selectProfile(id: $0) }
@@ -26,7 +28,7 @@ struct ProfileBarView: View {
                         }
                     }
                 }
-                .frame(width: 220)
+                .frame(minWidth: 180, idealWidth: 250, maxWidth: 320)
                 .disabled(vm.profiles.isEmpty)
 
                 Picker("Region", selection: $vm.selectedRegion) {
@@ -34,7 +36,7 @@ struct ProfileBarView: View {
                         Text(region).tag(region)
                     }
                 }
-                .frame(width: 160)
+                .frame(width: 210)
                 Button {
                     customRegion = vm.selectedRegion
                     regionError = nil
@@ -43,6 +45,7 @@ struct ProfileBarView: View {
                     Image(systemName: "pencil")
                 }
                 .help("Enter another AWS region")
+                .accessibilityLabel("Enter another AWS region")
                 .popover(isPresented: $isCustomRegionPresented) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("AWS Region").font(.headline)
@@ -57,22 +60,18 @@ struct ProfileBarView: View {
                     .padding()
                     .frame(width: 280)
                 }
-            }
-            HStack(alignment: .top, spacing: 12) {
+                Spacer(minLength: 0)
                 Button("Retry Connection", action: onRetry)
                     .disabled(vm.isValidatingProfile)
                     .help("Reload profiles and revalidate credentials after signing in")
-                if case .failed(let message) = vm.profileStatus {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .textSelection(.enabled)
-                }
-                Spacer(minLength: 0)
+            }
+            if case .failed(let message) = vm.profileStatus {
+                NoticeBanner(message: message)
             }
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+        .background(.bar)
     }
 
     private func applyCustomRegion() {
@@ -89,11 +88,14 @@ struct ProfileBarView: View {
         case .idle:
             EmptyView()
         case .checking:
-            ProgressView()
-                .controlSize(.small)
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Checking connection…").font(.caption).foregroundColor(.secondary)
+            }
                 .help("Checking AWS profile")
         case .valid(let identity):
             Label(identity.account, systemImage: "checkmark.circle.fill")
+                .font(.caption.monospacedDigit())
                 .foregroundColor(.green)
                 .help(identity.arn)
         case .failed(let message):

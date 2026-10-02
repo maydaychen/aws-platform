@@ -7,9 +7,14 @@ struct S3BucketDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(bucket.name)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("S3 BUCKET", systemImage: "externaldrive")
+                        .font(.caption).foregroundColor(.secondary)
+                    Text(bucket.name)
+                        .font(.title2.weight(.semibold))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 DetailGrid(items: detailItems)
 
@@ -17,22 +22,16 @@ struct S3BucketDetailView: View {
                     .buttonStyle(.borderedProminent)
 
                 if let detailError = bucket.detailError {
-                    Text(detailError)
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .textSelection(.enabled)
+                    NoticeBanner(message: detailError)
                 }
 
                 if !bucket.tags.isEmpty {
-                    Text("Tags")
-                        .font(.headline)
-                    ForEach(bucket.tags.keys.sorted(), id: \.self) { key in
-                        Text("\(key): \(bucket.tags[key] ?? "")")
-                            .font(.caption)
-                    }
+                    DetailSectionTitle(title: "Tags")
+                    DetailKeyValueRows(values: bucket.tags)
                 }
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

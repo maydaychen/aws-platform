@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ProfileBarView: View {
     @ObservedObject var vm: ProfileViewModel
+    let onRetry: () -> Void
+    @State private var isCustomRegionPresented = false
+    @State private var customRegion = ""
+    @State private var regionError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -31,16 +35,52 @@ struct ProfileBarView: View {
                     }
                 }
                 .frame(width: 160)
+                Button {
+                    customRegion = vm.selectedRegion
+                    regionError = nil
+                    isCustomRegionPresented = true
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .help("Enter another AWS region")
+                .popover(isPresented: $isCustomRegionPresented) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("AWS Region").font(.headline)
+                        TextField("Region code", text: $customRegion)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(applyCustomRegion)
+                        if let regionError {
+                            Text(regionError).font(.caption).foregroundColor(.orange)
+                        }
+                        Button("Use Region", action: applyCustomRegion)
+                    }
+                    .padding()
+                    .frame(width: 280)
+                }
             }
-            if case .failed(let message) = vm.profileStatus {
-                Text(message)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .textSelection(.enabled)
+            HStack(alignment: .top, spacing: 12) {
+                Button("Retry Connection", action: onRetry)
+                    .disabled(vm.isValidatingProfile)
+                    .help("Reload profiles and revalidate credentials after signing in")
+                if case .failed(let message) = vm.profileStatus {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .textSelection(.enabled)
+                }
+                Spacer(minLength: 0)
             }
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+    }
+
+    private func applyCustomRegion() {
+        if vm.selectCustomRegion(customRegion) {
+            isCustomRegionPresented = false
+        } else {
+            regionError = "Enter a region code such as eu-central-2."
+        }
     }
 
     @ViewBuilder

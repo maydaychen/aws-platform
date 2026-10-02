@@ -1,4 +1,5 @@
 import Foundation
+import SotoCore
 
 @MainActor
 final class ProfileViewModel: ObservableObject {
@@ -18,13 +19,36 @@ final class ProfileViewModel: ObservableObject {
 
     let provider = AWSServiceProvider()
 
-    let availableRegions = [
-        "us-east-1", "us-east-2", "us-west-1", "us-west-2",
-        "ap-south-1", "ap-northeast-1", "ap-northeast-2",
-        "ap-southeast-1", "ap-southeast-2",
-        "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
-        "ca-central-1", "sa-east-1"
+    private static let knownRegions: [Region] = [
+        .afsouth1, .apeast1, .apeast2, .apnortheast1, .apnortheast2, .apnortheast3,
+        .apsouth1, .apsouth2, .apsoutheast1, .apsoutheast2, .apsoutheast3,
+        .apsoutheast4, .apsoutheast5, .apsoutheast6, .apsoutheast7,
+        .cacentral1, .cawest1, .cnnorth1, .cnnorthwest1, .eucentral1, .eucentral2,
+        .eunorth1, .eusouth1, .eusouth2, .euwest1, .euwest2, .euwest3,
+        .euscdeeast1, .ilcentral1, .mecentral1, .mesouth1, .mxcentral1, .saeast1,
+        .useast1, .useast2, .uswest1, .uswest2, .usgoveast1, .usgovwest1
     ]
+
+    var availableRegions: [String] {
+        Set(Self.knownRegions.map(\.rawValue) + profiles.map(\.region) + [selectedRegion])
+            .filter { !$0.isEmpty }.sorted()
+    }
+
+    var isProfileReady: Bool {
+        if case .valid = profileStatus { return true }
+        return false
+    }
+
+    @discardableResult
+    func selectCustomRegion(_ input: String) -> Bool {
+        let region = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard region.range(of: "^[a-z]{2}(?:-[a-z0-9]+)+-[0-9]+$", options: .regularExpression) != nil else {
+            return false
+        }
+        selectedRegion = region
+        saveSelection()
+        return true
+    }
 
     init(
         defaults: UserDefaults = .standard,
@@ -62,7 +86,13 @@ final class ProfileViewModel: ObservableObject {
         saveSelection()
     }
 
-    func configureProvider() async -> Bool {
+    func beginConfiguration() {
+        configurationGeneration += 1
+        isValidatingProfile = true
+        profileStatus = .checking
+    }
+
+    func configureProvider(forceRefresh: Bool = false) async -> Bool {
         configurationGeneration += 1
         let generation = configurationGeneration
         let profile = selectedProfile
@@ -80,7 +110,7 @@ final class ProfileViewModel: ObservableObject {
         guard let profile else {
             await provider.configure(profile: nil, region: region)
             guard generation == configurationGeneration else { return false }
-            profileStatus = .failed("No AWS profile found. Configure `~/.aws/config` first.")
+            profileStatus = .failed("No AWS profile found. Configure an AWS config or credentials file, then retry.")
             return false
         }
 
@@ -90,7 +120,7 @@ final class ProfileViewModel: ObservableObject {
             if let profileValidator {
                 identity = try await profileValidator(profile, region)
             } else {
-                await provider.configure(profile: profile, region: region)
+                await provider.configure(profile: profile, region: region, forceRefresh: forceRefresh)
                 try Task.checkCancellation()
                 identity = try await provider.validateIdentity()
             }

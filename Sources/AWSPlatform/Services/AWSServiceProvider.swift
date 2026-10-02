@@ -12,6 +12,7 @@ actor AWSServiceProvider {
     private var sts: STS?
     private(set) var currentProfileName: String?
     private(set) var currentRegion: String?
+    private var currentPaths: AWSConfigurationPaths?
 
     deinit {
         // App shutdown can outpace our async cleanup task. Use Soto's synchronous
@@ -19,19 +20,39 @@ actor AWSServiceProvider {
         try? awsClient?.syncShutdown()
     }
 
-    func configure(profile: AWSProfile?, region: String) async {
+    func configure(
+        profile: AWSProfile?,
+        region: String,
+        forceRefresh: Bool = false,
+        paths: AWSConfigurationPaths = AWSConfigurationPaths()
+    ) async {
         guard let profile else {
             await shutdown()
             return
         }
 
-        if currentProfileName == profile.name, currentRegion == region, awsClient != nil {
+        if !forceRefresh, currentProfileName == profile.name, currentRegion == region,
+           currentPaths == paths, awsClient != nil {
             return
         }
 
-        let credentialProvider: CredentialProviderFactory = profile.isSSO
-            ? .sso(profileName: profile.name)
-            : .configFile(profile: profile.name)
+        let credentialProvider: CredentialProviderFactory
+        if profile.isSSO && paths.usesCustomConfig {
+            credentialProvider = .custom { context in
+                RotatingCredentialProvider(
+                    context: context,
+                    provider: AWSCLICredentialProvider(profile: profile.name, paths: paths)
+                )
+            }
+        } else if profile.isSSO {
+            credentialProvider = .sso(profileName: profile.name)
+        } else {
+            credentialProvider = .configFile(
+                credentialsFilePath: paths.credentials,
+                configFilePath: paths.config,
+                profile: profile.name
+            )
+        }
 
         let previousClient = awsClient
         let nextClient = AWSClient(credentialProvider: credentialProvider)
@@ -45,6 +66,7 @@ actor AWSServiceProvider {
         self.sts = STS(client: nextClient, region: .init(rawValue: region))
         self.currentProfileName = profile.name
         self.currentRegion = region
+        self.currentPaths = paths
 
         if let previousClient {
             await Self.shutdown(previousClient)
@@ -86,6 +108,7 @@ actor AWSServiceProvider {
         sts = nil
         currentProfileName = nil
         currentRegion = nil
+        currentPaths = nil
 
         guard let awsClient else { return }
 

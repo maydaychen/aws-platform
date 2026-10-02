@@ -2,6 +2,54 @@ import XCTest
 @testable import AWSPlatform
 
 final class ProfileViewModelTests: XCTestCase {
+    @MainActor
+    func testRetryAfterFailedLoginValidatesSameProfileAgain() async throws {
+        let suite = "ProfileViewModelTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var calls = 0
+        let identity = AWSIdentity(account: "test", arn: "test", userID: "test")
+        let vm = ProfileViewModel(defaults: defaults, profileValidator: { _, _ in
+            calls += 1
+            if calls == 1 { throw AWSServiceError.notConfigured }
+            return identity
+        })
+        vm.loadProfiles([Self.makeProfile(name: "work", region: "us-east-1")])
+        let first = await vm.configureProvider()
+        XCTAssertFalse(first)
+        XCTAssertFalse(vm.isProfileReady)
+        vm.beginConfiguration()
+        XCTAssertTrue(vm.isValidatingProfile)
+        let second = await vm.configureProvider(forceRefresh: true)
+        XCTAssertTrue(second)
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(vm.profileStatus, .valid(identity))
+        XCTAssertFalse(vm.isValidatingProfile)
+    }
+
+    @MainActor
+    func testRegionOutsideBuiltInListIsRestoredAndCustomInputIsValidated() throws {
+        let suite = "ProfileViewModelTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = ProfileViewModel(defaults: defaults)
+        let profiles = [Self.makeProfile(name: "work", region: "ap-future-1")]
+        vm.loadProfiles(profiles)
+        XCTAssertTrue(vm.availableRegions.contains("ap-future-1"))
+        XCTAssertTrue(vm.availableRegions.contains("cn-north-1"))
+        XCTAssertTrue(vm.availableRegions.contains("eu-central-2"))
+        XCTAssertTrue(vm.selectCustomRegion("  EU-FUTURE-2  "))
+        XCTAssertTrue(vm.availableRegions.contains("eu-future-2"))
+        for invalid in ["", "   ", "https://example.com", "us-east", "a b-1"] {
+            XCTAssertFalse(vm.selectCustomRegion(invalid))
+        }
+        XCTAssertEqual(vm.selectedRegion, "eu-future-2")
+        let restored = ProfileViewModel(defaults: defaults)
+        restored.loadProfiles(profiles)
+        XCTAssertEqual(restored.selectedRegion, "eu-future-2")
+        XCTAssertTrue(restored.availableRegions.contains("eu-future-2"))
+    }
+
     func testLoadProfilesRestoresSavedSelection() async {
         await MainActor.run {
             let suiteName = "ProfileViewModelTests.\(UUID().uuidString)"

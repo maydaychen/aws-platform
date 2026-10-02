@@ -2,6 +2,48 @@ import XCTest
 @testable import AWSPlatform
 
 final class ConfigReaderTests: XCTestCase {
+    func testMergesCredentialsOnlyProfilesWithoutDuplicatingConfigProfiles() {
+        let profiles = ConfigReader.readProfiles(
+            configContent: "[profile shared]\nregion = eu-central-2\n[profile shared]\noutput = json",
+            credentialsContent: "[shared]\naws_access_key_id = EXAMPLE\n[credentials-only]\naws_access_key_id = EXAMPLE"
+        )
+        XCTAssertEqual(profiles.map(\.name), ["shared", "credentials-only"])
+        XCTAssertEqual(profiles[0].region, "eu-central-2")
+        XCTAssertEqual(profiles[1].region, "us-east-1")
+    }
+
+    func testCredentialsOnlyDiscoveryDoesNotRequireConfigFile() {
+        let profiles = ConfigReader.readProfiles(configContent: "", credentialsContent: "[default]\n[work]")
+        XCTAssertEqual(profiles.map(\.name), ["default", "work"])
+    }
+
+    func testCustomPathsExpandTildeAndIgnoreEmptyOverrides() {
+        let paths = AWSConfigurationPaths(
+            environment: ["AWS_CONFIG_FILE": "~/aws/custom-config", "AWS_SHARED_CREDENTIALS_FILE": " "],
+            homeDirectory: URL(fileURLWithPath: "/test-home")
+        )
+        XCTAssertEqual(paths.config, "/test-home/aws/custom-config")
+        XCTAssertEqual(paths.credentials, "/test-home/.aws/credentials")
+        XCTAssertTrue(paths.usesCustomConfig)
+    }
+
+    func testReadsBothCustomFiles() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent("config")
+        let credentials = root.appendingPathComponent("credentials")
+        try "[profile configured]\nregion = ap-east-1".write(to: config, atomically: true, encoding: .utf8)
+        try "[credentials-only]".write(to: credentials, atomically: true, encoding: .utf8)
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": config.path,
+            "AWS_SHARED_CREDENTIALS_FILE": credentials.path
+        ])
+        let profiles = ConfigReader.readProfiles(paths: paths)
+        XCTAssertEqual(profiles.map(\.name), ["configured", "credentials-only"])
+        XCTAssertEqual(profiles.first?.region, "ap-east-1")
+    }
+
     func testReadProfilesParsesDefaultAndNamedProfiles() {
         let profiles = ConfigReader.readProfiles(configContent: """
         [default]

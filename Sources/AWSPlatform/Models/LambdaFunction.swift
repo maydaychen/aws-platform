@@ -30,3 +30,9 @@ struct LambdaCodeFile: Identifiable, Hashable {
 
     var id: String { path }
 }
+
+struct LambdaFunctionSummary: Sendable {
+    let state: String?
+    let lastUpdateStatus: String?
+    let tags: [String: String]
+}

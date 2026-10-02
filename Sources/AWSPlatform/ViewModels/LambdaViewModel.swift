@@ -6,6 +6,7 @@ import SotoLambda
 final class LambdaViewModel: ObservableObject {
     typealias FunctionLoader = () async throws -> [LambdaFunctionModel]
     typealias DetailLoader = (String) async throws -> LambdaFunctionDetailModel
+    typealias SummaryLoader = @Sendable (String) async throws -> LambdaFunctionSummary
 
     @Published var functions: [LambdaFunctionModel] = []
     @Published var selectedFunction: LambdaFunctionModel? {
@@ -19,6 +20,7 @@ final class LambdaViewModel: ObservableObject {
     @Published var isDetailLoading = false
     @Published var isCodeLoading = false
     @Published var error: String?
+    @Published var summaryWarning: String?
     @Published var detailError: String?
     @Published var codeError: String?
     @Published var searchText = ""
@@ -31,13 +33,17 @@ final class LambdaViewModel: ObservableObject {
     private var codeLoadTask: Task<Void, Never>?
     private var functionLoader: FunctionLoader?
     private var detailLoader: DetailLoader?
+    private var summaryLoader: SummaryLoader?
+    private var listGeneration = 0
 
     init(
         functionLoader: FunctionLoader? = nil,
-        detailLoader: DetailLoader? = nil
+        detailLoader: DetailLoader? = nil,
+        summaryLoader: SummaryLoader? = nil
     ) {
         self.functionLoader = functionLoader
         self.detailLoader = detailLoader
+        self.summaryLoader = summaryLoader
     }
 
     var availableStates: [String] {
@@ -79,6 +85,18 @@ final class LambdaViewModel: ObservableObject {
             let client = try await provider.lambdaClient()
             return try await Self.fetchFunctions(client: client)
         }
+        summaryLoader = { name in
+            let client = try await provider.lambdaClient()
+            let response = try await client.getFunction(.init(functionName: name))
+            guard let configuration = response.configuration else {
+                throw LambdaDetailError.missingConfiguration
+            }
+            return LambdaFunctionSummary(
+                state: configuration.state?.rawValue,
+                lastUpdateStatus: configuration.lastUpdateStatus?.rawValue,
+                tags: response.tags ?? [:]
+            )
+        }
         detailLoader = { functionName in
             let client = try await provider.lambdaClient()
             return try await Self.fetchDetail(functionName: functionName, client: client)
@@ -92,6 +110,7 @@ final class LambdaViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        listGeneration += 1
         loadTask?.cancel()
         detailTask?.cancel()
         codeLoadTask?.cancel()
@@ -107,6 +126,7 @@ final class LambdaViewModel: ObservableObject {
         selectedFunction = nil
         functionDetail = nil
         error = nil
+        summaryWarning = nil
         detailError = nil
         codeError = nil
         stateFilter = "All"
@@ -114,14 +134,41 @@ final class LambdaViewModel: ObservableObject {
     }
 
     func loadFunctions() async {
-        guard let functionLoader else { return }
+        guard !Task.isCancelled, let functionLoader else { return }
+        listGeneration += 1
+        let generation = listGeneration
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        summaryWarning = nil
+        defer {
+            if generation == listGeneration { isLoading = false }
+        }
 
         do {
-            let loadedFunctions = try await functionLoader()
+            var loadedFunctions = try await functionLoader()
             try Task.checkCancellation()
+            guard generation == listGeneration else { return }
+
+            if let summaryLoader {
+                let results = try await Self.fetchSummaries(
+                    names: loadedFunctions.map(\.functionName), loader: summaryLoader
+                )
+                try Task.checkCancellation()
+                guard generation == listGeneration else { return }
+                loadedFunctions = loadedFunctions.map { function in
+                    var updated = function
+                    if let summary = results[function.functionName] {
+                        updated.state = summary.state
+                        updated.lastUpdateStatus = summary.lastUpdateStatus
+                        updated.tags = summary.tags
+                    }
+                    return updated
+                }
+                let unavailable = loadedFunctions.count - results.count
+                if unavailable > 0 {
+                    summaryWarning = "Status and tags unavailable for \(unavailable) function(s). Check lambda:GetFunction permission, then refresh. State filters exclude functions with unknown status."
+                }
+            }
 
             let selectedName = selectedFunction?.functionName
             functions = loadedFunctions
@@ -139,7 +186,8 @@ final class LambdaViewModel: ObservableObject {
                 packageFilter = "All"
             }
         } catch {
-            if error is CancellationError { return }
+            guard generation == listGeneration, !Task.isCancelled,
+                  !(error is CancellationError) else { return }
             functions = []
             selectedFunction = nil
             self.error = UserFacingError.message(for: error)
@@ -171,6 +219,12 @@ final class LambdaViewModel: ObservableObject {
             try Task.checkCancellation()
             guard selectedFunction?.functionName == functionName else { return }
             functionDetail = detail
+            if let index = functions.firstIndex(where: { $0.functionName == functionName }) {
+                functions[index].state = detail.state
+                functions[index].lastUpdateStatus = detail.lastUpdateStatus
+                functions[index].tags = detail.tags
+                selectedFunction = functions[index]
+            }
         } catch {
             if error is CancellationError { return }
             guard selectedFunction?.functionName == functionName else { return }
@@ -179,6 +233,37 @@ final class LambdaViewModel: ObservableObject {
 
         if selectedFunction?.functionName == functionName {
             isDetailLoading = false
+        }
+    }
+
+    private nonisolated static func fetchSummaries(
+        names: [String],
+        loader: @escaping SummaryLoader
+    ) async throws -> [String: LambdaFunctionSummary] {
+        try await withThrowingTaskGroup(of: (String, LambdaFunctionSummary?).self) { group in
+            var remaining = names.makeIterator()
+            func enqueue(_ name: String) {
+                group.addTask {
+                    try Task.checkCancellation()
+                    do {
+                        return (name, try await loader(name))
+                    } catch {
+                        try Task.checkCancellation()
+                        if error is CancellationError { throw error }
+                        return (name, nil)
+                    }
+                }
+            }
+            for _ in 0..<4 {
+                if let name = remaining.next() { enqueue(name) }
+            }
+            var summaries: [String: LambdaFunctionSummary] = [:]
+            while let (name, summary) = try await group.next() {
+                try Task.checkCancellation()
+                summaries[name] = summary
+                if let next = remaining.next() { enqueue(next) }
+            }
+            return summaries
         }
     }
 

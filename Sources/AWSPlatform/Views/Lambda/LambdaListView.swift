@@ -30,6 +30,15 @@ struct LambdaListView: View {
             .padding(.vertical, 8)
             .background(Color(nsColor: .controlBackgroundColor))
 
+            if let warning = vm.summaryWarning {
+                Text(warning)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+
             List(vm.filteredFunctions, selection: $vm.selectedFunction) { function in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {

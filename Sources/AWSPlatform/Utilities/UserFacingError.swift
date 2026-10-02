@@ -4,6 +4,9 @@ import SotoS3
 
 enum UserFacingError {
     static func loginMessage(for error: Error, profileName: String) -> String {
+        if let error = error as? AWSCLICredentialProvider.ExportError {
+            return error.localizedDescription
+        }
         let reflectedType = String(reflecting: type(of: error))
         let description = error.localizedDescription
         let lowercased = description.lowercased()
@@ -38,6 +41,9 @@ enum UserFacingError {
     }
 
     static func message(for error: Error) -> String {
+        if let error = error as? AWSCLICredentialProvider.ExportError {
+            return error.localizedDescription
+        }
         if error is CancellationError {
             return "Request was cancelled."
         }

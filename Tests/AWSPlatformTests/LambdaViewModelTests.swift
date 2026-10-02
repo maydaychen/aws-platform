@@ -2,6 +2,59 @@ import XCTest
 @testable import AWSPlatform
 
 final class LambdaViewModelTests: XCTestCase {
+    @MainActor
+    func testListWithoutStateIsEnrichedForFilteringAndTagSearch() async {
+        var function = makeFunction(name: "example")
+        function.state = nil
+        function.lastUpdateStatus = nil
+        let rows = [function]
+        let vm = LambdaViewModel(functionLoader: { rows }, summaryLoader: { _ in
+            LambdaFunctionSummary(state: "Failed", lastUpdateStatus: "Failed", tags: ["team": "billing"])
+        })
+        await vm.loadFunctions()
+        XCTAssertEqual(vm.availableStates, ["All", "Failed"])
+        vm.stateFilter = "Failed"
+        vm.searchText = "billing"
+        XCTAssertEqual(vm.filteredFunctions.map(\.functionName), ["example"])
+        XCTAssertEqual(vm.selectedFunction?.lastUpdateStatus, "Failed")
+        XCTAssertNil(vm.summaryWarning)
+    }
+
+    @MainActor
+    func testSummaryPermissionFailureKeepsFunctionList() async {
+        var denied = makeFunction(name: "denied")
+        denied.state = nil
+        let rows = [denied, makeFunction(name: "allowed")]
+        let vm = LambdaViewModel(functionLoader: { rows }, summaryLoader: { name in
+            if name == "denied" { throw LambdaTestError.failed }
+            return LambdaFunctionSummary(state: "Active", lastUpdateStatus: "Successful", tags: [:])
+        })
+        await vm.loadFunctions()
+        XCTAssertEqual(vm.functions.count, 2)
+        XCTAssertNil(vm.error)
+        XCTAssertNotNil(vm.summaryWarning)
+        vm.stateFilter = "Active"
+        XCTAssertEqual(vm.filteredFunctions.map(\.functionName), ["allowed"])
+    }
+
+    @MainActor
+    func testResetRejectsLateSummaryAndWarning() async {
+        let gate = TestGate()
+        let rows = [makeFunction(name: "example")]
+        let vm = LambdaViewModel(functionLoader: { rows }, summaryLoader: { _ in
+            await gate.wait()
+            throw LambdaTestError.failed
+        })
+        let request = Task { await vm.loadFunctions() }
+        await gate.waitForEntry()
+        vm.reset()
+        await gate.open()
+        await request.value
+        XCTAssertTrue(vm.functions.isEmpty)
+        XCTAssertNil(vm.summaryWarning)
+        XCTAssertNil(vm.error)
+    }
+
     func testLoadFunctionsSelectsFirstFunction() async {
         let function = makeFunction(name: "example")
         let vm = await MainActor.run {

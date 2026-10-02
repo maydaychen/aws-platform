@@ -5,6 +5,8 @@ import SotoS3
 @MainActor
 final class S3ViewModel: ObservableObject {
     typealias BucketLoader = () async throws -> [S3BucketModel]
+    typealias DetailLoader = (S3BucketModel) async throws -> S3BucketModel
+    typealias ObjectLoader = (String, String) async throws -> [S3ObjectModel]
 
     @Published var buckets: [S3BucketModel] = []
     @Published var selectedBucket: S3BucketModel?
@@ -21,9 +23,20 @@ final class S3ViewModel: ObservableObject {
     private var detailLoadTask: Task<Void, Never>?
     private var objectLoadTask: Task<Void, Never>?
     private var bucketLoader: BucketLoader?
+    private var detailLoader: DetailLoader?
+    private var objectLoader: ObjectLoader?
+    private var listGeneration = 0
+    private var detailGeneration = 0
+    private var objectGeneration = 0
 
-    init(bucketLoader: BucketLoader? = nil) {
+    init(
+        bucketLoader: BucketLoader? = nil,
+        detailLoader: DetailLoader? = nil,
+        objectLoader: ObjectLoader? = nil
+    ) {
         self.bucketLoader = bucketLoader
+        self.detailLoader = detailLoader
+        self.objectLoader = objectLoader
     }
 
     var filteredBuckets: [S3BucketModel] {
@@ -48,19 +61,16 @@ final class S3ViewModel: ObservableObject {
     }
 
     func configure(provider: AWSServiceProvider) {
+        reset()
         self.provider = provider
         bucketLoader = {
             let client = try await provider.s3Client()
             return try await Self.fetchBuckets(client: client)
         }
-        loadTask?.cancel()
-        detailLoadTask?.cancel()
-        objectLoadTask?.cancel()
-        buckets = []
-        selectedBucket = nil
-        objects = []
-        selectedObject = nil
-        currentPrefix = ""
+        detailLoader = { bucket in
+            try await Self.fetchBucketDetails(bucket: bucket, provider: provider)
+        }
+        objectLoader = nil
         refresh()
     }
 
@@ -70,6 +80,9 @@ final class S3ViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        listGeneration += 1
+        detailGeneration += 1
+        objectGeneration += 1
         loadTask?.cancel()
         detailLoadTask?.cancel()
         objectLoadTask?.cancel()
@@ -87,32 +100,67 @@ final class S3ViewModel: ObservableObject {
     }
 
     func loadBuckets() async {
-        guard let bucketLoader else { return }
+        guard !Task.isCancelled, let bucketLoader else { return }
+        listGeneration += 1
+        let generation = listGeneration
+        detailGeneration += 1
+        objectGeneration += 1
+        detailLoadTask?.cancel()
+        objectLoadTask?.cancel()
         isLoading = true
         error = nil
         selectedBucket = nil
         selectedObject = nil
         objects = []
         currentPrefix = ""
-        defer { isLoading = false }
+        defer {
+            if generation == listGeneration { isLoading = false }
+        }
 
         do {
-            buckets = try await bucketLoader()
+            let loaded = try await bucketLoader()
             try Task.checkCancellation()
+            guard generation == listGeneration else { return }
+            buckets = loaded
             selectedBucket = buckets.first
             if let selectedBucket {
                 detailLoadTask?.cancel()
                 detailLoadTask = Task { await loadBucketDetails(name: selectedBucket.name) }
             }
         } catch {
-            if error is CancellationError { return }
+            guard generation == listGeneration, !Task.isCancelled,
+                  !(error is CancellationError) else { return }
             buckets = []
             self.error = UserFacingError.message(for: error)
         }
     }
 
     func loadBucketDetails(name: String) async {
-        guard let provider, let bucket = buckets.first(where: { $0.name == name }) else { return }
+        guard !Task.isCancelled, let detailLoader,
+              let bucket = buckets.first(where: { $0.name == name }) else { return }
+        detailGeneration += 1
+        let generation = detailGeneration
+        do {
+            let updated = try await detailLoader(bucket)
+            try Task.checkCancellation()
+            guard generation == detailGeneration,
+                  let index = buckets.firstIndex(where: { $0.name == name }) else { return }
+            buckets[index] = updated
+            if selectedBucket?.name == name { selectedBucket = updated }
+        } catch {
+            guard generation == detailGeneration, !Task.isCancelled,
+                  !(error is CancellationError),
+                  let index = buckets.firstIndex(where: { $0.name == name }) else { return }
+            buckets[index].detailError = UserFacingError.message(for: error)
+            if selectedBucket?.name == name { selectedBucket = buckets[index] }
+        }
+    }
+
+    private static func fetchBucketDetails(
+        bucket: S3BucketModel,
+        provider: AWSServiceProvider
+    ) async throws -> S3BucketModel {
+        let name = bucket.name
 
         var updated = bucket
         var warnings: [String] = []
@@ -122,7 +170,8 @@ final class S3ViewModel: ObservableObject {
                 let location = try await baseClient.getBucketLocation(.init(bucket: name))
                 updated.region = normalizedRegion(location.locationConstraint?.rawValue)
             } catch {
-                guard !(error is CancellationError) else { return }
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
                 warnings.append("Region: \(UserFacingError.message(for: error))")
             }
 
@@ -132,7 +181,8 @@ final class S3ViewModel: ObservableObject {
                 let versioning = try await bucketClient.getBucketVersioning(.init(bucket: name))
                 updated.versioningEnabled = versioning.status?.rawValue == "Enabled"
             } catch {
-                guard !(error is CancellationError) else { return }
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
                 warnings.append("Versioning: \(UserFacingError.message(for: error))")
             }
 
@@ -140,7 +190,8 @@ final class S3ViewModel: ObservableObject {
                 _ = try await bucketClient.getBucketEncryption(.init(bucket: name))
                 updated.encryptionEnabled = true
             } catch {
-                guard !(error is CancellationError) else { return }
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
                 if Self.errorCode(error) == "ServerSideEncryptionConfigurationNotFoundError" {
                     updated.encryptionEnabled = false
                 } else {
@@ -154,7 +205,8 @@ final class S3ViewModel: ObservableObject {
                     from: response.publicAccessBlockConfiguration
                 )
             } catch {
-                guard !(error is CancellationError) else { return }
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
                 if Self.errorCode(error) == "NoSuchPublicAccessBlockConfiguration" {
                     updated.publicAccessBlock = S3PublicAccessBlockModel(
                         blockPublicACLs: false,
@@ -175,7 +227,8 @@ final class S3ViewModel: ObservableObject {
                     }
                 )
             } catch {
-                guard !(error is CancellationError) else { return }
+                try Task.checkCancellation()
+                if error is CancellationError { throw error }
                 if Self.errorCode(error) == "NoSuchTagSet" {
                     updated.tags = [:]
                 } else {
@@ -184,23 +237,19 @@ final class S3ViewModel: ObservableObject {
             }
 
             updated.detailError = warnings.isEmpty ? nil : warnings.joined(separator: "\n")
-            guard let currentIndex = buckets.firstIndex(where: { $0.name == name }) else { return }
-            buckets[currentIndex] = updated
-            if selectedBucket?.name == name {
-                selectedBucket = updated
-            }
         } catch {
-            if error is CancellationError { return }
+            try Task.checkCancellation()
+            if error is CancellationError { throw error }
             updated.detailError = UserFacingError.message(for: error)
-            guard let currentIndex = buckets.firstIndex(where: { $0.name == name }) else { return }
-            buckets[currentIndex] = updated
-            if selectedBucket?.name == name {
-                selectedBucket = updated
-            }
         }
+        try Task.checkCancellation()
+        return updated
     }
 
     func selectBucket(_ bucket: S3BucketModel) {
+        detailGeneration += 1
+        objectGeneration += 1
+        objectLoadTask?.cancel()
         selectedBucket = bucket
         selectedObject = nil
         detailLoadTask?.cancel()
@@ -208,71 +257,109 @@ final class S3ViewModel: ObservableObject {
     }
 
     func loadObjects(bucket: String, prefix: String = "") async {
-        guard let provider else { return }
+        guard !Task.isCancelled, objectLoader != nil || provider != nil else { return }
+        objectGeneration += 1
+        let generation = objectGeneration
+        listGeneration += 1
+        loadTask?.cancel()
         isLoading = true
         error = nil
         selectedObject = nil
         currentPrefix = prefix
-        defer { isLoading = false }
+        objects = []
+        defer {
+            if generation == objectGeneration { isLoading = false }
+        }
 
         do {
-            let client = try await s3Client(forBucket: bucket, provider: provider)
-
-            var rows: [S3ObjectModel] = []
-            var continuationToken: String?
-
-            repeat {
-                try Task.checkCancellation()
-                let response = try await client.listObjectsV2(
-                    .init(
-                        bucket: bucket,
-                        continuationToken: continuationToken,
-                        delimiter: "/",
-                        prefix: prefix.isEmpty ? nil : prefix
-                    )
-                )
-
-                for entry in response.commonPrefixes ?? [] {
-                    guard let prefix = entry.prefix else { continue }
-                    rows.append(
-                        S3ObjectModel(
-                            key: prefix,
-                            size: nil,
-                            lastModified: nil,
-                            storageClass: nil,
-                            isPrefix: true
-                        )
-                    )
-                }
-
-                for object in response.contents ?? [] {
-                    guard let key = object.key, key != prefix else { continue }
-                    rows.append(
-                        S3ObjectModel(
-                            key: key,
-                            size: object.size,
-                            lastModified: object.lastModified,
-                            storageClass: object.storageClass?.rawValue,
-                            isPrefix: false
-                        )
-                    )
-                }
-
-                continuationToken = response.nextContinuationToken
-            } while continuationToken != nil
-
+            let rows: [S3ObjectModel]
+            if let objectLoader {
+                rows = try await objectLoader(bucket, prefix)
+            } else if let provider {
+                rows = try await fetchObjects(bucket: bucket, prefix: prefix, provider: provider)
+            } else {
+                return
+            }
+            try Task.checkCancellation()
+            guard generation == objectGeneration else { return }
             objects = rows.sorted { $0.key < $1.key }
             selectedObject = objects.first
         } catch {
-            if error is CancellationError { return }
+            guard generation == objectGeneration, !Task.isCancelled,
+                  !(error is CancellationError) else { return }
             objects = []
             self.error = UserFacingError.message(for: error)
         }
     }
 
+    private func fetchObjects(
+        bucket: String,
+        prefix: String,
+        provider: AWSServiceProvider
+    ) async throws -> [S3ObjectModel] {
+        let client = try await s3Client(forBucket: bucket, provider: provider)
+
+        var rows: [S3ObjectModel] = []
+        var continuationToken: String?
+
+        repeat {
+            try Task.checkCancellation()
+            let response = try await client.listObjectsV2(
+                .init(
+                    bucket: bucket,
+                    continuationToken: continuationToken,
+                    delimiter: "/",
+                    prefix: prefix.isEmpty ? nil : prefix
+                )
+            )
+            try Task.checkCancellation()
+
+            for entry in response.commonPrefixes ?? [] {
+                guard let prefix = entry.prefix else { continue }
+                rows.append(
+                    S3ObjectModel(
+                        key: prefix,
+                        size: nil,
+                        lastModified: nil,
+                        storageClass: nil,
+                        isPrefix: true
+                    )
+                )
+            }
+
+            for object in response.contents ?? [] {
+                guard let key = object.key, key != prefix else { continue }
+                rows.append(
+                    S3ObjectModel(
+                        key: key,
+                        size: object.size,
+                        lastModified: object.lastModified,
+                        storageClass: object.storageClass?.rawValue,
+                        isPrefix: false
+                    )
+                )
+            }
+
+            continuationToken = response.nextContinuationToken
+        } while continuationToken != nil
+
+        return rows
+    }
+
     func navigateToPrefix(bucket: String, prefix: String) {
+        objectGeneration += 1
         objectLoadTask?.cancel()
         objectLoadTask = Task { await loadObjects(bucket: bucket, prefix: prefix) }
+    }
+
+    func leaveObjectBrowser() {
+        objectGeneration += 1
+        objectLoadTask?.cancel()
+        objects = []
+        selectedObject = nil
+        currentPrefix = ""
+        error = nil
+        isLoading = false
     }
 
     private func s3Client(forBucket name: String, provider: AWSServiceProvider) async throws -> S3 {
@@ -282,10 +369,11 @@ final class S3ViewModel: ObservableObject {
 
         let baseClient = try await provider.s3Client()
         let location = try? await baseClient.getBucketLocation(.init(bucket: name))
-        return try await provider.s3Client(region: normalizedRegion(location?.locationConstraint?.rawValue))
+        try Task.checkCancellation()
+        return try await provider.s3Client(region: Self.normalizedRegion(location?.locationConstraint?.rawValue))
     }
 
-    private func normalizedRegion(_ value: String?) -> String {
+    private static func normalizedRegion(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "us-east-1" }
         return value == "EU" ? "eu-west-1" : value
     }

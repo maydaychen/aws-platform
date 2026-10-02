@@ -14,12 +14,16 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProfileBarView(vm: profileVM)
+            ProfileBarView(vm: profileVM) {
+                profileVM.loadProfiles()
+                reconfigureServices(forceRefresh: true)
+            }
             Divider()
             HSplitView {
                 ServiceSidebarView(selectedService: $selectedService)
                 middlePane
                     .frame(minWidth: 320)
+                    .disabled(!profileVM.isProfileReady)
                 detailPane
                     .contentTransition(reduceMotion ? .identity : .opacity)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
@@ -40,6 +44,7 @@ struct ContentView: View {
             reconfigureServices()
         }
         .onChange(of: selectedService) { _ in
+            if s3BrowsingBucket != nil { s3VM.leaveObjectBrowser() }
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
         }
@@ -98,6 +103,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     HStack {
                         Button("Back to Buckets") {
+                            s3VM.leaveObjectBrowser()
                             s3BrowsingBucket = nil
                         }
                         Spacer()
@@ -118,8 +124,10 @@ struct ContentView: View {
         }
     }
 
-    private func reconfigureServices() {
+    private func reconfigureServices(forceRefresh: Bool = false) {
         reconfigureTask?.cancel()
+        s3BrowsingBucket = nil
+        profileVM.beginConfiguration()
         ec2VM.reset()
         lambdaVM.reset()
         s3VM.reset()
@@ -130,7 +138,7 @@ struct ContentView: View {
             } catch {
                 return
             }
-            let isValid = await profileVM.configureProvider()
+            let isValid = await profileVM.configureProvider(forceRefresh: forceRefresh)
             guard !Task.isCancelled, isValid else { return }
             ec2VM.configure(provider: profileVM.provider)
             lambdaVM.configure(provider: profileVM.provider)

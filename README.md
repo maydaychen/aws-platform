@@ -39,6 +39,8 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - 已配置 AWS CLI (`~/.aws/config` 和 `~/.aws/credentials`)
 - 使用 SSO 时，先配置具名 `sso-session` 并安装 AWS CLI v2；可在应用内点击 `SSO Login` 或在终端执行 `aws sso login --sso-session <name>`。浏览资源还需配置引用该 session 的 Profile
 
+Apple Silicon 上应使用能原生运行的 AWS CLI。AWS CLI v2 从 2.30.0 起提供同时支持 Intel／Apple Silicon 的 [官方 Universal 安装包](https://aws.amazon.com/blogs/devops/introducing-universal-installers-for-aws-cli-v2-on-macos/)；旧版 Intel CLI 在没有 Rosetta 的机器上无法启动。
+
 ### 构建运行
 
 ```bash

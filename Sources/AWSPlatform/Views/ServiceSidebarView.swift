@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ServiceSidebarView: View {
     @Binding var selectedService: AWSService
-    @Binding var showingFavorites: Bool
+    @Binding var destination: WorkspaceDestination
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -12,16 +12,27 @@ struct ServiceSidebarView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             Button {
-                showingFavorites = true
+                destination = .favorites
             } label: {
-                Label("Favorites", systemImage: showingFavorites ? "star.fill" : "star")
+                Label("Favorites", systemImage: destination == .favorites ? "star.fill" : "star")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(showingFavorites ? Color.accentColor.opacity(0.18) : Color.clear)
+                .background(destination == .favorites ? Color.accentColor.opacity(0.18) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
             .keyboardShortcut("f", modifiers: [.command, .shift])
+            Button {
+                destination = .costs
+            } label: {
+                Label("Costs", systemImage: "chart.bar.xaxis")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(destination == .costs ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("b", modifiers: [.command, .shift])
             Text("SERVICES")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
@@ -30,13 +41,13 @@ struct ServiceSidebarView: View {
                 .padding(.bottom, 8)
             ForEach(AWSService.allCases) { service in
                 Button {
-                    showingFavorites = false
+                    destination = .resources
                     selectedService = service
                 } label: {
                     Label(service.rawValue, systemImage: service.icon)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(!showingFavorites && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .background(destination == .resources && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)

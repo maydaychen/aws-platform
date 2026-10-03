@@ -1,10 +1,12 @@
 import SwiftUI
 
+@MainActor
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var favoritesVM: FavoritesViewModel
     @StateObject private var favoriteNavigation = FavoriteNavigation()
-    @StateObject private var profileVM = ProfileViewModel()
+    @StateObject private var profileVM: ProfileViewModel
+    @StateObject private var costVM: CostViewModel
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
@@ -14,14 +16,26 @@ struct ContentView: View {
     @State private var s3BrowsingBucket: String?
     @State private var reconfigureTask: Task<Void, Never>?
     @State private var loginTask: Task<Void, Never>?
-    @State private var showingFavorites = false
+    @State private var destination: WorkspaceDestination = .resources
+
+    init() {
+        let profiles = ProfileViewModel()
+        _profileVM = StateObject(wrappedValue: profiles)
+        let costs = AWSCostService(provider: profiles.provider)
+        _costVM = StateObject(wrappedValue: CostViewModel(loader: { scope, query in
+            try await costs.load(scope: scope, query: query)
+        }))
+    }
+
+    private var showingFavorites: Bool { destination == .favorites }
 
     var body: some View {
         VStack(spacing: 0) {
             ProfileBarView(vm: profileVM, onRetry: {
                 profileVM.loadProfiles()
                 reconfigureServices(forceRefresh: true)
-            }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() })
+            }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
+               showsResourceRegion: destination != .costs)
             if let message = favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
@@ -34,15 +48,20 @@ struct ContentView: View {
             }
             Divider()
             HSplitView {
-                ServiceSidebarView(selectedService: $selectedService, showingFavorites: $showingFavorites)
-                middlePane
-                    .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
-                    .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil))
-                resourceDetail
-                    .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
-                    .contentTransition(reduceMotion ? .identity : .opacity)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
-                    .id([profileVM.selectedProfileID ?? "", profileVM.selectedRegion])
+                ServiceSidebarView(selectedService: $selectedService, destination: $destination)
+                if destination == .costs {
+                    costPane
+                        .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    middlePane
+                        .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
+                        .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil))
+                    resourceDetail
+                        .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
+                        .contentTransition(reduceMotion ? .identity : .opacity)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
+                        .id([profileVM.selectedProfileID ?? "", profileVM.selectedRegion])
+                }
             }
         }
         .onAppear {
@@ -51,11 +70,13 @@ struct ContentView: View {
             reconfigureServices()
         }
         .onChange(of: profileVM.selectedProfileID) { _ in
+            costVM.reset()
             cancelFavoriteIfScopeChanged()
             if profileVM.isSigningIn { clearResources() }
             else { reconfigureServices() }
         }
         .onChange(of: profileVM.profileSource) { _ in
+            costVM.reset()
             loginTask?.cancel()
             favoriteNavigation.cancel()
             reconfigureServices()
@@ -73,14 +94,36 @@ struct ContentView: View {
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
         }
-        .onChange(of: showingFavorites) { isShowing in
-            if isShowing { favoriteNavigation.cancel() }
+        .onChange(of: destination) { selection in
+            if selection != .resources { favoriteNavigation.cancel() }
+            if selection == .costs { configureCosts() }
         }
         .onDisappear {
             loginTask?.cancel()
             reconfigureTask?.cancel()
+            costVM.reset()
             Task { await profileVM.shutdown() }
         }
+    }
+
+    @ViewBuilder
+    private var costPane: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load costs.", icon: "cloud")
+                .padding()
+        } else {
+            CostView(vm: costVM)
+        }
+    }
+
+    private func configureCosts() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        costVM.configure(scope: CostScope(profile: profile, identity: identity))
+        if destination == .costs { costVM.loadIfNeeded() }
     }
 
     @ViewBuilder
@@ -184,7 +227,7 @@ struct ContentView: View {
                                        selectedProfileName: profileVM.selectedProfile?.name) else { return }
         profileVM.selectedRegion = favorite.region
         selectedService = favorite.service
-        showingFavorites = false
+        destination = .resources
         reconfigureServices()
     }
 
@@ -253,6 +296,7 @@ struct ContentView: View {
 
     private func signIn() {
         guard profileVM.canSignIn, loginTask == nil else { return }
+        costVM.reset()
         clearResources()
         favoriteNavigation.cancel()
         loginTask = Task {
@@ -270,6 +314,7 @@ struct ContentView: View {
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
+        if forceRefresh { costVM.reset() }
         clearResources()
         profileVM.beginConfiguration()
 
@@ -287,6 +332,7 @@ struct ContentView: View {
                 }
                 return
             }
+            configureCosts()
             let target = favoriteNavigation.target
             if target != nil {
                 guard case .valid(let identity) = profileVM.profileStatus,

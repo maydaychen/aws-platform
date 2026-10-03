@@ -5,6 +5,7 @@ struct ProfileBarView: View {
     let onRetry: () -> Void
     var onLogin: () -> Void = {}
     var onCancelLogin: () -> Void = {}
+    var showsResourceRegion = true
     @State private var isCustomRegionPresented = false
     @State private var customRegion = ""
     @State private var regionError: String?
@@ -52,36 +53,11 @@ struct ProfileBarView: View {
                 .frame(minWidth: 180, idealWidth: 250, maxWidth: 320)
                 .disabled(vm.availableProfiles.isEmpty || vm.isSigningIn)
 
-                Picker("Region", selection: $vm.selectedRegion) {
-                    ForEach(vm.availableRegions, id: \.self) { region in
-                        Text(region).tag(region)
-                    }
-                }
-                .frame(width: 210)
-                .disabled(vm.selectedProfile == nil || vm.isSigningIn)
-                Button {
-                    customRegion = vm.selectedRegion
-                    regionError = nil
-                    isCustomRegionPresented = true
-                } label: {
-                    Image(systemName: "pencil")
-                }
-                .help("Enter another AWS region")
-                .disabled(vm.selectedProfile == nil || vm.isSigningIn)
-                .accessibilityLabel("Enter another AWS region")
-                .popover(isPresented: $isCustomRegionPresented) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("AWS Region").font(.headline)
-                        TextField("Region code", text: $customRegion)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit(applyCustomRegion)
-                        if let regionError {
-                            Text(regionError).font(.caption).foregroundColor(.orange)
-                        }
-                        Button("Use Region", action: applyCustomRegion)
-                    }
-                    .padding()
-                    .frame(width: 280)
+                if showsResourceRegion {
+                    resourceRegionControls
+                } else {
+                    Label("Cost regions are selected below", systemImage: "globe")
+                        .font(.caption).foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)
                 Button(vm.selectedProfile == nil ? "Reload Config" : "Retry Connection", action: onRetry)
@@ -102,6 +78,41 @@ struct ProfileBarView: View {
         .padding(.horizontal)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var resourceRegionControls: some View {
+        Picker("Region", selection: $vm.selectedRegion) {
+            ForEach(vm.availableRegions, id: \.self) { region in
+                Text(region).tag(region)
+            }
+        }
+        .frame(width: 210)
+        .disabled(vm.selectedProfile == nil || vm.isSigningIn)
+        Button {
+            customRegion = vm.selectedRegion
+            regionError = nil
+            isCustomRegionPresented = true
+        } label: {
+            Image(systemName: "pencil")
+        }
+        .help("Enter another AWS region")
+        .disabled(vm.selectedProfile == nil || vm.isSigningIn)
+        .accessibilityLabel("Enter another AWS region")
+        .popover(isPresented: $isCustomRegionPresented) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("AWS Region").font(.headline)
+                TextField("Region code", text: $customRegion)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(applyCustomRegion)
+                if let regionError {
+                    Text(regionError).font(.caption).foregroundColor(.orange)
+                }
+                Button("Use Region", action: applyCustomRegion)
+            }
+            .padding()
+            .frame(width: 280)
+        }
     }
 
     private func applyCustomRegion() {

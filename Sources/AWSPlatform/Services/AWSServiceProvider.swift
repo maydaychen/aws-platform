@@ -4,6 +4,7 @@ import SotoEC2
 import SotoLambda
 import SotoS3
 import SotoSTS
+import SotoCostExplorer
 
 actor AWSServiceProvider {
     private var awsClient: AWSClient?
@@ -13,6 +14,7 @@ actor AWSServiceProvider {
     private(set) var currentProfileName: String?
     private(set) var currentRegion: String?
     private var currentPaths: AWSConfigurationPaths?
+    private var currentProfile: AWSProfile?
 
     deinit {
         // App shutdown can outpace our async cleanup task. Use Soto's synchronous
@@ -31,8 +33,14 @@ actor AWSServiceProvider {
             return
         }
 
-        if !forceRefresh, currentProfileName == profile.name, currentRegion == region,
-           currentPaths == paths, awsClient != nil {
+        if !forceRefresh, currentProfile == profile, currentPaths == paths, let awsClient {
+            // Resource Region changes must not close an in-flight global Cost query.
+            if currentRegion != region {
+                ec2 = EC2(client: awsClient, region: .init(rawValue: region))
+                lambda = Lambda(client: awsClient, region: .init(rawValue: region))
+                sts = STS(client: awsClient, region: .init(rawValue: region))
+                currentRegion = region
+            }
             return
         }
 
@@ -67,6 +75,7 @@ actor AWSServiceProvider {
         self.currentProfileName = profile.name
         self.currentRegion = region
         self.currentPaths = paths
+        self.currentProfile = profile
 
         if let previousClient {
             await Self.shutdown(previousClient)
@@ -100,6 +109,13 @@ actor AWSServiceProvider {
         )
     }
 
+    func costExplorerClient(profile: AWSProfile, paths: AWSConfigurationPaths, partition: AWSPartition) throws -> CostExplorer {
+        guard currentProfile == profile, currentPaths == paths, let awsClient else {
+            throw CostError.invalidIdentity
+        }
+        return CostExplorer(client: awsClient, partition: partition)
+    }
+
     func shutdown() async {
         let awsClient = self.awsClient
         self.awsClient = nil
@@ -109,6 +125,7 @@ actor AWSServiceProvider {
         currentProfileName = nil
         currentRegion = nil
         currentPaths = nil
+        currentProfile = nil
 
         guard let awsClient else { return }
 
@@ -125,7 +142,7 @@ actor AWSServiceProvider {
     }
 }
 
-struct AWSIdentity: Hashable {
+struct AWSIdentity: Hashable, Sendable {
     let account: String
     let arn: String
     let userID: String

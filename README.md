@@ -1,6 +1,6 @@
 # AWS Platform
 
-macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
+macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 
 ## 功能
 
@@ -9,6 +9,7 @@ macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
+- **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数和 S3 Bucket，搜索并在当前 Profile 内恢复收藏时的 Region
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
@@ -68,6 +69,24 @@ open Package.swift
 
 收藏通过本机 UserDefaults 保存，重启后恢复，同一应用进程的多个窗口共享收藏列表。保存内容仅包含 Profile 名称、账号 ID、Region、服务、资源 ID 和显示名称；不保存凭据、资源详情或环境变量，不进行云端同步。相同资源在不同 Profile、账号或浏览 Region 下分别保存。
 
+### 费用面板
+
+手动选择并验证 Profile 后，打开侧栏 `Costs`（`Cmd+Shift+B`）首次加载费用。面板提供本月累计、上月整月费用、选定期间的日趋势和按服务明细；使用 `UnblendedCost`，保留 AWS 返回的币种、负数退款及 `Estimated` 状态。无数据与实际零费用分别展示。
+
+每个费用请求都限定为当前 Profile 经 STS 验证的账号，包含 `LINKED_ACCOUNT` 筛选；管理账号也只展示自身账号费用，不自动汇总组织成员。Profile 的角色仍需具备账单访问权限。未选择 Profile 不查询；切换 Profile、session、重新登录或重试连接会清空费用缓存。
+
+日期支持本月、上月、最近 30 天和自定义范围，采用 UTC 完整日，不包含当天未结束的数据；可选当前月及此前 12 个月。月初尚无完整日期时，本月累计留空，仍可查看上月。日趋势和服务明细使用选定日期；顶部两项汇总始终对应查询时的本月与上月。费用 Region 独立于资源 Region，默认全部区域，选项取自 AWS 账单维度并同时作用于汇总、趋势与服务明细。标准 AWS 分区使用全局 Cost Explorer 端点 `ce.us-east-1.amazonaws.com`；中国分区使用 SDK 对应的中国端点，其他分区显示不支持。
+
+修改筛选后点击 `Apply` 才查询，`Refresh` 强制更新已应用的筛选。当前 Profile 的最近 8 组成功结果只缓存在内存中，回到已加载页面不会重复请求；失败或取消后需要手动重试。缓存不定时刷新、不落盘，页面显示获取时间；刷新失败时保留同一查询的旧结果并提示。`Cancel` 停止等待和后续翻页，已经完成的请求仍可能计费。
+
+使用前在 AWS 控制台启用 Cost Explorer，并为当前角色授予 `ce:GetCostAndUsage` 和 `ce:GetDimensionValues` 及相应账单访问权限。费用数据存在延迟，可能修订，不能视为实时费用或最终发票；应用不会自动启用服务。权限不足、数据尚未可用、限流、登录失效及不完整响应都会显示提示，不将分页中途失败的金额作为完整汇总。
+
+**Cost Explorer API 会收费。** 一次加载通常包括汇总、日明细及区域维度等多次调用，还可能分页或由 SDK 自动重试；页面记录逻辑调用／分页次数，不包含 SDK 重试，不是账单费用估算。当前价格与启用规则见 [AWS Cost Explorer 定价](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/) 、[启用说明](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-enable.html) 和 [API 文档](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-api.html) 。
+
+以下为模拟费用数据的组件示例：
+
+![费用面板](docs/ui-costs-light.png)
+
 ### 应用内 SSO 登录
 
 1. 在 `SSO Session` 中选择已配置的 session，点击 `SSO Login`。应用后台调用本机 `aws sso login --sso-session <name>`，由 AWS CLI 打开默认浏览器完成授权；不会打开终端窗口，也不需要预先选择 Profile。
@@ -96,18 +115,22 @@ Sources/AWSPlatform/
 │   ├── AWSProfile.swift
 │   ├── AWSSOSession.swift
 │   ├── AWSService.swift
+│   ├── CostModels.swift
+│   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   └── S3Bucket.swift
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
+│   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页
 │   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
 │   ├── ConfigReader.swift
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
+│   ├── CostViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
@@ -115,6 +138,7 @@ Sources/AWSPlatform/
 │   ├── ProfileViewModel.swift
 │   └── S3ViewModel.swift
 └── Views/                       # 界面视图
+    ├── Cost/
     ├── EC2/
     ├── Lambda/
     ├── S3/

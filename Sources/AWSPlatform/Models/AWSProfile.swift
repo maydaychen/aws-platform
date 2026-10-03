@@ -1,6 +1,6 @@
 import Foundation
 
-struct AWSProfile: Identifiable, Hashable {
+struct AWSProfile: Identifiable, Hashable, Sendable {
     let name: String
     let region: String
     let ssoStartURL: String?

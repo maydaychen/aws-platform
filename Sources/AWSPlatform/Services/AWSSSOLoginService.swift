@@ -33,16 +33,16 @@ struct AWSSSOLoginService {
         try await run(executable: executable, arguments: arguments, environment: environment)
     }
 
-    func login(profile: String, paths: AWSConfigurationPaths) async throws {
-        guard !profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw LoginError.invalidProfile
+    func login(session: String, paths: AWSConfigurationPaths) async throws {
+        guard !session.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw LoginError.invalidSession
         }
         try Task.checkCancellation()
         do {
-            // Pass each argument directly; profile names are never interpreted by a shell.
+            // Pass each argument directly; session names are never interpreted by a shell.
             try await runner(
-                ["sso", "login", "--profile", profile, "--no-cli-pager", "--no-cli-auto-prompt"],
-                AWSCLIConfiguration.environment(paths: paths)
+                ["sso", "login", "--sso-session", session, "--no-cli-pager", "--no-cli-auto-prompt"],
+                Self.loginEnvironment(paths: paths)
             )
             try Task.checkCancellation()
         } catch is CancellationError {
@@ -52,6 +52,17 @@ struct AWSSSOLoginService {
         } catch {
             throw LoginError.failed
         }
+    }
+
+    static func loginEnvironment(
+        paths: AWSConfigurationPaths,
+        base: [String: String] = ProcessInfo.processInfo.environment
+    ) -> [String: String] {
+        var environment = AWSCLIConfiguration.environment(paths: paths, base: base)
+        // An ambient profile must not gate a login scoped only to an SSO session.
+        environment.removeValue(forKey: "AWS_PROFILE")
+        environment.removeValue(forKey: "AWS_DEFAULT_PROFILE")
+        return environment
     }
 
     static func run(
@@ -98,20 +109,20 @@ struct AWSSSOLoginService {
     }
 
     enum LoginError: LocalizedError {
-        case cliMissing, invalidProfile, launchFailed, failed, timedOut
+        case cliMissing, invalidSession, launchFailed, failed, timedOut
 
         var errorDescription: String? {
             switch self {
             case .cliMissing:
                 return "Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, then try SSO Login again."
-            case .invalidProfile:
-                return "Select an SSO profile before signing in."
+            case .invalidSession:
+                return "Select an SSO session before signing in."
             case .launchFailed:
                 return "Unable to start AWS CLI. Check its installation and try again."
             case .failed:
-                return "SSO login did not complete. Check browser authorization, network access and SSO configuration. You can also sign in from Terminal, then use Retry Connection."
+                return "SSO login did not complete. Check browser authorization, network access and SSO configuration. You can also sign in from Terminal, then select a profile to connect."
             case .timedOut:
-                return "SSO login timed out after waiting for browser authorization. Try again, or sign in from Terminal and use Retry Connection."
+                return "SSO login timed out after waiting for browser authorization. Try again, or sign in from Terminal and select a profile to connect."
             }
         }
     }

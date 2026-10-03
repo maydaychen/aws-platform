@@ -4,19 +4,21 @@ import XCTest
 
 @MainActor
 final class AWSSSOLoginServiceTests: XCTestCase {
-    func testLoginPassesLiteralProfileAndMatchingConfigurationPaths() async throws {
+    func testLoginPassesLiteralSessionWithoutProfileAndMatchingConfigurationPaths() async throws {
         let paths = AWSConfigurationPaths(environment: [
             "AWS_CONFIG_FILE": "/example/config", "AWS_SHARED_CREDENTIALS_FILE": "/example/credentials"
         ])
         let service = AWSSSOLoginService { arguments, environment in
-            XCTAssertEqual(arguments, ["sso", "login", "--profile", "work; $(echo unsafe)", "--no-cli-pager", "--no-cli-auto-prompt"])
+            XCTAssertEqual(arguments, ["sso", "login", "--sso-session", "work; $(echo unsafe)", "--no-cli-pager", "--no-cli-auto-prompt"])
             XCTAssertEqual(environment["AWS_CONFIG_FILE"], paths.config)
             XCTAssertEqual(environment["AWS_SHARED_CREDENTIALS_FILE"], paths.credentials)
             XCTAssertEqual(environment["AWS_CLI_AUTO_PROMPT"], "off")
             XCTAssertEqual(environment["AWS_PAGER"], "")
             XCTAssertEqual(environment["AWS_CLI_HISTORY_FILE"], "/dev/null")
+            XCTAssertNil(environment["AWS_PROFILE"])
+            XCTAssertNil(environment["AWS_DEFAULT_PROFILE"])
         }
-        try await service.login(profile: "work; $(echo unsafe)", paths: paths)
+        try await service.login(session: "work; $(echo unsafe)", paths: paths)
     }
 
     func testEnvironmentRemovesAmbientCredentialsAndPreservesProxy() {
@@ -29,15 +31,49 @@ final class AWSSSOLoginServiceTests: XCTestCase {
         XCTAssertEqual(environment["HTTPS_PROXY"], base["HTTPS_PROXY"])
     }
 
-    func testMissingCLIAndEmptyProfileHaveActionableErrors() async {
+    func testLoginChildIgnoresAmbientProfilesAndPreservesConfigurationPaths() async throws {
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": "/example/config with spaces",
+            "AWS_SHARED_CREDENTIALS_FILE": "/example/credentials with spaces"
+        ])
+        let base = [
+            "AWS_PROFILE": "missing-ambient-profile",
+            "AWS_DEFAULT_PROFILE": "missing-default-profile",
+            "EXPECTED_CONFIG_FILE": paths.config,
+            "EXPECTED_CREDENTIALS_FILE": paths.credentials
+        ]
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("aws")
+        try """
+        #!/bin/sh
+        test "${AWS_PROFILE+x}" != x || exit 11
+        test "${AWS_DEFAULT_PROFILE+x}" != x || exit 12
+        test "$AWS_CONFIG_FILE" = "$EXPECTED_CONFIG_FILE" || exit 13
+        test "$AWS_SHARED_CREDENTIALS_FILE" = "$EXPECTED_CREDENTIALS_FILE" || exit 14
+        test "$1" = sso && test "$2" = login && test "$3" = --sso-session && test "$4" = company || exit 15
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        try await AWSSSOLoginService.run(
+            executable: executable,
+            arguments: ["sso", "login", "--sso-session", "company"],
+            environment: AWSSSOLoginService.loginEnvironment(paths: paths, base: base)
+        )
+        let providerEnvironment = AWSCLIConfiguration.environment(paths: paths, base: base)
+        XCTAssertEqual(providerEnvironment["AWS_PROFILE"], base["AWS_PROFILE"])
+        XCTAssertEqual(providerEnvironment["AWS_DEFAULT_PROFILE"], base["AWS_DEFAULT_PROFILE"])
+    }
+
+    func testMissingCLIAndEmptySessionHaveActionableErrors() async {
         XCTAssertNil(AWSCLIConfiguration.executable(candidates: ["/nonexistent/aws-platform-test/aws"]))
         XCTAssertTrue(AWSSSOLoginService.LoginError.cliMissing.localizedDescription.contains("AWS CLI v2"))
-        let service = AWSSSOLoginService { _, _ in XCTFail("Empty profile must not launch") }
+        let service = AWSSSOLoginService { _, _ in XCTFail("Empty session must not launch") }
         do {
-            try await service.login(profile: "  ", paths: AWSConfigurationPaths())
-            XCTFail("Expected invalid profile")
+            try await service.login(session: "  \n", paths: AWSConfigurationPaths())
+            XCTFail("Expected invalid session")
         } catch {
-            XCTAssertEqual(error as? AWSSSOLoginService.LoginError, .invalidProfile)
+            XCTAssertEqual(error as? AWSSSOLoginService.LoginError, .invalidSession)
         }
     }
 
@@ -46,7 +82,7 @@ final class AWSSSOLoginServiceTests: XCTestCase {
             throw NSError(domain: "private-authorization-url", code: 1)
         }
         do {
-            try await service.login(profile: "work", paths: AWSConfigurationPaths())
+            try await service.login(session: "work", paths: AWSConfigurationPaths())
             XCTFail("Expected failure")
         } catch {
             XCTAssertEqual(error as? AWSSSOLoginService.LoginError, .failed)
@@ -88,6 +124,20 @@ final class AWSSSOLoginServiceTests: XCTestCase {
     func testAlreadyCancelledTaskDoesNotLaunchProcess() async {
         let task = Task {
             try await AWSSSOLoginService.run(executable: URL(fileURLWithPath: "/nonexistent/aws"), arguments: [], environment: [:])
+        }
+        task.cancel()
+        do {
+            try await task.value
+            XCTFail("Expected cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testAlreadyCancelledLoginDoesNotInvokeRunner() async {
+        let service = AWSSSOLoginService { _, _ in XCTFail("Cancelled login must not launch") }
+        let task = Task {
+            try await service.login(session: "company", paths: AWSConfigurationPaths())
         }
         task.cancel()
         do {

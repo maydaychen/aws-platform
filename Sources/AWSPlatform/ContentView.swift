@@ -52,7 +52,12 @@ struct ContentView: View {
         }
         .onChange(of: profileVM.selectedProfileID) { _ in
             cancelFavoriteIfScopeChanged()
-            s3BrowsingBucket = nil
+            if profileVM.isSigningIn { clearResources() }
+            else { reconfigureServices() }
+        }
+        .onChange(of: profileVM.profileSource) { _ in
+            loginTask?.cancel()
+            favoriteNavigation.cancel()
             reconfigureServices()
         }
         .onChange(of: profileVM.selectedRegion) { _ in
@@ -80,8 +85,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var middlePane: some View {
-        if showingFavorites {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: "No profile selected", icon: "person.crop.circle")
+        } else if showingFavorites {
             FavoritesListView(vm: favoritesVM, onOpen: openFavorite)
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load resources.", icon: "cloud")
         } else {
             serviceList
         }
@@ -105,8 +114,14 @@ struct ContentView: View {
 
     @ViewBuilder
     private var resourceDetail: some View {
-        if showingFavorites {
-            EmptyStateView(text: "Open a favorite to switch to its saved profile and region.", icon: "star")
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if showingFavorites {
+            EmptyStateView(text: "Select a favorite from the current profile to open its saved region and resource.", icon: "star")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Waiting for the selected profile to connect.", icon: "cloud")
                 .padding()
         } else if let target = favoriteNavigation.target {
             VStack(spacing: 12) {
@@ -165,8 +180,8 @@ struct ContentView: View {
 
     private func openFavorite(_ favorite: ResourceFavorite) {
         profileVM.loadProfiles()
-        guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles) else { return }
-        profileVM.selectProfile(id: favorite.profileName)
+        guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
+                                       selectedProfileName: profileVM.selectedProfile?.name) else { return }
         profileVM.selectedRegion = favorite.region
         selectedService = favorite.service
         showingFavorites = false
@@ -238,23 +253,25 @@ struct ContentView: View {
 
     private func signIn() {
         guard profileVM.canSignIn, loginTask == nil else { return }
-        reconfigureTask?.cancel()
+        clearResources()
+        favoriteNavigation.cancel()
         loginTask = Task {
-            let succeeded = await profileVM.signIn()
+            _ = await profileVM.signIn()
             loginTask = nil
-            guard succeeded, !Task.isCancelled else { return }
-            reconfigureServices(forceRefresh: true)
         }
     }
 
-    private func reconfigureServices(forceRefresh: Bool = false) {
-        loginTask?.cancel()
+    private func clearResources() {
         reconfigureTask?.cancel()
         s3BrowsingBucket = nil
-        profileVM.beginConfiguration()
         ec2VM.reset()
         lambdaVM.reset()
         s3VM.reset()
+    }
+
+    private func reconfigureServices(forceRefresh: Bool = false) {
+        clearResources()
+        profileVM.beginConfiguration()
 
         reconfigureTask = Task {
             do {

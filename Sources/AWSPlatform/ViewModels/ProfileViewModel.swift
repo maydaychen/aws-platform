@@ -7,7 +7,10 @@ final class ProfileViewModel: ObservableObject {
     typealias SSOLogin = @MainActor (String, AWSConfigurationPaths) async throws -> Void
 
     @Published var profiles: [AWSProfile] = []
-    @Published var selectedProfileID: AWSProfile.ID?
+    @Published private(set) var sessions: [AWSSOSession] = []
+    @Published private(set) var profileSource: AWSProfileSource?
+    @Published private(set) var selectedProfileID: AWSProfile.ID?
+    @Published private(set) var signedInSessionID: String?
     @Published var selectedRegion = "us-east-1"
     @Published var isValidatingProfile = false
     @Published var profileStatus: ProfileStatus = .idle
@@ -15,8 +18,10 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var loginMessage: String?
     @Published private(set) var requiresSSOLogin = false
 
-    private let savedProfileKey = "selectedProfileID"
-    private let savedRegionKey = "selectedRegion"
+    private let savedSessionKey = "selectedSSOSessionID"
+    private var hasLoadedConfiguration = false
+    private var validatedProfileID: String?
+    private var validatedRegion: String?
     private let defaults: UserDefaults
     private let profileValidator: ProfileValidator?
     private let ssoLogin: SSOLogin
@@ -40,12 +45,14 @@ final class ProfileViewModel: ObservableObject {
     }
 
     var isProfileReady: Bool {
-        if case .valid = profileStatus { return true }
+        if case .valid = profileStatus, let profile = selectedProfile {
+            return validatedProfileID == profile.id && validatedRegion == selectedRegion
+        }
         return false
     }
 
     var canSignIn: Bool {
-        selectedProfile?.isSSO == true && !isSigningIn && !isValidatingProfile && !isProfileReady
+        selectedSession != nil && !isSigningIn && !isValidatingProfile
     }
 
     @discardableResult
@@ -55,15 +62,14 @@ final class ProfileViewModel: ObservableObject {
             return false
         }
         selectedRegion = region
-        saveSelection()
         return true
     }
 
     init(
         defaults: UserDefaults = .standard,
         profileValidator: ProfileValidator? = nil,
-        ssoLogin: @escaping SSOLogin = { profile, paths in
-            try await AWSSSOLoginService().login(profile: profile, paths: paths)
+        ssoLogin: @escaping SSOLogin = { session, paths in
+            try await AWSSSOLoginService().login(session: session, paths: paths)
         }
     ) {
         self.defaults = defaults
@@ -71,57 +77,115 @@ final class ProfileViewModel: ObservableObject {
         self.ssoLogin = ssoLogin
     }
 
-    var selectedProfile: AWSProfile? {
-        profiles.first { $0.id == selectedProfileID }
+    var selectedSession: AWSSOSession? {
+        guard case .session(let id) = profileSource else { return nil }
+        return sessions.first { $0.id == id }
     }
 
-    func loadProfiles(_ profiles: [AWSProfile]? = nil) {
-        self.profiles = profiles ?? ConfigReader.readProfiles()
-        let savedProfileID = defaults.string(forKey: savedProfileKey)
-        let savedRegion = defaults.string(forKey: savedRegionKey)
-
-        if let savedProfileID, let profile = self.profiles.first(where: { $0.id == savedProfileID }) {
-            selectedProfileID = profile.id
-            selectedRegion = savedRegion ?? profile.region
-        } else if let profile = selectedProfile ?? self.profiles.first {
-            selectedProfileID = profile.id
-            selectedRegion = profile.region
-        } else {
-            selectedProfileID = nil
-            selectedRegion = "us-east-1"
+    var availableProfiles: [AWSProfile] {
+        switch profileSource {
+        case .session(let id) where selectedSession != nil:
+            return profiles.filter { $0.ssoSessionName == id }
+        case .other:
+            return profiles.filter { $0.ssoSessionName == nil }
+        default:
+            return []
         }
     }
 
-    func selectProfile(id: AWSProfile.ID) {
-        guard let profile = profiles.first(where: { $0.id == id }) else { return }
-        selectedProfileID = id
+    var selectedProfile: AWSProfile? {
+        availableProfiles.first { $0.id == selectedProfileID }
+    }
+
+    var selectionPrompt: String {
+        if isSigningIn { return "Complete session login, then select a profile to load resources." }
+        if profileSource == nil { return "Select an SSO session to sign in, then choose a profile." }
+        if availableProfiles.isEmpty {
+            return "No profiles are configured for this selection. Add a profile to your AWS configuration, then reload."
+        }
+        return "Select a profile to load resources. No account is selected automatically."
+    }
+
+    func loadProfiles(_ profiles: [AWSProfile]? = nil, sessions: [AWSSOSession]? = nil) {
+        let previousProfile = selectedProfile
+        self.profiles = profiles ?? ConfigReader.readProfiles()
+        self.sessions = sessions ?? (profiles == nil ? ConfigReader.readSessions() : self.sessions)
+        if !hasLoadedConfiguration, let saved = defaults.string(forKey: savedSessionKey),
+           self.sessions.contains(where: { $0.id == saved }) {
+            profileSource = .session(saved)
+        }
+        hasLoadedConfiguration = true
+        if case .session = profileSource, selectedSession == nil { selectSource(nil) }
+        if previousProfile != selectedProfile || selectedProfile == nil {
+            clearProfileSelection()
+        }
+    }
+
+    func selectSource(_ source: AWSProfileSource?) {
+        let validSource: AWSProfileSource?
+        if case .session(let id) = source, !sessions.contains(where: { $0.id == id }) {
+            validSource = nil
+        } else {
+            validSource = source
+        }
+        guard profileSource != validSource else { return }
+        profileSource = validSource
+        signedInSessionID = nil
+        if case .session(let id) = validSource { defaults.set(id, forKey: savedSessionKey) }
+        else { defaults.removeObject(forKey: savedSessionKey) }
+        clearProfileSelection()
+    }
+
+    func selectProfile(id: AWSProfile.ID?) {
+        guard !isSigningIn else { return }
+        guard let id, let profile = availableProfiles.first(where: { $0.id == id }) else {
+            clearProfileSelection()
+            return
+        }
+        guard selectedProfileID != id else { return }
+        clearProfileSelection()
+        selectedProfileID = profile.id
         selectedRegion = profile.region
-        saveSelection()
+    }
+
+    private func clearProfileSelection() {
+        configurationGeneration += 1
+        selectedProfileID = nil
+        validatedProfileID = nil
+        validatedRegion = nil
+        loginMessage = nil
+        requiresSSOLogin = false
+        isValidatingProfile = false
+        profileStatus = .idle
     }
 
     func beginConfiguration() {
         configurationGeneration += 1
-        loginMessage = nil
+        if selectedProfile != nil { loginMessage = nil }
         requiresSSOLogin = false
-        isValidatingProfile = true
-        profileStatus = .checking
+        isValidatingProfile = selectedProfile != nil
+        profileStatus = selectedProfile == nil ? .idle : .checking
     }
 
     func signIn() async -> Bool {
-        guard canSignIn, let profile = selectedProfile else { return false }
-        configurationGeneration += 1
+        guard canSignIn, let session = selectedSession else { return false }
+        clearProfileSelection()
+        signedInSessionID = nil
         let generation = configurationGeneration
         isSigningIn = true
         loginMessage = nil
         defer { isSigningIn = false }
         do {
-            try await ssoLogin(profile.name, AWSConfigurationPaths())
+            await provider.shutdown()
             try Task.checkCancellation()
-            guard generation == configurationGeneration, selectedProfileID == profile.id else { return false }
-            // The caller must rebuild the provider and validate identity before loading resources.
+            try await ssoLogin(session.name, AWSConfigurationPaths())
+            try Task.checkCancellation()
+            guard generation == configurationGeneration, selectedSession?.id == session.id else { return false }
+            signedInSessionID = session.id
+            // Session authorization does not select an account or load any resource.
             return true
         } catch {
-            guard generation == configurationGeneration, selectedProfileID == profile.id else { return false }
+            guard generation == configurationGeneration, selectedSession?.id == session.id else { return false }
             if error is CancellationError {
                 loginMessage = "SSO login cancelled. You can try again when ready."
             } else if let error = error as? AWSSSOLoginService.LoginError {
@@ -139,10 +203,9 @@ final class ProfileViewModel: ObservableObject {
         let profile = selectedProfile
         let region = selectedRegion
 
-        saveSelection()
-        isValidatingProfile = true
+        isValidatingProfile = profile != nil
         requiresSSOLogin = false
-        profileStatus = .checking
+        profileStatus = profile == nil ? .idle : .checking
         defer {
             if generation == configurationGeneration {
                 isValidatingProfile = false
@@ -152,7 +215,7 @@ final class ProfileViewModel: ObservableObject {
         guard let profile else {
             await provider.configure(profile: nil, region: region)
             guard generation == configurationGeneration else { return false }
-            profileStatus = .failed("No AWS profile found. Configure an AWS config or credentials file, then retry.")
+            profileStatus = .idle
             return false
         }
 
@@ -168,6 +231,8 @@ final class ProfileViewModel: ObservableObject {
             }
             try Task.checkCancellation()
             guard generation == configurationGeneration else { return false }
+            validatedProfileID = profile.id
+            validatedRegion = region
             profileStatus = .valid(identity)
             return true
         } catch is CancellationError {
@@ -178,6 +243,7 @@ final class ProfileViewModel: ObservableObject {
         } catch {
             guard generation == configurationGeneration else { return false }
             requiresSSOLogin = profile.isSSO && UserFacingError.requiresSSOLogin(error)
+            if requiresSSOLogin { signedInSessionID = nil }
             profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profile.name))
             return false
         }
@@ -188,11 +254,6 @@ final class ProfileViewModel: ObservableObject {
         isValidatingProfile = false
         await provider.shutdown()
     }
-
-    private func saveSelection() {
-        defaults.set(selectedProfileID, forKey: savedProfileKey)
-        defaults.set(selectedRegion, forKey: savedRegionKey)
-    }
 }
 
 enum ProfileStatus: Hashable {
@@ -200,4 +261,9 @@ enum ProfileStatus: Hashable {
     case checking
     case valid(AWSIdentity)
     case failed(String)
+}
+
+enum AWSProfileSource: Hashable {
+    case session(String)
+    case other
 }

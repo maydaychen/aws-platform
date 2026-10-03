@@ -8,9 +8,19 @@ final class FavoriteNavigationTests: XCTestCase {
                     ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)]
     }
 
+    func testFavoriteCannotChooseAProfileWhenNoneOrAnotherIsSelected() {
+        let navigation = FavoriteNavigation()
+        for selected in [nil, "other"] as [String?] {
+            XCTAssertFalse(navigation.begin(FavoritesViewModelTests.makeFavorite(), profiles: profiles,
+                                             selectedProfileName: selected))
+            XCTAssertNil(navigation.target)
+            XCTAssertTrue(navigation.error?.contains("Select profile work") == true)
+        }
+    }
+
     func testMissingProfileFailsWithoutStartingNavigation() {
         let navigation = FavoriteNavigation()
-        XCTAssertFalse(navigation.begin(FavoritesViewModelTests.makeFavorite(profile: "missing"), profiles: profiles))
+        XCTAssertFalse(navigation.begin(FavoritesViewModelTests.makeFavorite(profile: "missing"), profiles: profiles, selectedProfileName: "work"))
         XCTAssertNil(navigation.target)
         XCTAssertNotNil(navigation.error)
     }
@@ -18,11 +28,11 @@ final class FavoriteNavigationTests: XCTestCase {
     func testAccountMismatchPreventsOpeningAndNewDestinationClearsFailure() {
         let navigation = FavoriteNavigation()
         let favorite = FavoritesViewModelTests.makeFavorite()
-        XCTAssertTrue(navigation.begin(favorite, profiles: profiles))
+        XCTAssertTrue(navigation.begin(favorite, profiles: profiles, selectedProfileName: "work"))
         XCTAssertFalse(navigation.verifyAccount("222222222222"))
         XCTAssertNil(navigation.target)
         XCTAssertNotNil(navigation.error)
-        XCTAssertTrue(navigation.begin(favorite, profiles: profiles))
+        XCTAssertTrue(navigation.begin(favorite, profiles: profiles, selectedProfileName: "work"))
         XCTAssertTrue(navigation.verifyAccount(favorite.accountID))
         XCTAssertNil(navigation.error)
     }
@@ -30,7 +40,7 @@ final class FavoriteNavigationTests: XCTestCase {
     func testDestinationIncludesSavedRegionAndCanBeCancelled() {
         let navigation = FavoriteNavigation()
         let favorite = FavoritesViewModelTests.makeFavorite(region: "eu-central-2")
-        XCTAssertTrue(navigation.begin(favorite, profiles: profiles))
+        XCTAssertTrue(navigation.begin(favorite, profiles: profiles, selectedProfileName: "work"))
         XCTAssertTrue(navigation.matches(profileName: "work", region: "eu-central-2"))
         XCTAssertFalse(navigation.matches(profileName: "work", region: "us-east-1"))
         XCTAssertFalse(navigation.matches(profileName: "other", region: "eu-central-2"))
@@ -54,7 +64,7 @@ final class FavoriteNavigationTests: XCTestCase {
         ec2.stateFilter = "stopped"
         ec2.healthFilter = .attention
         let navigation = FavoriteNavigation()
-        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(), profiles: profiles)
+        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(), profiles: profiles, selectedProfileName: "work")
         navigation.resolve(ec2: ec2, lambda: lambda, s3: s3)
         XCTAssertEqual(ec2.selectedInstance?.instanceId, instance.instanceId)
         XCTAssertEqual(ec2.filteredInstances, [instance])
@@ -75,7 +85,7 @@ final class FavoriteNavigationTests: XCTestCase {
         lambda.stateFilter = "Failed"
         lambda.packageFilter = "Image"
         let navigation = FavoriteNavigation()
-        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .lambda, resourceID: "handler"), profiles: profiles)
+        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .lambda, resourceID: "handler"), profiles: profiles, selectedProfileName: "work")
         navigation.resolve(ec2: EC2ViewModel(), lambda: lambda, s3: S3ViewModel())
         XCTAssertEqual(lambda.selectedFunction, function)
         XCTAssertEqual(lambda.filteredFunctions, [function])
@@ -91,7 +101,7 @@ final class FavoriteNavigationTests: XCTestCase {
         s3.bucketSearchText = "hidden"
         s3.objectSearchText = "hidden"
         let navigation = FavoriteNavigation()
-        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .s3, resourceID: bucket.name), profiles: profiles)
+        _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .s3, resourceID: bucket.name), profiles: profiles, selectedProfileName: "work")
         navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: s3)
         XCTAssertEqual(s3.selectedBucket, bucket)
         XCTAssertEqual(s3.filteredBuckets, [bucket])
@@ -106,11 +116,11 @@ final class FavoriteNavigationTests: XCTestCase {
         let favorite = FavoritesViewModelTests.makeFavorite()
         store.toggle(favorite)
         let navigation = FavoriteNavigation()
-        _ = navigation.begin(favorite, profiles: profiles)
+        _ = navigation.begin(favorite, profiles: profiles, selectedProfileName: "work")
         navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel())
         XCTAssertNotNil(navigation.error)
         XCTAssertTrue(store.contains(favorite))
-        _ = navigation.begin(favorite, profiles: profiles)
+        _ = navigation.begin(favorite, profiles: profiles, selectedProfileName: "work")
         navigation.finish(found: false, loadError: "Permission denied")
         XCTAssertTrue(navigation.error?.contains("Permission denied") == true)
         XCTAssertTrue(store.contains(favorite))

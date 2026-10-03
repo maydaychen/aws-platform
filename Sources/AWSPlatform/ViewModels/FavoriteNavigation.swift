@@ -7,7 +7,7 @@ final class FavoriteNavigation: ObservableObject {
     @Published private(set) var target: ResourceFavorite?
     @Published private(set) var error: String?
 
-    func begin(_ favorite: ResourceFavorite, profiles: [AWSProfile]) -> Bool {
+    func begin(_ favorite: ResourceFavorite, profiles: [AWSProfile], selectedProfileName: String?) -> Bool {
         cancel()
         guard favorite.isValid else {
             error = "This favorite has an invalid destination."
@@ -15,6 +15,10 @@ final class FavoriteNavigation: ObservableObject {
         }
         guard profiles.contains(where: { $0.name == favorite.profileName }) else {
             error = "Profile \(favorite.profileName) is unavailable. Restore its AWS configuration and retry. The favorite is still saved."
+            return false
+        }
+        guard selectedProfileName == favorite.profileName else {
+            error = "Select profile \(favorite.profileName) in its session first, then open this favorite. No profile was selected automatically."
             return false
         }
         target = favorite

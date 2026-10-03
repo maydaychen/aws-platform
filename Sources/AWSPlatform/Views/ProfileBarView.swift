@@ -18,20 +18,39 @@ struct ProfileBarView: View {
                 profileStatusView
             }
             HStack(spacing: 12) {
+                Picker("SSO Session", selection: Binding(
+                    get: { vm.profileSource },
+                    set: { vm.selectSource($0) }
+                )) {
+                    Text("Select session").tag(Optional<AWSProfileSource>.none)
+                    ForEach(vm.sessions) { session in
+                        Text(session.name).tag(Optional(AWSProfileSource.session(session.id)))
+                    }
+                    Divider()
+                    Text("Other profiles").tag(Optional(AWSProfileSource.other))
+                }
+                .frame(minWidth: 250, idealWidth: 380, maxWidth: 440)
+                if vm.isSigningIn {
+                    Button("Cancel Login", action: onCancelLogin)
+                } else if vm.selectedSession != nil {
+                    Button("SSO Login", action: onLogin)
+                        .disabled(!vm.canSignIn)
+                        .help("Sign in to this session. Choose a profile afterwards to load resources.")
+                }
+                Spacer()
+            }
+            HStack(spacing: 12) {
                 Picker("Profile", selection: Binding(
                     get: { vm.selectedProfileID ?? "" },
-                    set: { vm.selectProfile(id: $0) }
+                    set: { vm.selectProfile(id: $0.isEmpty ? nil : $0) }
                 )) {
-                    if vm.profiles.isEmpty {
-                        Text("No profiles").tag("")
-                    } else {
-                        ForEach(vm.profiles) { profile in
-                            Text(profile.displayName).tag(profile.id)
-                        }
+                    Text("Select profile").tag("")
+                    ForEach(vm.availableProfiles) { profile in
+                        Text(profile.displayName).tag(profile.id)
                     }
                 }
                 .frame(minWidth: 180, idealWidth: 250, maxWidth: 320)
-                .disabled(vm.profiles.isEmpty)
+                .disabled(vm.availableProfiles.isEmpty || vm.isSigningIn)
 
                 Picker("Region", selection: $vm.selectedRegion) {
                     ForEach(vm.availableRegions, id: \.self) { region in
@@ -39,6 +58,7 @@ struct ProfileBarView: View {
                     }
                 }
                 .frame(width: 210)
+                .disabled(vm.selectedProfile == nil || vm.isSigningIn)
                 Button {
                     customRegion = vm.selectedRegion
                     regionError = nil
@@ -47,6 +67,7 @@ struct ProfileBarView: View {
                     Image(systemName: "pencil")
                 }
                 .help("Enter another AWS region")
+                .disabled(vm.selectedProfile == nil || vm.isSigningIn)
                 .accessibilityLabel("Enter another AWS region")
                 .popover(isPresented: $isCustomRegionPresented) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -63,13 +84,7 @@ struct ProfileBarView: View {
                     .frame(width: 280)
                 }
                 Spacer(minLength: 0)
-                if vm.isSigningIn {
-                    Button("Cancel Login", action: onCancelLogin)
-                } else if vm.canSignIn {
-                    Button("SSO Login", action: onLogin)
-                        .help("Sign in to the selected profile using AWS CLI and your default browser")
-                }
-                Button("Retry Connection", action: onRetry)
+                Button(vm.selectedProfile == nil ? "Reload Config" : "Retry Connection", action: onRetry)
                     .disabled(vm.isValidatingProfile || vm.isSigningIn)
                     .help("Reload profiles and revalidate credentials after signing in")
             }
@@ -80,6 +95,8 @@ struct ProfileBarView: View {
                 NoticeBanner(message: message)
             } else if case .failed(let message) = vm.profileStatus {
                 NoticeBanner(message: message)
+            } else if vm.selectedProfile == nil {
+                Text(vm.selectionPrompt).font(.caption).foregroundColor(.secondary)
             }
         }
         .padding(.horizontal)
@@ -105,7 +122,10 @@ struct ProfileBarView: View {
         } else {
             switch vm.profileStatus {
             case .idle:
-                EmptyView()
+                if let session = vm.selectedSession, vm.signedInSessionID == session.id {
+                    Label("Session signed in · Select profile", systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundColor(.green)
+                }
             case .checking:
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)

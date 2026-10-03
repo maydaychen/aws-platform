@@ -1,6 +1,25 @@
 import Foundation
 
 struct ConfigReader {
+    static func readSessions(
+        paths: AWSConfigurationPaths = AWSConfigurationPaths()
+    ) -> [AWSSOSession] {
+        let config = (try? String(contentsOfFile: paths.config, encoding: .utf8)) ?? ""
+        return readSessions(configContent: config)
+    }
+
+    static func readSessions(configContent content: String) -> [AWSSOSession] {
+        var seenNames: Set<String> = []
+        return parseINI(content: content).compactMap { section in
+            let sectionName = section.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard sectionName.hasPrefix("sso-session ") else { return nil }
+            let name = String(sectionName.dropFirst("sso-session ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, seenNames.insert(name).inserted else { return nil }
+            return AWSSOSession(name: name)
+        }
+    }
+
     static func readProfiles(
         paths: AWSConfigurationPaths = AWSConfigurationPaths()
     ) -> [AWSProfile] {
@@ -36,7 +55,8 @@ struct ConfigReader {
             ssoStartURL: values["sso_start_url"],
             ssoRegion: values["sso_region"],
             ssoAccountID: values["sso_account_id"],
-            ssoRoleName: values["sso_role_name"]
+            ssoRoleName: values["sso_role_name"],
+            ssoSessionName: values["sso_session"].flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 

@@ -7,11 +7,30 @@ struct AWSProfile: Identifiable, Hashable {
     let ssoRegion: String?
     let ssoAccountID: String?
     let ssoRoleName: String?
+    let ssoSessionName: String?
+
+    init(
+        name: String,
+        region: String,
+        ssoStartURL: String?,
+        ssoRegion: String?,
+        ssoAccountID: String?,
+        ssoRoleName: String?,
+        ssoSessionName: String? = nil
+    ) {
+        self.name = name
+        self.region = region
+        self.ssoStartURL = ssoStartURL
+        self.ssoRegion = ssoRegion
+        self.ssoAccountID = ssoAccountID
+        self.ssoRoleName = ssoRoleName
+        self.ssoSessionName = ssoSessionName
+    }
 
     var id: String { name }
 
     var isSSO: Bool {
-        ssoStartURL != nil || ssoAccountID != nil || ssoRoleName != nil
+        ssoSessionName != nil || ssoStartURL != nil || ssoAccountID != nil || ssoRoleName != nil
     }
 
     var displayName: String {

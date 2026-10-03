@@ -2,6 +2,69 @@ import XCTest
 @testable import AWSPlatform
 
 final class ConfigReaderTests: XCTestCase {
+    func testReadSessionsFindsIndependentSessionsWithoutProfiles() {
+        let sessions = ConfigReader.readSessions(configContent: """
+        [sso-session company]
+        sso_start_url = https://company.example.invalid/start
+        sso_region = us-east-1
+
+        [sso-session personal]
+        sso_start_url = https://personal.example.invalid/start
+        sso_region = ap-southeast-1
+        """)
+
+        XCTAssertEqual(sessions.map(\.name), ["company", "personal"])
+        XCTAssertEqual(sessions.map(\.id), ["company", "personal"])
+    }
+
+    func testReadSessionsDeduplicatesNamesAndIgnoresOtherOrEmptySections() {
+        let sessions = ConfigReader.readSessions(configContent: """
+        [default]
+        [profile work]
+        sso_session = missing-session
+        [sso-session first]
+        [services endpoints]
+        [sso-session   ]
+        [sso-session second]
+        [sso-session first]
+        [ sso-session third ]
+        """)
+
+        XCTAssertEqual(sessions.map(\.name), ["first", "second", "third"])
+    }
+
+    func testReadSessionsUsesCustomConfigWithoutReadingCredentialsSections() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent("config")
+        let credentials = root.appendingPathComponent("credentials")
+        try "[sso-session configured]".write(to: config, atomically: true, encoding: .utf8)
+        try "[sso-session ignored]".write(to: credentials, atomically: true, encoding: .utf8)
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": config.path,
+            "AWS_SHARED_CREDENTIALS_FILE": credentials.path
+        ])
+
+        XCTAssertEqual(ConfigReader.readSessions(paths: paths).map(\.name), ["configured"])
+        try FileManager.default.removeItem(at: config)
+        XCTAssertTrue(ConfigReader.readSessions(paths: paths).isEmpty)
+    }
+
+    func testProfileSessionReferenceDoesNotRequireInlineSSOFields() {
+        let profiles = ConfigReader.readProfiles(configContent: """
+        [profile work]
+        sso_session = company
+        [profile ordinary]
+        sso_session =
+        """)
+
+        XCTAssertEqual(profiles[0].ssoSessionName, "company")
+        XCTAssertTrue(profiles[0].isSSO)
+        XCTAssertNil(profiles[1].ssoSessionName)
+        XCTAssertFalse(profiles[1].isSSO)
+    }
+
     func testMergesCredentialsOnlyProfilesWithoutDuplicatingConfigProfiles() {
         let profiles = ConfigReader.readProfiles(
             configContent: "[profile shared]\nregion = eu-central-2\n[profile shared]\noutput = json",
@@ -61,6 +124,7 @@ final class ConfigReaderTests: XCTestCase {
         XCTAssertEqual(profiles[0].region, "us-west-2")
         XCTAssertEqual(profiles[1].region, "ap-northeast-1")
         XCTAssertEqual(profiles[1].displayName, "production (AdministratorAccess)")
+        XCTAssertNil(profiles[1].ssoSessionName)
     }
 
     func testReadProfilesDefaultsMissingRegion() {
@@ -137,6 +201,7 @@ final class ConfigReaderTests: XCTestCase {
         XCTAssertEqual(profiles[1].ssoAccountID, "111122223333")
         XCTAssertEqual(profiles[1].ssoRoleName, "ReadOnlyAccess")
         XCTAssertEqual(profiles[1].displayName, "work (ReadOnlyAccess)")
+        XCTAssertEqual(profiles[1].ssoSessionName, "company")
     }
 
     func testProfilesSharingSSOSessionKeepSeparateAccountsRolesAndRegions() {
@@ -163,6 +228,7 @@ final class ConfigReaderTests: XCTestCase {
         XCTAssertEqual(profiles.map(\.ssoAccountID), ["111122223333", "444455556666"])
         XCTAssertEqual(profiles.map(\.ssoRoleName), ["DeveloperAccess", "ReadOnlyAccess"])
         XCTAssertEqual(profiles.map(\.region), ["eu-west-1", "ap-southeast-1"])
+        XCTAssertEqual(profiles.map(\.ssoSessionName), ["company", "company"])
         XCTAssertEqual(Set(profiles.map(\.id)).count, 2)
     }
 
@@ -193,6 +259,7 @@ final class ConfigReaderTests: XCTestCase {
         XCTAssertEqual(profiles.map(\.ssoAccountID), ["111122223333", "444455556666"])
         XCTAssertEqual(profiles.map(\.ssoRoleName), ["ReadOnlyAccess", "DeveloperAccess"])
         XCTAssertEqual(profiles.map(\.region), ["eu-central-1", "us-east-1"])
+        XCTAssertEqual(profiles.map(\.ssoSessionName), ["first-session", "second-session"])
     }
 
     func testReadProfilesIgnoresEmptyNamedProfile() {

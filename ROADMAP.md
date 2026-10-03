@@ -8,7 +8,8 @@
 
 ## 最近完成
 
-- 2026-10-03 23:28：根目录 `README.md` 改为完整英文版，原中文正文保留为 `README.zh-CN.md`，两版顶部增加相对路径语言切换链接；功能、权限、费用提示、命令、配置示例和截图保持对应。仅调整项目文档，未推送 GitHub。
+- 2026-10-03 23:39：双语 README 和正式打包相关的 3 个提交已推送 GitHub `main`，远端核对为 `8b59836`。按用户授权将本机 AWS CLI 从 Intel 版 `2.19.2` 升级为官方 Universal `2.37.9`，沿用原安装位置和命令入口，解除旧 CLI 的架构阻塞；AWS 配置与凭据保持不变，未执行真实 SSO 登录或 AWS 数据查询。
+- 2026-10-03 23:28：根目录 `README.md` 改为完整英文版，原中文正文保留为 `README.zh-CN.md`，两版顶部增加相对路径语言切换链接；功能、权限、费用提示、命令、配置示例和截图保持对应。仅调整项目文档。
 - 2026-10-03 17:30：交付 `0.1.0 (1)` 正式 Universal ZIP／DMG，源构建提交为 `89461dd`；新增 `scripts/package-distribution.py`，串联双架构构建、完整许可收集、Developer ID 签名、App／DMG 分别公证及票据装订，生成校验和与分发清单。正式产物位于 `dist/AWSPlatform-0.1.0-universal/`，保留原本地预览包。README 和脚本说明同步打包入口及原生 AWS CLI 前提；未创建 GitHub Release。
 - 2026-10-03 16:13：源码已上传至 GitHub 公开仓库 `maydaychen/aws-platform` 的 `main`；新增 MIT LICENSE 和 26 项锁定依赖的许可／NOTICE 索引。修正 README 的公开克隆地址、Swift 6.2+ 构建前提和 Lambda 配置读取权限，说明部署包临时落盘行为；补齐本地 AWS 配置、环境配置、证书及个人 Agent 文件的忽略规则。保留原私有远端；未变更业务代码，未发布应用二进制。
 - 2026-10-03 15:02：新增 `scripts/build-universal.sh`，锁定依赖分别构建 arm64／x86_64 Release 并合并为 Universal `.app` 与 ZIP；标准资源布局、Swift 兼容运行库嵌入及构建机绝对 RPATH 清理，检查架构、最低系统、缺库与本地 ad-hoc 签名后交付。保留 `AWSPlatform` 偏好域标识；README 和脚本说明提供命令，`dist/` 加入忽略规则。未使用 Developer ID、执行公证或对外发布。
@@ -29,6 +30,7 @@
 
 ## 最近验证
 
+- 2026-10-03 23:39：待推送 3 个提交的 Gitleaks 扫描及 `git diff --check` 通过；GitHub `main` 提交回读一致，两份远端 README 与本地提交内容逐字节相同，语言互链有效。官方 CLI 安装包的 AWS Developer ID Installer 签名和 Gatekeeper 通过，安装器报告升级成功，安装收据为 `2.37.9`；显式 `arch -arm64` 启动返回 `exe/arm64`，双架构检查通过。已有 Hardened Runtime 签名诊断程序中的原生 Process 和实际 `AWSSSOLoginService.run` 执行 `--version` 均成功，合成配置解析通过；安装前后 AWS config／credentials 的内容哈希一致。此验收不包含真实 SSO 授权和 AWS 查询。
 - 2026-10-03 23:28：中英文 README 静态审计各检查 14 个本地引用，均无问题；中文正文与原版完全一致，英文版章节层级、全部原有链接／截图目标、代码命令和配置示例（排除翻译注释）逐项比对通过，权限及查询边界人工复核一致。语言切换、打包说明标题锚点和 `git diff --check` 通过；纯文档变更，未重复构建或执行 AWS 查询。
 - 2026-10-03 17:30：arm64／x86_64 Release 构建和 11 项离线打包测试通过。独立核验主程序双切片最低系统为 13.0，嵌套 Developer ID 签名、Hardened Runtime、安全时间戳有效；26 项依赖许可附件及补充来源哈希一致。Apple 回读 App／DMG 两次公证均为 Accepted，最终 App／DMG 票据与 Gatekeeper 通过；ZIP 独立解压和 DMG 只读挂载后的应用内容、签名及信任检查一致。解压副本以空 AWS 配置、隔离偏好在 Apple Silicon 上运行 8 秒，未见启动崩溃；README 审计、脚本秘密扫描及 `git diff --check` 通过。未调用真实 AWS，未进行 Intel／macOS 13 实机验收；另定位本机旧 Intel AWS CLI 在缺少 Rosetta 时无法启动，与应用签名无关。
 - 2026-10-03 16:13：重新执行 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，严格构建成功，312 项正式测试零失败。Gitleaks 对全部可达 Git 历史、发布分支和当前发布文件扫描均未发现秘密；逐张检查 9 张文档截图，均为模拟数据。26 个依赖版本／revision 和 42 个 LICENSE／NOTICE 文件链接核对通过，README 静态审计、忽略规则及 `git diff --check` 通过。GitHub API 确认仓库公开、MIT 和 `main`，6 个关键文件 Git blob 与本地一致；无凭据克隆成功，提交与完整文件树一致。独立源码及交付审查未发现阻断源码公开的问题；未连接真实 AWS，未新增 Intel／macOS 13 实机验收。
@@ -48,7 +50,6 @@
 - 2026-10-03 03:01：正式测试集 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过，`git diff --check` 通过。临时离线渲染入口另行通过，生成 20 种页面／状态在 960×600、1280×800 和深浅色下的 80 张首屏截图及滚动位置截图；已核对所有服务页签、收藏、长字段、环境变量遮罩、代码、容器镜像、二进制文件、空态及错误／警告布局。临时测试入口已移除；未调用真实 AWS，截图是模拟组件组合，不代表完整应用交互或 macOS 13 实机验收。
 - 2026-10-03 02:35：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过；新增 14 项收藏存储／导航测试和 1 项先失败后修复的 EC2 迟到错误回归。覆盖持久化、去重、损坏数据保护、搜索、账号隔离、资源定位及失效收藏保留。模拟数据的独立收藏组件完成浅色／深色离线渲染检查，文字与星标可辨；`git diff --check` 通过。未调用真实 AWS，未验收完整窗口交互或 macOS 13 运行时。
 - 2026-10-03 01:10：先以两个失败回归复现 S3 重置后旧数据回填、旧错误清空新数据；最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，51 项测试通过，较原有增加 20 项。覆盖迟到成功／失败、目录切换、加载状态归属、Lambda 状态缺失与权限降级、连接重试、配置路径、Region 恢复及凭据输出隔离。`git diff --check` 通过；未连接真实 AWS，未运行实际 CLI 凭据导出，未验证窗口渲染。
-- 2026-09-29 16:40：最终代码 `swift test` 构建成功，31 项模拟服务单元测试通过；`git diff --check` 通过。未调用真实 AWS 服务，macOS 13 运行时、窗口视觉及真实账号切换仍需后续验收。
 
 ## 已完成
 
@@ -122,5 +123,4 @@
 
 ## 阻塞
 
-- 本机 AWS CLI 为旧 Intel 单架构版本，Apple Silicon 主机未安装 Rosetta，启动返回 `EBADARCH`；真实应用内 SSO 验收前需更新为官方 Universal AWS CLI。本次只打包，未安装或升级系统工具。
 - 自动化测试不调用真实 AWS；真实账号、Region 和 IAM 权限组合仍需人工只读验收。

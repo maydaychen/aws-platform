@@ -11,6 +11,8 @@ struct ContentView: View {
     @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var snsVM: SNSViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
+    @StateObject private var metricsVM: ResourceMetricsViewModel
+    @StateObject private var logsVM: LambdaLogsViewModel
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
@@ -26,6 +28,14 @@ struct ContentView: View {
     init() {
         let profiles = ProfileViewModel()
         _profileVM = StateObject(wrappedValue: profiles)
+        let metrics = AWSMetricsService(provider: profiles.provider)
+        _metricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
+            try await metrics.load(scope: scope, target: target, range: range)
+        }))
+        let logs = AWSLogsService(provider: profiles.provider)
+        _logsVM = StateObject(wrappedValue: LambdaLogsViewModel(loader: { query, cursor in
+            try await logs.load(query: query, cursor: cursor)
+        }))
         let costs = AWSCostService(provider: profiles.provider)
         _costVM = StateObject(wrappedValue: CostViewModel(loader: { scope, query in
             try await costs.load(scope: scope, query: query)
@@ -116,6 +126,7 @@ struct ContentView: View {
             reconfigureServices()
         }
         .onChange(of: selectedService) { _ in
+            resetMonitoring()
             closeRelationships()
             if let target = relatedNavigation.target, target.service != selectedService {
                 relatedNavigation.cancel()
@@ -130,6 +141,7 @@ struct ContentView: View {
             loadVisibleSNS()
         }
         .onChange(of: destination) { selection in
+            resetMonitoring()
             if selection != .resources {
                 closeRelationships()
                 relatedNavigation.cancel()
@@ -140,6 +152,7 @@ struct ContentView: View {
             loadVisibleSNS()
         }
         .onDisappear {
+            resetMonitoring()
             closeRelationships()
             relatedNavigation.cancel()
             loginTask?.cancel()
@@ -194,7 +207,8 @@ struct ContentView: View {
 
     private func loadVisibleSNS() {
         guard destination == .resources, selectedService == .sns,
-              profileVM.isProfileReady, favoriteNavigation.target == nil else { return }
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil else { return }
         snsVM.loadIfNeeded()
     }
 
@@ -321,6 +335,17 @@ struct ContentView: View {
         return SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
     }
 
+    private var currentMonitoringScope: MonitoringScope? {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return nil }
+        return MonitoringScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
+    }
+
+    private func resetMonitoring() {
+        metricsVM.reset()
+        logsVM.reset()
+    }
+
     private func closeRelationships() {
         relationshipTopic = nil
         relationshipsVM.reset()
@@ -329,7 +354,7 @@ struct ContentView: View {
     private func openRelatedResource(_ resource: SNSRelatedResource) {
         guard relatedNavigation.open(resource, currentScope: currentRelationshipScope,
                                      latestScope: { currentRelationshipScope },
-                                     alarms: alarmsVM, lambda: lambdaVM) else { return }
+                                     alarms: alarmsVM, lambda: lambdaVM, sns: snsVM) else { return }
         closeRelationships()
         favoriteNavigation.cancel()
         selectedService = resource.service
@@ -357,13 +382,15 @@ struct ContentView: View {
         switch selectedService {
         case .ec2:
             if let instance = ec2VM.selectedInstance {
-                EC2DetailView(instance: instance, vm: ec2VM)
+                EC2DetailView(instance: instance, vm: ec2VM,
+                              monitoringScope: currentMonitoringScope, metricsVM: metricsVM)
             } else {
                 EmptyStateView(text: "Select an EC2 instance", icon: "server.rack")
             }
         case .lambda:
             if let function = lambdaVM.selectedFunction {
-                LambdaDetailView(function: function, vm: lambdaVM)
+                LambdaDetailView(function: function, vm: lambdaVM,
+                                 monitoringScope: currentMonitoringScope, metricsVM: metricsVM, logsVM: logsVM)
             } else {
                 EmptyStateView(text: "Select a Lambda function", icon: "function")
             }
@@ -400,7 +427,8 @@ struct ContentView: View {
             }
         case .alarms:
             if let alarm = alarmsVM.selectedAlarm {
-                AlarmDetailView(alarm: alarm, vm: alarmsVM)
+                AlarmDetailView(alarm: alarm, vm: alarmsVM, scope: currentRelationshipScope,
+                                onOpenResource: openRelatedResource)
             } else {
                 EmptyStateView(text: "Select a CloudWatch alarm", icon: "bell.badge")
             }
@@ -428,6 +456,7 @@ struct ContentView: View {
     }
 
     private func clearResources() {
+        resetMonitoring()
         closeRelationships()
         relatedNavigation.cancel()
         reconfigureTask?.cancel()

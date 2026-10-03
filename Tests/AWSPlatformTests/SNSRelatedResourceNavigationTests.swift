@@ -3,6 +3,91 @@ import XCTest
 
 @MainActor
 final class SNSRelatedResourceNavigationTests: XCTestCase {
+    func testSNSActionOnlyAcceptsSameScopeTopicARN() throws {
+        let arn = "arn:aws:sns:us-east-1:111111111111:alerts.fifo"
+        let valid = try XCTUnwrap(SNSRelatedResource(scope: scope(), service: .sns, arn: arn))
+        XCTAssertEqual(valid.resourceID, arn)
+        XCTAssertNil(valid.qualifier)
+        for invalid in [arn + ":subscription", arn + ".bad", "arn:aws:sns:eu-west-1:111111111111:alerts",
+                        "arn:aws:sns:us-east-1:222222222222:alerts", "arn:aws:lambda:us-east-1:111111111111:function:handler",
+                        "arn:aws:sns:us-east-1:111111111111:" + String(repeating: "x", count: 257)] {
+            XCTAssertNil(SNSRelatedResource(scope: scope(), service: .sns, arn: invalid))
+        }
+        XCTAssertFalse(valid.isValid(in: nil))
+        XCTAssertFalse(valid.isValid(in: scope(profileName: "other")))
+    }
+
+    func testSNSActionLoadsOnlyTopicsAndClearsFilters() async throws {
+        let row = SNSTopic(arn: "arn:aws:sns:us-east-1:111111111111:alerts", name: "alerts")
+        let sns = topics(rows: [row])
+        let scope = scope()
+        sns.configure(scope: scope)
+        sns.searchText = "hidden"
+        sns.kindFilter = .fifo
+        let nav = SNSRelatedResourceNavigation()
+        let resource = try XCTUnwrap(SNSRelatedResource(scope: scope, service: .sns, arn: row.arn))
+        XCTAssertTrue(nav.open(resource, currentScope: scope, latestScope: { scope },
+                               alarms: alarms(), lambda: LambdaViewModel(functionLoader: {
+            XCTFail("Opening SNS must not read Lambda"); return []
+        }), sns: sns))
+        await nav.waitForNavigation()
+        XCTAssertEqual(sns.selectedTopic, row)
+        XCTAssertEqual(sns.filteredTopics, [row])
+        XCTAssertNil(nav.error)
+        await sns.waitForDetails()
+    }
+
+    func testSNSActionRequiresConfiguredScope() throws {
+        let nav = SNSRelatedResourceNavigation()
+        let scope = scope()
+        let resource = try XCTUnwrap(SNSRelatedResource(scope: scope, service: .sns,
+                                                       arn: "arn:aws:sns:us-east-1:111111111111:alerts"))
+        XCTAssertFalse(nav.open(resource, currentScope: scope, latestScope: { scope },
+                                alarms: alarms(), lambda: LambdaViewModel(), sns: topics()))
+        XCTAssertNil(nav.target)
+    }
+
+    func testMissingSNSTargetDoesNotSelectFirstTopic() async throws {
+        let sns = topics(rows: [SNSTopic(arn: "arn:aws:sns:us-east-1:111111111111:other", name: "other")])
+        let scope = scope()
+        sns.configure(scope: scope)
+        let nav = SNSRelatedResourceNavigation()
+        let resource = try XCTUnwrap(SNSRelatedResource(scope: scope, service: .sns,
+                                                       arn: "arn:aws:sns:us-east-1:111111111111:missing"))
+        _ = nav.open(resource, currentScope: scope, latestScope: { scope },
+                     alarms: alarms(), lambda: LambdaViewModel(), sns: sns)
+        await nav.waitForNavigation()
+        XCTAssertNil(sns.selectedTopic)
+        XCTAssertTrue(nav.error?.contains("not found") == true)
+    }
+
+    func testSNSLateResponseAfterContextChangeCannotSelectTopic() async throws {
+        let gate = TestGate()
+        let row = SNSTopic(arn: "arn:aws:sns:us-east-1:111111111111:alerts", name: "alerts")
+        let sns = SNSViewModel(listLoader: { _ in await gate.wait(); return [row] },
+                               attributeLoader: { _, _ in [:] }, tagLoader: { _, _ in [:] },
+                               subscriptionLoader: { _, _ in [] })
+        var current: SNSScope? = scope()
+        sns.configure(scope: current)
+        let resource = try XCTUnwrap(SNSRelatedResource(scope: scope(), service: .sns, arn: row.arn))
+        let nav = SNSRelatedResourceNavigation()
+        _ = nav.open(resource, currentScope: current, latestScope: { current },
+                     alarms: alarms(), lambda: LambdaViewModel(), sns: sns)
+        await gate.waitForEntry()
+        current = nil
+        sns.configure(scope: nil)
+        await gate.open()
+        await nav.waitForNavigation()
+        XCTAssertNil(sns.selectedTopic)
+        XCTAssertTrue(sns.topics.isEmpty)
+        XCTAssertNotNil(nav.error)
+    }
+
+    private func topics(rows: [SNSTopic] = []) -> SNSViewModel {
+        SNSViewModel(listLoader: { _ in rows }, attributeLoader: { _, _ in [:] },
+                     tagLoader: { _, _ in [:] }, subscriptionLoader: { _, _ in [] })
+    }
+
     func testNoProfileOrChangedScopeCannotStartNavigation() async throws {
         let nav = SNSRelatedResourceNavigation()
         let resource = try target(.lambda)

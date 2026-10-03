@@ -9,11 +9,16 @@ struct AlarmDetailView: View {
 
     let alarm: CloudWatchAlarm
     @ObservedObject var vm: AlarmViewModel
+    let scope: SNSScope?
+    let onOpenResource: (SNSRelatedResource) -> Void
     @State private var selectedTab: Tab
 
-    init(alarm: CloudWatchAlarm, vm: AlarmViewModel, tab: Tab = .overview) {
+    init(alarm: CloudWatchAlarm, vm: AlarmViewModel, tab: Tab = .overview,
+         scope: SNSScope? = nil, onOpenResource: @escaping (SNSRelatedResource) -> Void = { _ in }) {
         self.alarm = alarm
         self.vm = vm
+        self.scope = scope
+        self.onOpenResource = onOpenResource
         _selectedTab = State(initialValue: tab)
     }
 
@@ -137,7 +142,7 @@ struct AlarmDetailView: View {
     private var actions: some View {
         Group {
             DetailGrid(items: [("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled))])
-            Text("Configured targets are read-only. Targets can include services other than SNS; this page does not resolve targets or send notifications.")
+            Text("Open SNS topics in the current profile and region. Other action targets are shown as configured; no notifications are sent.")
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             actionTargets("ALARM targets", targets: alarm.alarmActions)
@@ -153,7 +158,17 @@ struct AlarmDetailView: View {
                 Text("None configured").font(.callout).foregroundColor(.secondary)
             } else {
                 ForEach(Array(targets.enumerated()), id: \.offset) { _, target in
-                    AlarmTextBlock(text: target, monospaced: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        AlarmTextBlock(text: target, monospaced: true)
+                        if let scope, vm.scope == scope.alarmScope, isCurrentSelection,
+                           SNSRelatedResource(scope: scope, service: .alarms, arn: alarm.arn) != nil,
+                           let resource = SNSRelatedResource(scope: scope, service: .sns, arn: target) {
+                            Button { onOpenResource(resource) } label: {
+                                Label("Open SNS topic", systemImage: "arrow.up.forward.square")
+                            }
+                            .help("Open this topic in the current profile and region")
+                        }
+                    }
                 }
             }
         }

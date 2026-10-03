@@ -6,6 +6,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
+- **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
@@ -97,14 +98,14 @@ open Package.swift
 
 - `Overview`：状态、原因、更新时间、最近状态切换时间、描述和标签。
 - `Configuration`：单指标、维度、Metric Math／Metrics Insights 表达式、阈值与评估设置，或 Composite 的规则和动作抑制设置。
-- `Actions`：ALARM、OK、INSUFFICIENT_DATA 对应的目标 ARN 及动作启用状态；目标可能是 SNS 或其他 AWS 服务，仅显示已有配置。
+- `Actions`：ALARM、OK、INSUFFICIENT_DATA 对应的目标 ARN 及动作启用状态；同账号、同 Region 的 SNS Topic 可点击 `Open SNS topic` 跳到应用内详情，其他目标保留配置文本。
 - `History`：最近 30 天的历史记录，按时间倒序，含状态／配置变更及动作记录，可展开返回的详情数据。
 
 标签和历史仅针对选中的告警读取；各自失败时显示独立错误，基础配置仍可查看，可点击详情右上角的刷新按钮重试。分页失败不会将半份列表或历史当作完整结果。告警可以加入现有本地收藏，按 ARN 保存和定位，仍须先手动选择匹配 Profile 并校验账号；告警删除或无权限时保留收藏并提示。
 
 角色需具备 `cloudwatch:DescribeAlarms`，历史与标签分别需要 `cloudwatch:DescribeAlarmHistory`、`cloudwatch:ListTagsForResource`。为获取 Composite Alarm，前两个权限必须允许 `Resource: "*"`，不能只限定单个告警 ARN。可见范围仍由当前角色权限决定。详见 [DescribeAlarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html) 、[DescribeAlarmHistory](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarmHistory.html) 和 [ListTagsForResource](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListTagsForResource.html) 。
 
-当前模块只读取 Metric／Composite Alarm，不支持 Log Alarm；不请求指标曲线，不创建、删除、启停告警或改变告警状态，也不向 SNS 发布消息。
+告警页只读取 Metric／Composite Alarm 的配置和历史，不支持 Log Alarm；指标曲线位于 EC2／Lambda 详情的 `Metrics` 页。应用不创建、删除、启停告警或改变告警状态，也不向 SNS 发布消息。
 
 以下为模拟告警数据的组件示例：
 
@@ -124,7 +125,7 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 
 需要 `sns:ListTopics`（`Resource: "*"`），以及对应 Topic 的 `sns:GetTopicAttributes`、`sns:ListTagsForResource` 和 `sns:ListSubscriptionsByTopic` 权限。Topic 属性可能因权限返回不同字段；列表按当前 Profile 账号查询，不自动列出其他账号授权的 Topic。参考 [SNS 权限表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sns.html) 、[Topic 属性](https://docs.aws.amazon.com/sns/latest/api/API_GetTopicAttributes.html) 和 [Topic 订阅](https://docs.aws.amazon.com/sns/latest/api/API_ListSubscriptionsByTopic.html) 。
 
-此模块不发布消息，不创建／删除 Topic，不订阅／退订／确认订阅，也不修改配置。CloudWatch 中的动作 ARN 仍按原样展示。
+此模块不发布消息，不创建／删除 Topic，不订阅／退订／确认订阅，也不修改配置。CloudWatch 动作入口只定位当前 Profile 和 Region 的 Topic，不会通过跳转切换账号或区域；目标不存在或访问失败时显示提示。
 
 点击 Topic 详情中的「调用链查看」，弹窗按 **CloudWatch 告警 → 当前 SNS Topic → 订阅目标** 展示配置关系：
 
@@ -140,6 +141,34 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 ![SNS Topic](docs/ui-sns-light.png)
 
 ![SNS 配置调用链，模拟数据与默认收起的资源节点](docs/ui-sns-relationships-light.png)
+
+### EC2／Lambda 指标与 Lambda 日志
+
+在资源详情中打开 `Metrics`，选择最近 1／6／24 小时，再点击 `Load metrics`。每次按 5 分钟聚合，一次批量读取四项指标；窗口截至最近一个完整的 5 分钟边界，所有时间显示为 UTC。`Refresh` 手动重新读取，不进行轮询。空样本保留为空，缺失时段断开曲线，部分数据或权限失败分别标注。
+
+| 资源 | 指标 | 聚合与单位 |
+| --- | --- | --- |
+| EC2 | CPUUtilization | Average，百分比 |
+| EC2 | NetworkIn／NetworkOut | Sum，每 5 分钟的字节量 |
+| EC2 | StatusCheckFailed | Maximum，状态检查失败值 |
+| Lambda | Invocations／Errors／Throttles | Sum，每 5 分钟的次数 |
+| Lambda | Duration | Average，毫秒 |
+
+Lambda 指标使用函数名维度，包含该函数的版本和别名。指标需要 `cloudwatch:GetMetricData`；缺失数据不推断为零。参考 [EC2 指标](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/viewing_metrics_with_cloudwatch.html) 、[Lambda 指标](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics-types.html) 和 [GetMetricData](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html) 。
+
+Lambda 的 `Logs` 页在函数配置加载成功后可用。选择时间范围，按需输入 CloudWatch filter pattern，再点击 `Search`；过滤条件使用 AWS 语法。结果显示事件时间、日志流、写入时间和可选择的多行正文；长消息先显示预览，可展开全文。修改范围或过滤条件会清空上次搜索，需要重新点击搜索。
+
+日志组优先采用函数的 `LoggingConfig.LogGroup`，未配置时使用 `/aws/lambda/<functionName>`。自定义组先完整枚举日志流，严格匹配当前函数名称，再分批读取；枚举失败时不会降级读取整个共享组。需要 `logs:FilterLogEvents`，自定义日志组还需要 `logs:DescribeLogStreams`；读取函数配置沿用 `lambda:GetFunctionConfiguration`。参考 [Lambda 日志组](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-loggroups.html) 和 [FilterLogEvents](https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_FilterLogEvents.html) 。
+
+点击 `Load more` 继续同一次查询的分页。已加载事件按时间倒序展示；未读完时明确提示部分结果，不将它们称为整个时段的“最新日志”。最多保留 5,000 条事件或 8 MiB 的 UTF-8 正文，超限时不保留超出的整条消息；达到上限或分页保护限制时需缩小范围或增加过滤条件。日志保留 AWS 的数据遮罩，不申请解除遮罩权限。
+
+指标和日志仅在显式加载时调用 API，可能产生 CloudWatch 使用费用。加载期间可点击 `Cancel`；取消停止等待和后续请求，无法撤销已完成的请求。查询凭据、账号与角色来自当前手动选择并验证的 Profile，Region 使用当前资源区域；未选 Profile 不请求。切换资源、Profile、Region 或离开页签会取消等待、清空内存结果，迟到响应不会回填。指标与日志不写入收藏、磁盘或应用诊断日志。
+
+以下为模拟监控数据的组件示例：
+
+![CloudWatch 指标曲线](docs/ui-metrics-light.png)
+
+![Lambda 日志检索](docs/ui-lambda-logs-dark.png)
 
 ### 应用内 SSO 登录
 

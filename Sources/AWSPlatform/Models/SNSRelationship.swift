@@ -20,6 +20,12 @@ struct SNSRelatedResource: Hashable, Sendable {
             guard parsed.service == "lambda", let function = parsed.lambdaFunction else { return nil }
             resourceID = function.name
             qualifier = function.qualifier
+        case .sns:
+            guard parsed.service == "sns", parsed.resource.count <= 256,
+                  parsed.resource.range(of: "^[A-Za-z0-9_-]+(?:\\.fifo)?$", options: .regularExpression) != nil
+            else { return nil }
+            resourceID = arn
+            qualifier = nil
         default:
             return nil
         }

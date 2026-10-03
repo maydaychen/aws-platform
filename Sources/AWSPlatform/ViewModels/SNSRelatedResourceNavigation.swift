@@ -14,7 +14,7 @@ final class SNSRelatedResourceNavigation: ObservableObject {
     func open(
         _ resource: SNSRelatedResource, currentScope: SNSScope?,
         latestScope: @escaping @MainActor () -> SNSScope?,
-        alarms: AlarmViewModel, lambda: LambdaViewModel
+        alarms: AlarmViewModel, lambda: LambdaViewModel, sns: SNSViewModel? = nil
     ) -> Bool {
         cancel()
         guard resource.isValid(in: currentScope), resource.isValid(in: latestScope()) else {
@@ -25,11 +25,16 @@ final class SNSRelatedResourceNavigation: ObservableObject {
             error = "CloudWatch is not configured for this relationship's profile and region."
             return false
         }
+        if resource.service == .sns, sns?.scope != resource.scope {
+            error = "SNS is not configured for this action's profile and region."
+            return false
+        }
         target = resource
         let request = generation
         switch resource.service {
         case .alarms: alarms.selectedAlarm = nil
         case .lambda: lambda.selectedFunction = nil
+        case .sns: sns?.selectedTopic = nil
         default: return false
         }
         task = Task {
@@ -48,6 +53,15 @@ final class SNSRelatedResourceNavigation: ObservableObject {
                 if lambda.error != nil || !lambda.functions.contains(where: { Self.matches($0, resource) }) {
                     cancelLoad = { lambda.cancelLoading() }
                     await lambda.loadFunctions(selectFirstIfNeeded: false)
+                }
+            case .sns:
+                guard let sns, sns.scope == resource.scope else {
+                    fail("SNS context changed before the topic could be opened.")
+                    return
+                }
+                if sns.error != nil || !sns.topics.contains(where: { $0.arn == resource.arn }) {
+                    cancelLoad = { sns.cancelLoading() }
+                    await sns.loadTopics()
                 }
             default: break
             }
@@ -84,6 +98,18 @@ final class SNSRelatedResourceNavigation: ObservableObject {
                 lambda.stateFilter = "All"
                 lambda.packageFilter = "All"
                 lambda.selectedFunction = function
+            case .sns:
+                guard let sns, sns.scope == resource.scope, sns.error == nil else {
+                    fail("Unable to load the related topic. Check SNS access and retry.")
+                    return
+                }
+                guard let topic = sns.topics.first(where: { $0.arn == resource.arn }) else {
+                    fail("The related topic was not found in the current profile and region. It may have been removed or be inaccessible.")
+                    return
+                }
+                sns.searchText = ""
+                sns.kindFilter = nil
+                sns.selectedTopic = topic
             default: break
             }
             target = nil

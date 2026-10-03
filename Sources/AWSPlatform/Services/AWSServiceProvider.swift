@@ -6,6 +6,7 @@ import SotoS3
 import SotoSTS
 import SotoCostExplorer
 import SotoCloudWatch
+import SotoCloudWatchLogs
 import SotoSNS
 
 actor AWSServiceProvider {
@@ -130,6 +131,13 @@ actor AWSServiceProvider {
             throw SNSError.invalidScope
         }
         return SNS(client: awsClient, region: .init(rawValue: region))
+    }
+
+    func cloudWatchLogsClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) throws -> CloudWatchLogs {
+        guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
+            throw AWSServiceError.notConfigured
+        }
+        return CloudWatchLogs(client: awsClient, region: .init(rawValue: region))
     }
 
     func shutdown() async {

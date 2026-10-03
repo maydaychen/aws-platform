@@ -8,17 +8,23 @@ struct EC2DetailView: View {
         case storage = "Storage"
         case security = "Security"
         case status = "Status"
+        case metrics = "Metrics"
 
         var id: String { rawValue }
     }
 
     let instance: EC2InstanceModel
     @ObservedObject var vm: EC2ViewModel
+    let monitoringScope: MonitoringScope?
+    let metricsVM: ResourceMetricsViewModel?
     @State private var selectedTab: Tab = .overview
 
-    init(instance: EC2InstanceModel, vm: EC2ViewModel, tab: Tab = .overview) {
+    init(instance: EC2InstanceModel, vm: EC2ViewModel, tab: Tab = .overview,
+         monitoringScope: MonitoringScope? = nil, metricsVM: ResourceMetricsViewModel? = nil) {
         self.instance = instance
         self.vm = vm
+        self.monitoringScope = monitoringScope
+        self.metricsVM = metricsVM
         _selectedTab = State(initialValue: tab)
     }
 
@@ -31,13 +37,7 @@ struct EC2DetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            Picker("Section", selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            DetailTabPicker(tabs: Tab.allCases.filter { $0 != .metrics || metricsVM != nil }, selection: $selectedTab)
             .padding()
 
             if let detail, !detail.warnings.isEmpty {
@@ -46,7 +46,7 @@ struct EC2DetailView: View {
 
             ZStack {
                 tabContent
-                if vm.isDetailLoading && detail == nil {
+                if selectedTab != .metrics && vm.isDetailLoading && detail == nil {
                     ProgressView("Loading EC2 details…")
                         .padding()
                         .background(.regularMaterial)
@@ -133,6 +133,10 @@ struct EC2DetailView: View {
             securityTab
         case .status:
             statusTab
+        case .metrics:
+            if let metricsVM {
+                ResourceMetricsView(vm: metricsVM, scope: monitoringScope, target: .ec2(instance.instanceId))
+            }
         }
     }
 

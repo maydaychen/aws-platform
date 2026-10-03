@@ -8,18 +8,28 @@ struct LambdaDetailView: View {
         case triggers = "Triggers"
         case versions = "Versions"
         case code = "Code"
+        case metrics = "Metrics"
+        case logs = "Logs"
 
         var id: String { rawValue }
     }
 
     let function: LambdaFunctionModel
     @ObservedObject var vm: LambdaViewModel
+    let monitoringScope: MonitoringScope?
+    let metricsVM: ResourceMetricsViewModel?
+    let logsVM: LambdaLogsViewModel?
     @State private var selectedTab: Tab = .overview
     @State private var revealedEnvironmentKeys: Set<String> = []
 
-    init(function: LambdaFunctionModel, vm: LambdaViewModel, tab: Tab = .overview) {
+    init(function: LambdaFunctionModel, vm: LambdaViewModel, tab: Tab = .overview,
+         monitoringScope: MonitoringScope? = nil, metricsVM: ResourceMetricsViewModel? = nil,
+         logsVM: LambdaLogsViewModel? = nil) {
         self.function = function
         self.vm = vm
+        self.monitoringScope = monitoringScope
+        self.metricsVM = metricsVM
+        self.logsVM = logsVM
         _selectedTab = State(initialValue: tab)
     }
 
@@ -32,13 +42,9 @@ struct LambdaDetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            Picker("Section", selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            DetailTabPicker(tabs: Tab.allCases.filter {
+                ($0 != .metrics || metricsVM != nil) && ($0 != .logs || logsVM != nil)
+            }, selection: $selectedTab)
             .padding()
 
             if let detail, !detail.warnings.isEmpty {
@@ -47,7 +53,7 @@ struct LambdaDetailView: View {
 
             ZStack {
                 tabContent
-                if vm.isDetailLoading && detail == nil {
+                if selectedTab != .metrics && vm.isDetailLoading && detail == nil {
                     ProgressView("Loading Lambda details…")
                         .padding()
                         .background(.regularMaterial)
@@ -132,6 +138,17 @@ struct LambdaDetailView: View {
             versionsTab
         case .code:
             codeTab
+        case .metrics:
+            if let metricsVM {
+                ResourceMetricsView(vm: metricsVM, scope: monitoringScope, target: .lambda(function.functionName))
+            }
+        case .logs:
+            if let logsVM, let detail {
+                LambdaLogsView(vm: logsVM, scope: monitoringScope,
+                               context: LambdaLogContext(functionName: detail.functionName, configuredLogGroup: detail.logGroup))
+            } else {
+                EmptyStateView(text: "Load the function configuration to identify its log group.", icon: "doc.text.magnifyingglass")
+            }
         }
     }
 

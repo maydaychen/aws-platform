@@ -99,7 +99,7 @@ final class SNSRelationshipTests: XCTestCase {
         XCTAssertNil(target?.qualifier)
         XCTAssertNil(SNSRelatedResource(scope: scope(), service: .alarms, arn: alarmARN("")))
         XCTAssertNil(SNSRelatedResource(scope: scope(), service: .alarms, arn: arn + "\n"))
-        XCTAssertNil(SNSRelatedResource(scope: scope(), service: .sns, arn: topic().arn))
+        XCTAssertNil(SNSRelatedResource(scope: scope(), service: .sns, arn: arn))
         XCTAssertNil(SNSRelatedResource(scope: scope(), service: .ec2, arn: arn))
         XCTAssertNil(SNSRelatedResource(scope: scope(), service: .s3, arn: arn))
     }

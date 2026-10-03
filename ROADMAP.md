@@ -2,10 +2,11 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics 及配置调用链已完成本地回归与模拟组件渲染检查。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志已完成本地回归与模拟组件渲染检查。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
 
 ## 最近完成
 
+- 2026-10-03 14:00：新增 EC2／Lambda `Metrics` 页和 Lambda `Logs` 页，手动查询最近 1／6／24 小时；指标按 5 分钟批量读取四项曲线，保留缺口／部分状态，UTC 轴与详情一致，窄屏单列、宽屏双列。日志采用已成功加载的函数配置，默认组直接查询，自定义组完整枚举并精确隔离函数日志流；冻结查询分页、取消、5,000 条／8 MiB 正文上限及不完整提示，不落盘。新增告警动作到同 Profile／账号／Region 的 SNS Topic 精确跳转；切换或清空范围会取消并隔离旧响应。README、权限说明及两张组件示例已同步。
 - 2026-10-03 13:19：提升 SNS 调用链卡片层次：服务色图标、轻渐变底色、连续圆角、细边框和柔和阴影；悬停／展开时加强边框与层次。保留名称首屏、点击展开和 Open 流程，身份／区域校验及原始 Endpoint 遮罩不变；增加增强对比度边框和减少动态效果分支，更新默认收起的文档示例。
 - 2026-10-03 13:09：简化 SNS 调用链首屏：告警、Topic 和订阅节点默认仅显示名称，整行可展开／收起，详情与 Open 按钮仅在展开后显示。合法 Lambda 节点显示函数名，展开即可跳转，不再要求先 Reveal；原始 Endpoint 仍默认遮罩，覆盖范围说明收入 About this view。展开状态随弹窗关闭或上下文变化重置；README 和默认收起的示例截图已更新。
 - 2026-10-03 12:54：SNS Topic 详情新增「调用链查看」弹窗，显示当前 Profile／Region 的 CloudWatch Metric／Composite 告警三类动作 → Topic → 已加载订阅；保留禁用／抑制和订阅确认状态，区分检查失败与无匹配。支持同范围告警、已确认 Lambda 订阅跳转详情，保留 qualifier 并注明函数级详情；Endpoint 默认遮罩，跨账号／Region 和未支持服务不跳转。独立导航不写收藏、不重配全服务，修复关联目标缺失时 Lambda 自动选首项及立即取消仍启动查询的问题。范围明确为配置关系，不是实际消息轨迹；README 和弹窗组件示例已同步。
@@ -22,6 +23,7 @@
 
 ## 最近验证
 
+- 2026-10-03 14:00：最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，312 项正式测试零失败、无编译警告，覆盖指标定义／分页／缺失与状态、日志共享组隔离／空页续读／上限、取消与完整 Profile 隔离、告警 SNS 导航。1 项临时原生渲染测试通过，72 张 480／900 宽度深浅色截图，抽查指标缺口、UTC 轴、1／2 列、父详情页签、长日志、部分／空／错误／加载／超限及跳转按钮；修复实测横轴误用本地时间并消除该图表 AxisValueLabel 诊断。旧 SNS 不支持断言已按新范围更新，临时渲染入口已移除；独立代码审查无阻断，`git diff --check` 通过。未访问真实 AWS，真实窗口点击、macOS 13 运行时和实际权限／分页仍待验收。
 - 2026-10-03 13:19：严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项离线原生渲染测试通过，生成 36 张截图，已核对 960／1200 宽度的深浅色名称、图标、边框、展开详情及隐私显示状态。增强对比 NSAppearance 截图仅作为外观参考，不等同于 SwiftUI 增强对比分支动态验收；减少动态效果和悬停分支仅做代码核验。临时截图工具的只读环境属性注入错误已修正，最终日志无编译诊断；临时入口移除，`git diff --check` 通过。未访问真实 AWS，真实窗口鼠标／键盘操作和 macOS 13 仍待验收。
 - 2026-10-03 13:09：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项临时离线原生渲染测试通过，8 种状态在 960／1200 宽度及深浅色生成 32 张截图，已核对默认收起、展开、原始 Endpoint 隐藏／显示及错误布局。临时测试入口已移除，`git diff --check` 通过。改动仅为展示与展开状态；未访问真实 AWS，完整窗口点击、键盘操作和 macOS 13 实机仍待验收。
 - 2026-10-03 12:54：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，258 项正式单测全部通过；新增 43 项覆盖关系精确匹配、范围与 ARN 校验、qualifier／特殊订阅状态、安全错误、迟到结果、按需导航和 Lambda 空选择回归。另 1 项临时原生离线渲染测试通过，7 种状态在 960／1200 宽度及深浅色生成 28 张截图，抽查长名称／ARN、默认遮罩／显示、空态和独立错误。独立审查核对关键代码、日志和截图；临时测试入口已移除，`git diff --check` 通过。未调用真实 AWS，也未进行完整窗口点击或 macOS 13 实机验收。
@@ -40,6 +42,8 @@
 
 ## 已完成
 
+- EC2／Lambda CloudWatch 指标和 Lambda 日志检索，按明确 Profile／Region／资源隔离，手动读取／刷新／取消；共享日志组按函数隔离，分页与显示上限明确提示，查询和正文仅保存在当前页内存中。
+- CloudWatch 告警动作中的合法 SNS Topic ARN 可在同 Profile／账号／Region 内打开详情；不自动选其他 Profile、换区域或选择不存在目标的替代资源。
 - SNS 配置调用链弹窗：CloudWatch 告警三类动作到 Topic，再到订阅目标；默认仅显示名称，展开后可将同 Profile／账号／Region 的告警及已确认 Lambda 跳转到详情，保留原始 Endpoint 遮罩和 qualifier 说明。
 - SNS Standard／FIFO Topic 列表、配置／策略、标签与订阅只读浏览，按 Profile／Region 隔离且按需加载；支持 ARN 收藏、局部权限降级和 Endpoint 默认遮罩。
 - CloudWatch Metric／Composite Alarm 列表与四页签详情，按 Profile／Region 隔离；按需加载、手动刷新、配置／标签／近 30 天历史和动作 ARN 只读展示，支持本地收藏。
@@ -49,12 +53,12 @@
 - 本地资源收藏、搜索与定位；先手动选择匹配 Profile，再恢复收藏 Region 并校验账号。仅保存资源定位元数据，应用窗口共享列表，重启后恢复。
 - SwiftUI 三栏界面和 Session、Profile、Region、服务切换；启动仅恢复 session，Profile 始终由用户显式选择；空选项下隐藏全部资源列表与详情。
 - EC2 实例列表、分页、搜索、实例状态筛选、Status Check 筛选和 AMI 名称降级加载。
-- EC2 五页签详情：Overview、Network、Storage、Security、Status。
+- EC2 六页签详情：Overview、Network、Storage、Security、Status、Metrics。
 - EC2 ENI、EBS、Security Group 规则、IMDSv2、实例健康检查和 Scheduled Events 按需加载。
 - EC2 状态、磁盘或安全组增强接口失败时局部降级，不清空实例列表或基础详情。
 - EC2 切换实例、Profile 或 Region 时取消旧详情请求，并隔离过期结果。
 - Lambda 函数列表、状态和 Package Type 组合筛选。
-- Lambda 五页签详情：Overview、Configuration、Triggers、Versions、Code。
+- Lambda 七页签详情：Overview、Configuration、Triggers、Versions、Code、Metrics、Logs；窄详情区域使用原生菜单选择页签。
 - Lambda Event Source Mapping、异步调用配置、Function URL、Versions、Aliases、Reserved / Provisioned Concurrency 和 Resource Policy 按需加载。
 - Lambda Environment Variable 默认遮罩；部署包保持手动加载，支持文件选择、源码预览和轻量语法高亮。
 - Lambda 增强接口失败时局部降级，切换函数、Profile 或 Region 时取消旧详情与代码请求，并隔离过期结果。
@@ -62,11 +66,12 @@
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms、SNS／配置关系、收藏／关联资源导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 258 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、收藏／关联资源导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 312 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
+- 指标／日志和告警 SNS 跳转真实账号验收：与控制台对照相同 UTC 时段及 5 分钟聚合；验证指标空／部分／无权限、默认和共享日志组函数隔离、过滤语法、实际分页／取消／显示上限；验证空 Profile 不请求、切换账号／Region／资源／页签清空结果。指标需要 `cloudwatch:GetMetricData`，日志需要 `logs:FilterLogEvents`，共享组额外需要 `logs:DescribeLogStreams`；日志组配置依赖 `lambda:GetFunctionConfiguration`。告警 SNS 动作只跳同范围 Topic，目标删除／无权限应提示而不误选；真实查询可能产生 CloudWatch 使用费用。
 - SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、节点默认收起／点击展开后 Lambda 跳转、Endpoint 显示／隐藏、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。
 - CloudWatch Alarms 真实账号验收：当前 Profile／Region 的 Metric 和 Composite 列表、筛选与刷新、单指标／Math／Insights 配置、30 天历史和标签权限局部降级；验证 ARN 收藏、分页、快速切换／取消、清空 Profile 后不再展示数据，以及切换资源 Region 不触发 Cost 重查。读取 Composite 所需 `DescribeAlarms`／`DescribeAlarmHistory` 必须允许 `Resource: "*"`。
@@ -83,10 +88,10 @@
 ### 功能候选
 
 - 最近访问：本地记录访问过的资源，按 Profile 隔离；打开记录前要求已手动选择匹配 Profile，沿用收藏的账号校验与失效提示。
-- 指标与日志：EC2／Lambda 的 CloudWatch 指标、Lambda 日志检索；保留后续评估 EC2 Auto Scaling 归属、Load Balancer Target Health 和 Lambda X-Ray Trace。
+- 监控后续：评估 EC2 Auto Scaling 归属、Load Balancer Target Health 和 Lambda X-Ray Trace。
 - 权限诊断：在现有登录／网络／配置／权限错误分类及局部降级基础上，补充逐接口检查结果、缺少的读取权限和可操作提示。
 - 资源关系后续：按需扫描 S3 Bucket 通知和 Lambda 异步目标，先明确逐资源请求开销、区域及局部失败语义；代码内 Publish 仍不能从配置完整发现。现有 SNS 弹窗已覆盖 CloudWatch 配置上游和订阅下游。
-- 资源跳转后续：告警动作 ARN 到 SNS Topic 等其他入口、同 Profile 的显式跨 Region 跳转，以及打开对应 AWS 控制台页面；不因跳转自动选择其他 Profile。SNS 弹窗到同范围告警／Lambda 详情已实现。
+- 资源跳转后续：同 Profile 的显式跨 Region 跳转，以及打开对应 AWS 控制台页面；不因跳转自动选择其他 Profile。告警动作到 SNS Topic、SNS 弹窗到同范围告警／Lambda 详情已实现。
 - S3 浏览增强：按需分页、逐层可点击面包屑、文本／JSON／图片内容预览和单对象下载。现有前缀浏览、Root 返回、对象元数据与后台全量翻页保留，不重复列为新增功能。
 - 跨 Region 搜索：在同一个当前 Profile 下查询用户选定的多个 Region，展示资源所在区域；评估并发上限、取消、部分区域无权限和请求开销。
 - 配置快照：保存与比较资源配置快照，按 Profile 和资源身份隔离；不包含创建 EBS Snapshot 或其他 AWS 资源写入。

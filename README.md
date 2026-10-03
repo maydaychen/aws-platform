@@ -27,7 +27,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 ## 技术栈
 
 - Swift 5.9+ / SwiftUI
-- macOS 13+
+- macOS 13+，支持 Intel（x86_64）和 Apple Silicon（arm64）
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
 
 ## 快速开始
@@ -63,6 +63,21 @@ open Package.swift
 ```
 
 在 Xcode 中直接 Cmd+R 运行。
+
+### 打包通用应用
+
+选择完整的 Xcode 工具链后，在项目根目录执行：
+
+```bash
+./scripts/build-universal.sh
+```
+
+脚本使用 `Package.resolved` 锁定的依赖，分别构建 Intel 和 Apple Silicon 的 Release 版本，再合并为 Universal 应用。输出：
+
+- `dist/AWSPlatform.app`：适用于 macOS 13 及以上的两种芯片，可复制到「应用程序」目录。
+- `dist/AWSPlatform-universal.zip`：包含上述应用的压缩包。
+
+产物使用本地 ad-hoc 签名，尚未进行 Developer ID 签名和 Apple 公证。普通 `swift build` 仍只构建当前机器架构；需要通用版时使用上述脚本。脚本职责与校验见 [scripts/README.md](scripts/README.md)。
 
 ### 资源收藏
 

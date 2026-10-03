@@ -8,10 +8,11 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
+- **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
-- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket 和 CloudWatch Alarm，搜索并在当前 Profile 内恢复收藏时的 Region
+- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm 和 SNS Topic，搜索并在当前 Profile 内恢复收藏时的 Region
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
@@ -109,6 +110,26 @@ open Package.swift
 
 ![CloudWatch 告警](docs/ui-alarms-light.png)
 
+### SNS Topics
+
+手动选择并验证 Profile 后，打开侧栏 `SNS` 查看当前账号、当前 Region 的 Topic。支持名称／ARN 搜索、Standard／FIFO 筛选、手动刷新与取消；首次进入才加载列表，不定时轮询，也不自动选中第一项。未选 Profile 不查询，切换 Profile、Region 或 session 会清空旧数据。可将 Topic 加入本地收藏，按 ARN 定位，沿用手动选择 Profile 和账号校验规则。
+
+选择 Topic 后，属性、标签和订阅分别加载，某一项失败只影响对应区域：
+
+- `Overview`：Topic 身份、显示名、Owner、订阅计数和标签。
+- `Configuration`：AWS 返回的加密、FIFO、追踪等配置，以及可展开的访问／投递／归档策略；缺失字段明确显示未返回，不推断为关闭或零。
+- `Subscriptions`：订阅协议、状态、Owner、ARN 和 Endpoint。区分 Confirmed、Pending confirmation、Deleted 和 Unknown；合法跨账号订阅保留 Owner 信息，不切换或查询订阅者账号。
+
+Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏。标签、属性和订阅只保留在当前窗口内存中，不写入收藏；分页失败不会展示半份列表或订阅结果。详情右上角的刷新按钮重试三组详情，切换页签不重新请求。
+
+需要 `sns:ListTopics`（`Resource: "*"`），以及对应 Topic 的 `sns:GetTopicAttributes`、`sns:ListTagsForResource` 和 `sns:ListSubscriptionsByTopic` 权限。Topic 属性可能因权限返回不同字段；列表按当前 Profile 账号查询，不自动列出其他账号授权的 Topic。参考 [SNS 权限表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sns.html) 、[Topic 属性](https://docs.aws.amazon.com/sns/latest/api/API_GetTopicAttributes.html) 和 [Topic 订阅](https://docs.aws.amazon.com/sns/latest/api/API_ListSubscriptionsByTopic.html) 。
+
+此模块不发布消息，不创建／删除 Topic，不订阅／退订／确认订阅，也不修改配置。CloudWatch 中的动作 ARN 仍按原样展示。
+
+以下为模拟 SNS 数据的组件示例：
+
+![SNS Topic](docs/ui-sns-light.png)
+
 ### 应用内 SSO 登录
 
 1. 在 `SSO Session` 中选择已配置的 session，点击 `SSO Login`。应用后台调用本机 `aws sso login --sso-session <name>`，由 AWS CLI 打开默认浏览器完成授权；不会打开终端窗口，也不需要预先选择 Profile。
@@ -138,6 +159,7 @@ Sources/AWSPlatform/
 │   ├── AWSSOSession.swift
 │   ├── AWSService.swift
 │   ├── CloudWatchAlarm.swift
+│   ├── SNSTopic.swift
 │   ├── CostModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
@@ -147,6 +169,7 @@ Sources/AWSPlatform/
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
 │   ├── AWSAlarmService.swift     # CloudWatch 告警、标签和历史读取
+│   ├── AWSSNSService.swift       # SNS Topic、配置、标签和订阅读取
 │   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页
 │   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
@@ -155,6 +178,7 @@ Sources/AWSPlatform/
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
 │   ├── AlarmViewModel.swift
+│   ├── SNSViewModel.swift
 │   ├── CostViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
@@ -164,6 +188,7 @@ Sources/AWSPlatform/
 │   └── S3ViewModel.swift
 └── Views/                       # 界面视图
     ├── CloudWatch/
+    ├── SNS/
     ├── Cost/
     ├── EC2/
     ├── Lambda/

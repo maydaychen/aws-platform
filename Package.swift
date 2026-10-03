@@ -19,6 +19,7 @@ let package = Package(
                 .product(name: "SotoSTS", package: "soto"),
                 .product(name: "SotoCostExplorer", package: "soto"),
                 .product(name: "SotoCloudWatch", package: "soto"),
+                .product(name: "SotoSNS", package: "soto"),
             ]
         ),
         .testTarget(

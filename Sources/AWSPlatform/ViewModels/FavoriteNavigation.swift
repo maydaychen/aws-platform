@@ -50,7 +50,7 @@ final class FavoriteNavigation: ObservableObject {
         }
     }
 
-    func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel) {
+    func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel) {
         guard let target else { return }
         switch target.service {
         case .ec2:
@@ -81,6 +81,11 @@ final class FavoriteNavigation: ObservableObject {
             alarms.kindFilter = nil
             alarms.selectedAlarm = alarms.alarms.first { $0.arn == target.resourceID }
             finish(found: alarms.selectedAlarm != nil, loadError: alarms.error)
+        case .sns:
+            sns.searchText = ""
+            sns.kindFilter = nil
+            sns.selectedTopic = sns.topics.first { $0.arn == target.resourceID }
+            finish(found: sns.selectedTopic != nil, loadError: sns.error)
         }
     }
 

@@ -3,6 +3,25 @@ import XCTest
 
 @MainActor
 final class FavoritesViewModelTests: XCTestCase {
+    func testSNSFavoritesRoundTripAlongsideAllExistingServices() throws {
+        let suite = "SNSFavorites.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let existing = [Self.makeFavorite(), Self.makeFavorite(service: .lambda),
+                        Self.makeFavorite(service: .s3), Self.makeFavorite(service: .alarms)]
+        defaults.set(try JSONEncoder().encode(existing), forKey: FavoritesViewModel.storageKey)
+        let store = FavoritesViewModel(defaults: defaults)
+        let topic = Self.makeFavorite(service: .sns, resourceID: "arn:aws:sns:us-east-1:111111111111:alerts", name: "alerts")
+        store.toggle(topic)
+        let restored = FavoritesViewModel(defaults: defaults)
+        XCTAssertEqual(Set(restored.favorites.map(\.id)), Set((existing + [topic]).map(\.id)))
+        XCTAssertNil(restored.storageError)
+        XCTAssertTrue(topic.matches("SNS"))
+        let value = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(topic)) as? [String: Any])
+        XCTAssertEqual(Set(value.keys), ["profileName", "accountID", "region", "service", "resourceID", "displayName"])
+        XCTAssertEqual(AWSService.alarms.rawValue, "CloudWatch")
+    }
+
     func testAlarmFavoritesRoundTripAlongsideExistingServices() throws {
         let suite = "AlarmFavorites.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

@@ -5,6 +5,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     case lambda = "Lambda"
     case s3 = "S3"
     case alarms = "CloudWatch"
+    case sns = "SNS"
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         case .lambda: return "function"
         case .s3: return "externaldrive"
         case .alarms: return "bell.badge"
+        case .sns: return "dot.radiowaves.left.and.right"
         }
     }
 }

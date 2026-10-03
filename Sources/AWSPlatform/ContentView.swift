@@ -8,6 +8,7 @@ struct ContentView: View {
     @StateObject private var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
     @StateObject private var alarmsVM: AlarmViewModel
+    @StateObject private var snsVM: SNSViewModel
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
@@ -31,6 +32,13 @@ struct ContentView: View {
             listLoader: { try await alarms.loadAlarms(scope: $0) },
             tagLoader: { try await alarms.loadTags(scope: $0, alarm: $1) },
             historyLoader: { try await alarms.loadHistory(scope: $0, alarm: $1) }
+        ))
+        let sns = AWSSNSService(provider: profiles.provider)
+        _snsVM = StateObject(wrappedValue: SNSViewModel(
+            listLoader: { try await sns.loadTopics(scope: $0) },
+            attributeLoader: { try await sns.loadAttributes(scope: $0, topic: $1) },
+            tagLoader: { try await sns.loadTags(scope: $0, topic: $1) },
+            subscriptionLoader: { try await sns.loadSubscriptions(scope: $0, topic: $1) }
         ))
     }
 
@@ -101,17 +109,20 @@ struct ContentView: View {
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
             loadVisibleAlarms()
+            loadVisibleSNS()
         }
         .onChange(of: destination) { selection in
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
             loadVisibleAlarms()
+            loadVisibleSNS()
         }
         .onDisappear {
             loginTask?.cancel()
             reconfigureTask?.cancel()
             costVM.reset()
             alarmsVM.reset()
+            snsVM.reset()
             Task { await profileVM.shutdown() }
         }
     }
@@ -149,6 +160,19 @@ struct ContentView: View {
         alarmsVM.loadIfNeeded()
     }
 
+    private func configureSNS() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        snsVM.configure(scope: SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
+        loadVisibleSNS()
+    }
+
+    private func loadVisibleSNS() {
+        guard destination == .resources, selectedService == .sns,
+              profileVM.isProfileReady, favoriteNavigation.target == nil else { return }
+        snsVM.loadIfNeeded()
+    }
+
     @ViewBuilder
     private var middlePane: some View {
         if profileVM.selectedProfile == nil {
@@ -177,6 +201,8 @@ struct ContentView: View {
             }
         case .alarms:
             AlarmListView(vm: alarmsVM)
+        case .sns:
+            SNSTopicListView(vm: snsVM)
         }
     }
 
@@ -241,6 +267,9 @@ struct ContentView: View {
         case .alarms:
             guard let alarm = alarmsVM.selectedAlarm else { return nil }
             resource = (alarm.arn, alarm.name)
+        case .sns:
+            guard let topic = snsVM.selectedTopic else { return nil }
+            resource = (topic.arn, topic.name)
         }
         let favorite = ResourceFavorite(
             profileName: profileName, accountID: identity.account, region: profileVM.selectedRegion,
@@ -271,6 +300,7 @@ struct ContentView: View {
         case .lambda: return "lambda/" + (lambdaVM.selectedFunction?.functionName ?? "")
         case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
         case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
+        case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
         }
     }
 
@@ -326,6 +356,12 @@ struct ContentView: View {
             } else {
                 EmptyStateView(text: "Select a CloudWatch alarm", icon: "bell.badge")
             }
+        case .sns:
+            if let topic = snsVM.selectedTopic {
+                SNSTopicDetailView(topic: topic, vm: snsVM)
+            } else {
+                EmptyStateView(text: "Select an SNS topic", icon: "dot.radiowaves.left.and.right")
+            }
         }
     }
 
@@ -347,6 +383,7 @@ struct ContentView: View {
         lambdaVM.reset()
         s3VM.reset()
         alarmsVM.reset()
+        snsVM.reset()
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
@@ -378,15 +415,17 @@ struct ContentView: View {
             lambdaVM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .lambda)
             s3VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .s3)
             configureAlarms()
+            configureSNS()
             guard let target else { return }
             switch target.service {
             case .ec2: await ec2VM.loadInstances()
             case .lambda: await lambdaVM.loadFunctions()
             case .s3: await s3VM.loadBuckets()
             case .alarms: await alarmsVM.loadAlarms()
+            case .sns: await snsVM.loadTopics()
             }
             guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
-            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM)
+            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM)
         }
     }
 }

@@ -4,9 +4,11 @@
 
 只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志已完成本地回归与模拟组件渲染检查。已提供面向 macOS 13+ 的 Intel／Apple Silicon Universal 本地应用包，完成双架构构建和 Apple Silicon 启动检查；Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
 
+源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；当前未发布应用二进制 Release。
+
 ## 最近完成
 
-- 2026-10-03 16:09：完成 GitHub 公开源码准备：新增 MIT LICENSE 和 26 项锁定依赖的许可／NOTICE 索引；修正 README 的公开克隆地址、Swift 6.2+ 构建前提和 Lambda 配置读取权限，说明部署包临时落盘行为。补齐本地 AWS 配置、环境配置、证书及个人 Agent 文件的忽略规则；未变更业务代码。
+- 2026-10-03 16:13：源码已上传至 GitHub 公开仓库 `maydaychen/aws-platform` 的 `main`；新增 MIT LICENSE 和 26 项锁定依赖的许可／NOTICE 索引。修正 README 的公开克隆地址、Swift 6.2+ 构建前提和 Lambda 配置读取权限，说明部署包临时落盘行为；补齐本地 AWS 配置、环境配置、证书及个人 Agent 文件的忽略规则。保留原私有远端；未变更业务代码，未发布应用二进制。
 - 2026-10-03 15:02：新增 `scripts/build-universal.sh`，锁定依赖分别构建 arm64／x86_64 Release 并合并为 Universal `.app` 与 ZIP；标准资源布局、Swift 兼容运行库嵌入及构建机绝对 RPATH 清理，检查架构、最低系统、缺库与本地 ad-hoc 签名后交付。保留 `AWSPlatform` 偏好域标识；README 和脚本说明提供命令，`dist/` 加入忽略规则。未使用 Developer ID、执行公证或对外发布。
 - 2026-10-03 14:00：新增 EC2／Lambda `Metrics` 页和 Lambda `Logs` 页，手动查询最近 1／6／24 小时；指标按 5 分钟批量读取四项曲线，保留缺口／部分状态，UTC 轴与详情一致，窄屏单列、宽屏双列。日志采用已成功加载的函数配置，默认组直接查询，自定义组完整枚举并精确隔离函数日志流；冻结查询分页、取消、5,000 条／8 MiB 正文上限及不完整提示，不落盘。新增告警动作到同 Profile／账号／Region 的 SNS Topic 精确跳转；切换或清空范围会取消并隔离旧响应。README、权限说明及两张组件示例已同步。
 - 2026-10-03 13:19：提升 SNS 调用链卡片层次：服务色图标、轻渐变底色、连续圆角、细边框和柔和阴影；悬停／展开时加强边框与层次。保留名称首屏、点击展开和 Open 流程，身份／区域校验及原始 Endpoint 遮罩不变；增加增强对比度边框和减少动态效果分支，更新默认收起的文档示例。
@@ -25,7 +27,7 @@
 
 ## 最近验证
 
-- 2026-10-03 16:09：重新执行 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，严格构建成功，312 项正式测试零失败。Gitleaks 对全部可达 Git 历史和当前发布文件扫描均未发现秘密；逐张检查 9 张文档截图，均为模拟数据。26 个依赖版本／revision 和 42 个 LICENSE／NOTICE 文件链接核对通过，README 静态审计、忽略规则及 `git diff --check` 通过。独立源码及交付审查未发现阻断源码公开的问题；未连接真实 AWS，未新增 Intel／macOS 13 实机验收。
+- 2026-10-03 16:13：重新执行 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，严格构建成功，312 项正式测试零失败。Gitleaks 对全部可达 Git 历史、发布分支和当前发布文件扫描均未发现秘密；逐张检查 9 张文档截图，均为模拟数据。26 个依赖版本／revision 和 42 个 LICENSE／NOTICE 文件链接核对通过，README 静态审计、忽略规则及 `git diff --check` 通过。GitHub API 确认仓库公开、MIT 和 `main`，6 个关键文件 Git blob 与本地一致；无凭据克隆成功，提交与完整文件树一致。独立源码及交付审查未发现阻断源码公开的问题；未连接真实 AWS，未新增 Intel／macOS 13 实机验收。
 - 2026-10-03 15:02：arm64／x86_64 Release 构建通过，最终通用产物经独立 `lipo`、`vtool`、`plutil`、严格深层 `codesign` 与 ZIP 完整性核验；主程序两切片最低系统均为 13.0，嵌入的 Swift Span 运行库满足两架构的系统下限，无 Xcode 绝对 RPATH，已移除工具生成的冗余备份。ZIP 解压到独立目录后，以空 AWS 配置在 Apple Silicon 上持续运行 8 秒；包内运行库 `dlopen` 成功，启动日志未加载 Xcode 工具链库。使用当前正式 XCTest 产物运行 312 项测试，全部通过；业务源码未修改。Shell 语法、忽略规则及 `git diff --check` 通过。未调用真实 AWS；当前主机无 Rosetta，未执行 Intel 或 macOS 13 实机验收。
 - 2026-10-03 14:00：最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，312 项正式测试零失败、无编译警告，覆盖指标定义／分页／缺失与状态、日志共享组隔离／空页续读／上限、取消与完整 Profile 隔离、告警 SNS 导航。1 项临时原生渲染测试通过，72 张 480／900 宽度深浅色截图，抽查指标缺口、UTC 轴、1／2 列、父详情页签、长日志、部分／空／错误／加载／超限及跳转按钮；修复实测横轴误用本地时间并消除该图表 AxisValueLabel 诊断。旧 SNS 不支持断言已按新范围更新，临时渲染入口已移除；独立代码审查无阻断，`git diff --check` 通过。未访问真实 AWS，真实窗口点击、macOS 13 运行时和实际权限／分页仍待验收。
 - 2026-10-03 13:19：严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项离线原生渲染测试通过，生成 36 张截图，已核对 960／1200 宽度的深浅色名称、图标、边框、展开详情及隐私显示状态。增强对比 NSAppearance 截图仅作为外观参考，不等同于 SwiftUI 增强对比分支动态验收；减少动态效果和悬停分支仅做代码核验。临时截图工具的只读环境属性注入错误已修正，最终日志无编译诊断；临时入口移除，`git diff --check` 通过。未访问真实 AWS，真实窗口鼠标／键盘操作和 macOS 13 仍待验收。

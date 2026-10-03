@@ -128,8 +128,9 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 
 点击 Topic 详情中的「调用链查看」，弹窗按 **CloudWatch 告警 → 当前 SNS Topic → 订阅目标** 展示配置关系：
 
+- 初次打开时，资源节点只显示名称；点击名称展开配置详情，再点击 `Open alarm` 或 `Open Lambda function` 进入对应服务。节点可独立展开与收起；长的范围说明位于默认收起的 `About this view`。可定位的 Lambda 订阅显示函数名，其他订阅用协议名称标识，不将邮箱、手机号或 URL 放入节点标题。
 - 上游按当前 Profile／Region 读取 Metric 和 Composite Alarm，精确匹配 ALARM、OK、INSUFFICIENT_DATA 三类动作；显示动作是否启用及返回的抑制配置。每次打开弹窗会进行一次完整分页检查，可单独刷新；需要 `cloudwatch:DescribeAlarms`，Composite 要求 `Resource: "*"`。无权限或查询失败显示“检查不完整”，不会等同于没有来源。
-- 下游复用 Topic 详情已加载的订阅，显示确认状态；若需更新订阅，关闭弹窗后刷新 Topic 详情。Endpoint 仍默认隐藏，手动显示后才可复制或打开对应 Lambda 函数。
+- 下游复用 Topic 详情已加载的订阅，展开后显示确认状态；若需更新订阅，关闭弹窗后刷新 Topic 详情。原始 Endpoint 仍默认隐藏，手动显示后才可复制；合法 Lambda 节点展开后即可打开函数详情，无需先显示 Endpoint。
 - 告警和已确认的 Lambda 订阅可跳到应用内详情；只允许同一已验证 Profile、账号、Region 和分区。跳转不会写入收藏、自动选择 Profile 或切换 Region。跨范围、未确认或尚无详情模块的目标只展示信息。Lambda 别名／版本会保留显示，但打开的是函数详情，不是该别名／版本的专属详情。
 
 这里展示已配置的关联，不代表消息已经发送或投递成功，也不是全部发布来源清单。S3 通知、Lambda 异步目标及程序代码中的 `Publish` 不在当前扫描范围；Topic Policy 不作为发布来源证据。实际 SNS 发布记录需要另行启用和查询 CloudTrail 数据事件，默认事件历史不包含这些记录。参考 [CloudWatch 告警查询](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html) 和 [SNS CloudTrail 说明](https://docs.aws.amazon.com/sns/latest/dg/logging-using-cloudtrail.html) 。
@@ -138,7 +139,7 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 
 ![SNS Topic](docs/ui-sns-light.png)
 
-![SNS 配置调用链，模拟数据并已手动显示 Lambda Endpoint](docs/ui-sns-relationships-light.png)
+![SNS 配置调用链，模拟数据与默认收起的资源节点](docs/ui-sns-relationships-light.png)
 
 ### 应用内 SSO 登录
 

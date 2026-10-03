@@ -6,6 +6,7 @@
 
 ## 最近完成
 
+- 2026-10-03 13:09：简化 SNS 调用链首屏：告警、Topic 和订阅节点默认仅显示名称，整行可展开／收起，详情与 Open 按钮仅在展开后显示。合法 Lambda 节点显示函数名，展开即可跳转，不再要求先 Reveal；原始 Endpoint 仍默认遮罩，覆盖范围说明收入 About this view。展开状态随弹窗关闭或上下文变化重置；README 和默认收起的示例截图已更新。
 - 2026-10-03 12:54：SNS Topic 详情新增「调用链查看」弹窗，显示当前 Profile／Region 的 CloudWatch Metric／Composite 告警三类动作 → Topic → 已加载订阅；保留禁用／抑制和订阅确认状态，区分检查失败与无匹配。支持同范围告警、已确认 Lambda 订阅跳转详情，保留 qualifier 并注明函数级详情；Endpoint 默认遮罩，跨账号／Region 和未支持服务不跳转。独立导航不写收藏、不重配全服务，修复关联目标缺失时 Lambda 自动选首项及立即取消仍启动查询的问题。范围明确为配置关系，不是实际消息轨迹；README 和弹窗组件示例已同步。
 - 2026-10-03 12:24：新增按当前 Profile／Region 隔离的 SNS 只读模块，提供 Standard／FIFO Topic 搜索与筛选、属性／标签／订阅三组独立读取、配置及策略展示、手动刷新与取消。Topic 和订阅完整分页，保留待确认／已删除／未知状态及合法跨账号订阅 Owner；Endpoint 默认隐藏，显示后才可复制，切换 Topic／身份或刷新时重置。接入 ARN 收藏，未增加消息发布、订阅变更或自动跨账号导航。README 和六张模拟组件示例已同步。
 - 2026-10-03 11:46：新增 CloudWatch Metric／Composite Alarm 只读浏览，按当前 Profile 和资源 Region 隔离；首次进入列表才加载，支持搜索、状态／类型筛选、手动刷新和取消。详情展示状态原因、单指标／Math／Insights 配置、Composite 规则及抑制配置、动作目标 ARN；选择告警后独立加载标签和最近 30 天历史。完整分页、ARN 校验、错误脱敏与迟到结果隔离，接入现有 ARN 收藏定位。未增加 SNS 查询／发送、指标数据或告警写入；同时消除 Cost 时间默认闭包的 Sendable 编译警告，查询行为不变。README 和模拟组件截图已同步。
@@ -20,6 +21,7 @@
 
 ## 最近验证
 
+- 2026-10-03 13:09：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项临时离线原生渲染测试通过，8 种状态在 960／1200 宽度及深浅色生成 32 张截图，已核对默认收起、展开、原始 Endpoint 隐藏／显示及错误布局。临时测试入口已移除，`git diff --check` 通过。改动仅为展示与展开状态；未访问真实 AWS，完整窗口点击、键盘操作和 macOS 13 实机仍待验收。
 - 2026-10-03 12:54：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，258 项正式单测全部通过；新增 43 项覆盖关系精确匹配、范围与 ARN 校验、qualifier／特殊订阅状态、安全错误、迟到结果、按需导航和 Lambda 空选择回归。另 1 项临时原生离线渲染测试通过，7 种状态在 960／1200 宽度及深浅色生成 28 张截图，抽查长名称／ARN、默认遮罩／显示、空态和独立错误。独立审查核对关键代码、日志和截图；临时测试入口已移除，`git diff --check` 通过。未调用真实 AWS，也未进行完整窗口点击或 macOS 13 实机验收。
 - 2026-10-03 12:24：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，215 项正式单测全部通过；新增 37 项覆盖 SNS 服务分页／范围／特殊订阅状态、三组详情独立失败、过期结果隔离、Endpoint 显示状态和收藏兼容／导航。另有 4 项临时离线渲染测试通过，SNS 的 13 种整页状态在 960／1280 与深浅色下生成 52 张截图，加 4 张 Endpoint 显示／展开策略组件图；已抽查三个页签、长 ARN、空态和局部错误，独立审查核对核心代码、日志和关键截图。临时入口已移除，文档结构与 `git diff --check` 通过。未调用真实 AWS，真实 IAM／分页、窗口交互和 macOS 13 仍待验收；原有 Cost Charts 运行时警告继续保留在工程待办。
 - 2026-10-03 11:46：最终源码严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，无编译警告，178 项正式单测全部通过；新增 36 项覆盖两类告警映射、分页、账号／Region／分区校验、历史窗口、取消、局部权限失败、切换后过期结果和收藏兼容／定位。另有 3 项临时离线渲染测试通过，生成告警 14 种状态在 960／1280 宽度与深浅色下的 56 张截图，并刷新共享导航下的 Cost／资源组件示例；抽查四个页签、长名称／ARN／规则、空态、错误和加载态。独立审查核对核心代码、测试及关键截图；临时入口已移除，`git diff --check` 通过。未执行真实 AWS 查询或真实窗口交互，IAM 组合、实际分页及 macOS 13 运行时仍待用户验收；原有 Cost Charts 警告仍见工程待办。
@@ -36,7 +38,7 @@
 
 ## 已完成
 
-- SNS 配置调用链弹窗：CloudWatch 告警三类动作到 Topic，再到订阅目标；同 Profile／账号／Region 的告警及已确认 Lambda 可跳详情，保留 Endpoint 遮罩和 qualifier 说明。
+- SNS 配置调用链弹窗：CloudWatch 告警三类动作到 Topic，再到订阅目标；默认仅显示名称，展开后可将同 Profile／账号／Region 的告警及已确认 Lambda 跳转到详情，保留原始 Endpoint 遮罩和 qualifier 说明。
 - SNS Standard／FIFO Topic 列表、配置／策略、标签与订阅只读浏览，按 Profile／Region 隔离且按需加载；支持 ARN 收藏、局部权限降级和 Endpoint 默认遮罩。
 - CloudWatch Metric／Composite Alarm 列表与四页签详情，按 Profile／Region 隔离；按需加载、手动刷新、配置／标签／近 30 天历史和动作 ARN 只读展示，支持本地收藏。
 - Cost Explorer 只读费用面板，按当前 Profile 的 STS 账号隔离；UTC 完整日、独立费用 Region、缓存／手动刷新、取消、完整分页、币种／估算状态与调用开销提示。
@@ -63,7 +65,7 @@
 
 ## 进行中
 
-- SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、Endpoint 显示后 Lambda 跳转、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
+- SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、节点默认收起／点击展开后 Lambda 跳转、Endpoint 显示／隐藏、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。
 - CloudWatch Alarms 真实账号验收：当前 Profile／Region 的 Metric 和 Composite 列表、筛选与刷新、单指标／Math／Insights 配置、30 天历史和标签权限局部降级；验证 ARN 收藏、分页、快速切换／取消、清空 Profile 后不再展示数据，以及切换资源 Region 不触发 Cost 重查。读取 Composite 所需 `DescribeAlarms`／`DescribeAlarmHistory` 必须允许 `Resource: "*"`。
 - Cost 真实账号验收：启用 Cost Explorer 并检查读取与账单权限；对照当前账号、相同 UTC 日期／费用 Region／UnblendedCost 的控制台数据，验证管理账号不包含其他成员账号；验证无权限、数据准备中、分页、取消、退款与实际币种；切换资源 Region 不重新查询费用，切换 Profile 后旧数据清空。真实 API 调用由用户验证，可能产生调用费用。

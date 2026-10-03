@@ -55,3 +55,11 @@ Pull requests should include a short description, verification steps (`swift bui
 ## Security & Configuration Tips
 
 Do not commit AWS credentials, generated local config, or Xcode user state. The app expects AWS CLI profiles in `~/.aws/config` and `~/.aws/credentials`; keep examples sanitized and use profile names rather than secrets in docs and tests.
+
+## AWS Query Scope
+
+- 当前及后续新增的 AWS 数据查询（包括资源、Cost、指标和日志）统一以用户显式选择的当前 Profile 为单位；查询凭据、调用账号和角色由该 Profile 决定。Region 按服务语义使用当前选择或资源实际区域（如 S3 Bucket），区域解析不得改变 Profile 查询作用域；实际可见范围仍受 AWS 服务和该角色权限约束。
+- Session 只负责 SSO 登录与授权缓存，不作为数据查询单位；不得因多个 Profile 共用 Session 而自动查询或聚合这些 Profile 的数据。
+- 未选择 Profile 时，不进行账号身份验证或 AWS 数据查询，资源列表与详情保持空白；不得回退到默认、上次使用、第一个 Profile 或环境变量指定的 Profile。
+- 启动、Session 登录成功、重新登录或切换 Session 均不得自动选择 Profile；只有手动选择 Profile 并验证身份成功后才加载数据。收藏及后续新增入口也必须遵守此规则。
+- 切换或清空 Profile 时，清空旧数据并取消旧请求或使其结果失效；查询状态和缓存按 Profile 隔离，区域型查询同时按 Region 隔离，防止跨 Profile 展示数据。

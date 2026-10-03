@@ -65,3 +65,7 @@ iOSInjectionProject/
 
 # Local agent configuration
 AGENTS.local.md
+
+# Python packaging tools
+__pycache__/
+*.py[cod]

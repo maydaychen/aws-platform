@@ -4,6 +4,15 @@ set -euo pipefail
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="AWSPlatform"
 dist_dir="$project_root/dist"
+if [ "$#" -gt 0 ]; then
+    if [ "$#" -eq 2 ] && [ "$1" = --output-dir ] && [ -n "$2" ]; then
+        mkdir -p "$2"
+        dist_dir="$(cd "$2" && pwd)"
+    else
+        printf 'Usage: %s [--output-dir DIRECTORY]\n' "$0" >&2
+        exit 2
+    fi
+fi
 stage_dir=""
 publishing=0
 old_app=0

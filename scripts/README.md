@@ -2,9 +2,14 @@
 
 本目录只存放可复用的本地构建与打包脚本；应用代码仍放在 `Sources/`，临时文件放在 `.tmp/`，交付产物放在 `dist/`。
 
+- `build-universal.sh`：本地 ad-hoc 通用包构建。
+- `package-distribution.py`：Developer ID 签名、Apple 公证与 ZIP／DMG 分发打包。
+- `collect-licenses.py` 与 `licenses/`：按锁定依赖收集完整许可，固定补充许可的来源见 `licenses/README.md`。
+- `tests/`：不调用签名或 Apple 接口的打包保护逻辑测试。
+
 ## Universal macOS 应用
 
-在已安装并选择 Xcode 工具链的 Mac 上执行：
+在已安装并选择提供 Swift 6.2+ 的完整 Xcode 工具链的 Mac 上执行：
 
 ```bash
 ./scripts/build-universal.sh
@@ -21,3 +26,36 @@
 - Bundle ID 保持为 `AWSPlatform`，与既有 `swift run` 的偏好域一致，延续收藏和 Session 偏好。
 
 产物使用本地 ad-hoc 签名，没有使用 Developer ID，也没有进行 Apple 公证。此脚本提供本地构建和架构兼容产物，不代表已通过其他 Mac 的 Gatekeeper 或 Intel 实机验收。
+
+可用 `--output-dir DIRECTORY` 将本次构建输出到指定目录，正式打包使用这个入口隔离暂存产物。
+
+## 正式签名与公证
+
+需要 Python 3.9+、可用的 Developer ID Application 证书及匹配私钥、已配置认证的 `asc` CLI，并允许访问 Apple 签名时间戳和公证服务。先确认应用源码已经提交并通过验证；将 `SIGNING_IDENTITY` 设为目标证书的 SHA-1、`DEVELOPMENT_TEAM` 设为对应团队 ID 后执行：
+
+```bash
+security find-identity -v -p codesigning
+asc notarization list --limit 1 --output table
+python3 scripts/package-distribution.py \
+  --identity "$SIGNING_IDENTITY" \
+  --team-id "$DEVELOPMENT_TEAM"
+```
+
+执行命令会向 Apple 提交公证。签名身份和认证保留在本机，脚本不存储私钥或 Token，也不创建 GitHub Release。
+
+脚本在 `.tmp/distribution/` 的独立目录构建通用应用、收集随包许可证，依次签名内嵌运行库和 App，使用 Hardened Runtime 和安全时间戳。App 公证为 `Accepted` 后附加并验证票据，再生成最终 ZIP；随后制作包含「应用程序」快捷入口的 DMG，对 DMG 签名、公证、附加票据。只有签名、票据和 Gatekeeper 检查全部通过，才移动到 `dist/AWSPlatform-<版本>-universal/`，其中包含：
+
+- `AWSPlatform.app`、版本化的 Universal ZIP 和 DMG。
+- `SHA256SUMS.txt`：ZIP 和 DMG 的 SHA-256。
+- `distribution.json`：版本、源码提交、团队、公证 ID 和校验值。
+
+版本和 build 沿用 `build-universal.sh` 生成的 `Info.plist`。不覆盖已存在的同名正式产物目录；失败时保留暂存目录，旧产物不受影响。提交超时或返回未知结果时，先查询 Apple 公证历史与状态，避免重复提交；不能把签名成功或上传成功视为公证通过。
+
+完成后仍需对 ZIP 独立解压、DMG 只读挂载及包内应用启动做验收；真实 AWS 登录和 Intel／macOS 13 实机运行单独验证。
+
+离线检查入口：
+
+```bash
+bash -n scripts/build-universal.sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
+```

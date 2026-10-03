@@ -78,6 +78,7 @@
 
 ## 进行中
 
+- 正式 Universal 分发包：已补充 Developer ID 签名、随包许可收集及 App／DMG 公证脚本，待实际签名、公证 Accepted、票据与 Gatekeeper 检查，以及 ZIP 解压／DMG 挂载和离线启动验收；当前不创建 GitHub Release。
 - 指标／日志和告警 SNS 跳转真实账号验收：与控制台对照相同 UTC 时段及 5 分钟聚合；验证指标空／部分／无权限、默认和共享日志组函数隔离、过滤语法、实际分页／取消／显示上限；验证空 Profile 不请求、切换账号／Region／资源／页签清空结果。指标需要 `cloudwatch:GetMetricData`，日志需要 `logs:FilterLogEvents`，共享组额外需要 `logs:DescribeLogStreams`；日志组配置依赖 `lambda:GetFunction`。告警 SNS 动作只跳同范围 Topic，目标删除／无权限应提示而不误选；真实查询可能产生 CloudWatch 使用费用。
 - SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、节点默认收起／点击展开后 Lambda 跳转、Endpoint 显示／隐藏、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。

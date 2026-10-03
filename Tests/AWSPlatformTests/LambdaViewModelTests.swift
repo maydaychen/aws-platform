@@ -71,6 +71,70 @@ final class LambdaViewModelTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testLoadFunctionsCanLeaveSelectionEmptyWithoutLoadingFirstDetail() async {
+        let first = makeFunction(name: "first")
+        var detailRequests: [String] = []
+        let vm = LambdaViewModel(functionLoader: { [first] }, detailLoader: { name in
+            detailRequests.append(name)
+            return Self.makeDetail(functionName: name)
+        })
+
+        await vm.loadFunctions(selectFirstIfNeeded: false)
+        await Task.yield()
+
+        XCTAssertEqual(vm.functions, [first])
+        XCTAssertNil(vm.selectedFunction)
+        XCTAssertNil(vm.functionDetail)
+        XCTAssertFalse(vm.isDetailLoading)
+        XCTAssertTrue(detailRequests.isEmpty)
+    }
+
+    @MainActor
+    func testLoadFunctionsWithoutFirstSelectionClearsMissingPreviousSelection() async {
+        let first = makeFunction(name: "first")
+        let removed = makeFunction(name: "removed")
+        var detailRequests: [String] = []
+        let vm = LambdaViewModel(functionLoader: { [first] }, detailLoader: { name in
+            detailRequests.append(name)
+            return Self.makeDetail(functionName: name)
+        })
+        vm.selectedFunction = removed
+        while vm.isDetailLoading { await Task.yield() }
+        XCTAssertEqual(detailRequests, ["removed"])
+
+        await vm.loadFunctions(selectFirstIfNeeded: false)
+        await Task.yield()
+
+        XCTAssertEqual(vm.functions, [first])
+        XCTAssertNil(vm.selectedFunction)
+        XCTAssertNil(vm.functionDetail)
+        XCTAssertFalse(vm.isDetailLoading)
+        XCTAssertEqual(detailRequests, ["removed"], "A missing selection must not load an unrelated first function")
+    }
+
+    @MainActor
+    func testLoadFunctionsWithoutFirstSelectionPreservesAndRefreshesValidSelection() async {
+        let first = makeFunction(name: "first")
+        let selected = makeFunction(name: "selected")
+        var detailRequests: [String] = []
+        let vm = LambdaViewModel(functionLoader: { [first, selected] }, detailLoader: { name in
+            detailRequests.append(name)
+            return Self.makeDetail(functionName: name)
+        })
+        vm.selectedFunction = selected
+        while vm.isDetailLoading { await Task.yield() }
+        XCTAssertEqual(detailRequests, ["selected"])
+
+        await vm.loadFunctions(selectFirstIfNeeded: false)
+        while vm.isDetailLoading { await Task.yield() }
+
+        XCTAssertEqual(vm.functions, [first, selected])
+        XCTAssertEqual(vm.selectedFunction, selected)
+        XCTAssertEqual(vm.functionDetail?.functionName, "selected")
+        XCTAssertEqual(detailRequests, ["selected", "selected"], "An existing valid selection must still refresh its detail")
+    }
+
     func testLoadFunctionsFailureClearsStateAndShowsError() async {
         let vm = await MainActor.run {
             LambdaViewModel(functionLoader: { throw LambdaTestError.failed })

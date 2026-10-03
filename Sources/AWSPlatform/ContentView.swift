@@ -5,10 +5,12 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var favoritesVM: FavoritesViewModel
     @StateObject private var favoriteNavigation = FavoriteNavigation()
+    @StateObject private var relatedNavigation = SNSRelatedResourceNavigation()
     @StateObject private var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
     @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var snsVM: SNSViewModel
+    @StateObject private var relationshipsVM: SNSRelationshipViewModel
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
@@ -19,6 +21,7 @@ struct ContentView: View {
     @State private var reconfigureTask: Task<Void, Never>?
     @State private var loginTask: Task<Void, Never>?
     @State private var destination: WorkspaceDestination = .resources
+    @State private var relationshipTopic: SNSTopic?
 
     init() {
         let profiles = ProfileViewModel()
@@ -28,6 +31,9 @@ struct ContentView: View {
             try await costs.load(scope: scope, query: query)
         }))
         let alarms = AWSAlarmService(provider: profiles.provider)
+        _relationshipsVM = StateObject(wrappedValue: SNSRelationshipViewModel(loader: {
+            try await alarms.loadAlarms(scope: $0.alarmScope)
+        }))
         _alarmsVM = StateObject(wrappedValue: AlarmViewModel(
             listLoader: { try await alarms.loadAlarms(scope: $0) },
             tagLoader: { try await alarms.loadTags(scope: $0, alarm: $1) },
@@ -51,11 +57,14 @@ struct ContentView: View {
                 reconfigureServices(forceRefresh: true)
             }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
                showsResourceRegion: destination != .costs)
-            if let message = favoriteNavigation.error ?? favoritesVM.storageError {
+            if let message = relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
-                    if favoriteNavigation.error != nil {
-                        Button("Dismiss") { favoriteNavigation.cancel() }
+                    if relatedNavigation.error != nil || favoriteNavigation.error != nil {
+                        Button("Dismiss") {
+                            relatedNavigation.cancel()
+                            favoriteNavigation.cancel()
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -70,7 +79,7 @@ struct ContentView: View {
                 } else {
                     middlePane
                         .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
-                        .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil))
+                        .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil))
                     resourceDetail
                         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                         .contentTransition(reduceMotion ? .identity : .opacity)
@@ -79,6 +88,11 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(item: $relationshipTopic) { topic in
+            SNSRelationshipView(topic: topic, snsVM: snsVM, vm: relationshipsVM,
+                                onOpenResource: openRelatedResource)
+        }
+        .onChange(of: snsVM.selectedTopic?.arn) { _ in closeRelationships() }
         .onAppear {
             profileVM.loadProfiles()
             selectedService = AWSService(rawValue: selectedServiceID) ?? .ec2
@@ -102,6 +116,10 @@ struct ContentView: View {
             reconfigureServices()
         }
         .onChange(of: selectedService) { _ in
+            closeRelationships()
+            if let target = relatedNavigation.target, target.service != selectedService {
+                relatedNavigation.cancel()
+            }
             if let target = favoriteNavigation.target, target.service != selectedService {
                 favoriteNavigation.cancel()
             }
@@ -112,12 +130,18 @@ struct ContentView: View {
             loadVisibleSNS()
         }
         .onChange(of: destination) { selection in
+            if selection != .resources {
+                closeRelationships()
+                relatedNavigation.cancel()
+            }
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
             loadVisibleAlarms()
             loadVisibleSNS()
         }
         .onDisappear {
+            closeRelationships()
+            relatedNavigation.cancel()
             loginTask?.cancel()
             reconfigureTask?.cancel()
             costVM.reset()
@@ -156,7 +180,8 @@ struct ContentView: View {
 
     private func loadVisibleAlarms() {
         guard destination == .resources, selectedService == .alarms,
-              profileVM.isProfileReady, favoriteNavigation.target == nil else { return }
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil else { return }
         alarmsVM.loadIfNeeded()
     }
 
@@ -279,6 +304,8 @@ struct ContentView: View {
     }
 
     private func openFavorite(_ favorite: ResourceFavorite) {
+        closeRelationships()
+        relatedNavigation.cancel()
         profileVM.loadProfiles()
         guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
                                        selectedProfileName: profileVM.selectedProfile?.name) else { return }
@@ -286,6 +313,27 @@ struct ContentView: View {
         selectedService = favorite.service
         destination = .resources
         reconfigureServices()
+    }
+
+    private var currentRelationshipScope: SNSScope? {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return nil }
+        return SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
+    }
+
+    private func closeRelationships() {
+        relationshipTopic = nil
+        relationshipsVM.reset()
+    }
+
+    private func openRelatedResource(_ resource: SNSRelatedResource) {
+        guard relatedNavigation.open(resource, currentScope: currentRelationshipScope,
+                                     latestScope: { currentRelationshipScope },
+                                     alarms: alarmsVM, lambda: lambdaVM) else { return }
+        closeRelationships()
+        favoriteNavigation.cancel()
+        selectedService = resource.service
+        destination = .resources
     }
 
     private func cancelFavoriteIfScopeChanged() {
@@ -358,7 +406,10 @@ struct ContentView: View {
             }
         case .sns:
             if let topic = snsVM.selectedTopic {
-                SNSTopicDetailView(topic: topic, vm: snsVM)
+                SNSTopicDetailView(topic: topic, vm: snsVM, onViewRelationships: {
+                    guard let scope = currentRelationshipScope, scope == snsVM.scope else { return }
+                    relationshipTopic = topic
+                })
             } else {
                 EmptyStateView(text: "Select an SNS topic", icon: "dot.radiowaves.left.and.right")
             }
@@ -377,6 +428,8 @@ struct ContentView: View {
     }
 
     private func clearResources() {
+        closeRelationships()
+        relatedNavigation.cancel()
         reconfigureTask?.cancel()
         s3BrowsingBucket = nil
         ec2VM.reset()

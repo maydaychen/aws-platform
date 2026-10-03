@@ -133,7 +133,7 @@ final class LambdaViewModel: ObservableObject {
         packageFilter = "All"
     }
 
-    func loadFunctions() async {
+    func loadFunctions(selectFirstIfNeeded: Bool = true) async {
         guard !Task.isCancelled, let functionLoader else { return }
         listGeneration += 1
         let generation = listGeneration
@@ -174,7 +174,7 @@ final class LambdaViewModel: ObservableObject {
             functions = loadedFunctions
             selectedFunction = selectedName.flatMap { name in
                 loadedFunctions.first { $0.functionName == name }
-            } ?? loadedFunctions.first
+            } ?? (selectFirstIfNeeded ? loadedFunctions.first : nil)
             if selectedName == selectedFunction?.functionName {
                 loadDetailForSelection()
             }

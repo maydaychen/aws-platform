@@ -9,11 +9,13 @@ struct SNSTopicDetailView: View {
 
     let topic: SNSTopic
     @ObservedObject var vm: SNSViewModel
+    let onViewRelationships: (() -> Void)?
     @State private var selectedTab: Tab
 
-    init(topic: SNSTopic, vm: SNSViewModel, tab: Tab = .overview) {
+    init(topic: SNSTopic, vm: SNSViewModel, tab: Tab = .overview, onViewRelationships: (() -> Void)? = nil) {
         self.topic = topic
         self.vm = vm
+        self.onViewRelationships = onViewRelationships
         _selectedTab = State(initialValue: tab)
     }
 
@@ -56,7 +58,17 @@ struct SNSTopicDetailView: View {
                 .help("Refresh topic attributes, tags and subscriptions")
                 .accessibilityLabel("Refresh topic details")
             }
-            Text("\(topic.kind.title) topic · Read only").font(.caption).foregroundColor(.secondary)
+            HStack(spacing: 8) {
+                Text("\(topic.kind.title) topic · Read only").font(.caption).foregroundColor(.secondary)
+                Spacer(minLength: 0)
+                if let onViewRelationships {
+                    Button(action: onViewRelationships) {
+                        Label("调用链查看", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    .disabled(!isCurrentSelection || vm.scope == nil)
+                    .help("Inspect CloudWatch alarm actions and this topic's subscriptions")
+                }
+            }
             HStack(alignment: .top, spacing: 6) {
                 Text(topic.arn).font(.caption.monospaced()).foregroundColor(.secondary)
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)

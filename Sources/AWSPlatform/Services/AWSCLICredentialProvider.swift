@@ -13,17 +13,7 @@ struct AWSCLICredentialProvider: CredentialProvider {
     }
 
     func getCredential(logger: Logger) async throws -> Credential {
-        var environment = ProcessInfo.processInfo.environment
-        environment["AWS_CONFIG_FILE"] = paths.config
-        environment["AWS_SHARED_CREDENTIALS_FILE"] = paths.credentials
-        environment["AWS_CLI_AUTO_PROMPT"] = "off"
-        environment["AWS_PAGER"] = ""
-        environment["AWS_CLI_HISTORY_FILE"] = "/dev/null"
-        // The explicitly selected profile must be the source of credentials.
-        for key in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
-                    "AWS_SECURITY_TOKEN", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN"] {
-            environment.removeValue(forKey: key)
-        }
+        let environment = AWSCLIConfiguration.environment(paths: paths)
         let arguments = [
             "configure", "export-credentials", "--profile", profile, "--format", "process",
             "--no-cli-pager", "--no-cli-auto-prompt", "--cli-connect-timeout", "10",
@@ -67,12 +57,11 @@ struct AWSCLICredentialProvider: CredentialProvider {
     }
 
     private static func run(arguments: [String], environment: [String: String]) async throws -> Data {
-        let candidates = ["/opt/homebrew/bin/aws", "/usr/local/bin/aws", "/usr/bin/aws"]
-        guard let executable = candidates.first(where: FileManager.default.isExecutableFile) else {
+        guard let executable = AWSCLIConfiguration.executable() else {
             throw ExportError.unavailable
         }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
+        process.executableURL = executable
         process.arguments = arguments
         process.environment = environment
         process.standardInput = FileHandle.nullDevice

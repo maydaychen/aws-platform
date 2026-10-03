@@ -8,7 +8,7 @@ macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **多 Profile 支持** - 快速切换 AWS 配置文件和 Region
-- **连接恢复** - 终端登录或配置文件变更后，使用 `Retry Connection` 重新加载并验证
+- **SSO 登录与连接恢复** - 应用内点击 `SSO Login`，浏览器授权后自动重连；也支持终端登录后使用 `Retry Connection`
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数和 S3 Bucket，搜索并恢复收藏时的 Profile 和 Region
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
@@ -33,7 +33,7 @@ macOS 原生 AWS 资源只读浏览工具，基于 SwiftUI 构建。
 - macOS 13.0+
 - Xcode 15.0+ 或 Swift 5.9+
 - 已配置 AWS CLI (`~/.aws/config` 和 `~/.aws/credentials`)
-- 使用 SSO 时，已在终端执行 `aws sso login --profile <name>`
+- 使用 SSO 时，先配置对应 Profile，并安装 AWS CLI v2；可在应用内点击 `SSO Login` 或在终端执行 `aws sso login --profile <name>`
 
 ### 构建运行
 
@@ -68,6 +68,18 @@ open Package.swift
 
 收藏通过本机 UserDefaults 保存，重启后恢复，同一应用进程的多个窗口共享收藏列表。保存内容仅包含 Profile 名称、账号 ID、Region、服务、资源 ID 和显示名称；不保存凭据、资源详情或环境变量，不进行云端同步。相同资源在不同 Profile、账号或浏览 Region 下分别保存。
 
+### 应用内 SSO 登录
+
+选择已配置的 SSO Profile，连接未就绪时可点击 `SSO Login`。应用后台调用本机 `aws sso login --profile <name>`，由 AWS CLI 打开默认浏览器完成授权；不会打开终端窗口。成功后自动重建 AWS 客户端、验证身份并加载资源。网络、权限或配置错误显示为连接失败，不会一律标记为未登录。
+
+等待期间可点击 `Cancel Login`；切换 Profile／Region 或关闭视图也会取消本次等待。登录最长等待 5 分钟，取消和超时会终止本次启动的 CLI 子进程，不关闭浏览器，也不执行登出或删除已有会话。取消不能撤销浏览器中已经完成的授权。
+
+CLI 必须位于 `/opt/homebrew/bin/aws`、`/usr/local/bin/aws` 或 `/usr/bin/aws`。未安装时应用会给出提示；若浏览器未打开，可取消后在终端登录，再点 `Retry Connection`。登录和读取凭据使用相同配置路径；应用不显示、记录或保存登录命令的原始输出，登录缓存由 AWS CLI 管理。
+
+以下为模拟登录等待状态：
+
+![SSO 登录等待状态](docs/ui-sso-login.png)
+
 ## 项目结构
 
 ```
@@ -83,7 +95,8 @@ Sources/AWSPlatform/
 │   └── S3Bucket.swift
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
-│   └── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
+│   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
+│   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
 │   ├── ConfigReader.swift
 │   └── UserFacingError.swift
@@ -124,7 +137,7 @@ AWS CLI 的 `[sso-session ...]`、`[services ...]` 等辅助配置节不会显�
 
 Profile 列表合并 `config` 和 `credentials` 中的名称，同名时使用 `config` 的区域等配置；仅存在于 `credentials` 的 Profile 使用默认区域 `us-east-1`。应用支持进程环境变量 `AWS_CONFIG_FILE` 和 `AWS_SHARED_CREDENTIALS_FILE`，发现配置和建立 AWS 客户端使用相同的路径。由 Finder 启动的进程不会自动继承终端中临时设置的环境变量；需要自定义路径时，可从设置了这些变量的终端运行 `swift run`。
 
-默认配置路径下的 SSO 使用 Soto 的凭据提供器。自定义 `AWS_CONFIG_FILE` 下的 SSO 使用本机 AWS CLI v2 的 `configure export-credentials`；CLI 需安装在 `/opt/homebrew/bin/aws` 或 `/usr/local/bin/aws`（也支持 `/usr/bin/aws`），并支持该命令。应用只在内存管道中解析凭据，不显示或保存命令输出。登录时必须使用相同的环境变量和 Profile，完成后点击 `Retry Connection`。
+默认配置路径下的 SSO 使用 Soto 的凭据提供器。自定义 `AWS_CONFIG_FILE` 下的 SSO 使用本机 AWS CLI v2 的 `configure export-credentials`；CLI 需安装在 `/opt/homebrew/bin/aws` 或 `/usr/local/bin/aws`（也支持 `/usr/bin/aws`），并支持该命令。应用只在内存管道中解析凭据，不显示或保存命令输出。应用内登录自动传入相同的配置路径；若在终端登录，必须使用相同的环境变量和 Profile，完成后点击 `Retry Connection`。
 
 支持多个 Profile 共用一个具名 SSO session，例如：
 

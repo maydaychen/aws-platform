@@ -3,6 +3,8 @@ import SwiftUI
 struct ProfileBarView: View {
     @ObservedObject var vm: ProfileViewModel
     let onRetry: () -> Void
+    var onLogin: () -> Void = {}
+    var onCancelLogin: () -> Void = {}
     @State private var isCustomRegionPresented = false
     @State private var customRegion = ""
     @State private var regionError: String?
@@ -61,11 +63,22 @@ struct ProfileBarView: View {
                     .frame(width: 280)
                 }
                 Spacer(minLength: 0)
+                if vm.isSigningIn {
+                    Button("Cancel Login", action: onCancelLogin)
+                } else if vm.canSignIn {
+                    Button("SSO Login", action: onLogin)
+                        .help("Sign in to the selected profile using AWS CLI and your default browser")
+                }
                 Button("Retry Connection", action: onRetry)
-                    .disabled(vm.isValidatingProfile)
+                    .disabled(vm.isValidatingProfile || vm.isSigningIn)
                     .help("Reload profiles and revalidate credentials after signing in")
             }
-            if case .failed(let message) = vm.profileStatus {
+            if vm.isSigningIn {
+                Text("Complete SSO authorization in your browser. This may take up to 5 minutes. If no browser opens, cancel and sign in from Terminal.")
+                    .font(.caption).foregroundColor(.secondary)
+            } else if let message = vm.loginMessage {
+                NoticeBanner(message: message)
+            } else if case .failed(let message) = vm.profileStatus {
                 NoticeBanner(message: message)
             }
         }
@@ -84,24 +97,31 @@ struct ProfileBarView: View {
 
     @ViewBuilder
     private var profileStatusView: some View {
-        switch vm.profileStatus {
-        case .idle:
-            EmptyView()
-        case .checking:
+        if vm.isSigningIn {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Checking connection…").font(.caption).foregroundColor(.secondary)
+                Text("Waiting for browser authorization…").font(.caption).foregroundColor(.secondary)
             }
-                .help("Checking AWS profile")
-        case .valid(let identity):
-            Label(identity.account, systemImage: "checkmark.circle.fill")
-                .font(.caption.monospacedDigit())
-                .foregroundColor(.green)
-                .help(identity.arn)
-        case .failed(let message):
-            Label("Login required", systemImage: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-                .help(message)
+        } else {
+            switch vm.profileStatus {
+            case .idle:
+                EmptyView()
+            case .checking:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Checking connection…").font(.caption).foregroundColor(.secondary)
+                }
+                    .help("Checking AWS profile")
+            case .valid(let identity):
+                Label(identity.account, systemImage: "checkmark.circle.fill")
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.green)
+                    .help(identity.arn)
+            case .failed(let message):
+                Label(vm.requiresSSOLogin ? "Login required" : "Connection failed", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .help(message)
+            }
         }
     }
 }

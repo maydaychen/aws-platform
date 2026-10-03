@@ -13,14 +13,15 @@ struct ContentView: View {
     @State private var selectedService: AWSService = .ec2
     @State private var s3BrowsingBucket: String?
     @State private var reconfigureTask: Task<Void, Never>?
+    @State private var loginTask: Task<Void, Never>?
     @State private var showingFavorites = false
 
     var body: some View {
         VStack(spacing: 0) {
-            ProfileBarView(vm: profileVM) {
+            ProfileBarView(vm: profileVM, onRetry: {
                 profileVM.loadProfiles()
                 reconfigureServices(forceRefresh: true)
-            }
+            }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() })
             if let message = favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
@@ -71,6 +72,7 @@ struct ContentView: View {
             if isShowing { favoriteNavigation.cancel() }
         }
         .onDisappear {
+            loginTask?.cancel()
             reconfigureTask?.cancel()
             Task { await profileVM.shutdown() }
         }
@@ -234,7 +236,19 @@ struct ContentView: View {
         }
     }
 
+    private func signIn() {
+        guard profileVM.canSignIn, loginTask == nil else { return }
+        reconfigureTask?.cancel()
+        loginTask = Task {
+            let succeeded = await profileVM.signIn()
+            loginTask = nil
+            guard succeeded, !Task.isCancelled else { return }
+            reconfigureServices(forceRefresh: true)
+        }
+    }
+
     private func reconfigureServices(forceRefresh: Bool = false) {
+        loginTask?.cancel()
         reconfigureTask?.cancel()
         s3BrowsingBucket = nil
         profileVM.beginConfiguration()

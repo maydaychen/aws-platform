@@ -4,17 +4,22 @@ import SotoCore
 @MainActor
 final class ProfileViewModel: ObservableObject {
     typealias ProfileValidator = (AWSProfile, String) async throws -> AWSIdentity
+    typealias SSOLogin = @MainActor (String, AWSConfigurationPaths) async throws -> Void
 
     @Published var profiles: [AWSProfile] = []
     @Published var selectedProfileID: AWSProfile.ID?
     @Published var selectedRegion = "us-east-1"
     @Published var isValidatingProfile = false
     @Published var profileStatus: ProfileStatus = .idle
+    @Published private(set) var isSigningIn = false
+    @Published private(set) var loginMessage: String?
+    @Published private(set) var requiresSSOLogin = false
 
     private let savedProfileKey = "selectedProfileID"
     private let savedRegionKey = "selectedRegion"
     private let defaults: UserDefaults
     private let profileValidator: ProfileValidator?
+    private let ssoLogin: SSOLogin
     private var configurationGeneration = 0
 
     let provider = AWSServiceProvider()
@@ -39,6 +44,10 @@ final class ProfileViewModel: ObservableObject {
         return false
     }
 
+    var canSignIn: Bool {
+        selectedProfile?.isSSO == true && !isSigningIn && !isValidatingProfile && !isProfileReady
+    }
+
     @discardableResult
     func selectCustomRegion(_ input: String) -> Bool {
         let region = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -52,10 +61,14 @@ final class ProfileViewModel: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
-        profileValidator: ProfileValidator? = nil
+        profileValidator: ProfileValidator? = nil,
+        ssoLogin: @escaping SSOLogin = { profile, paths in
+            try await AWSSSOLoginService().login(profile: profile, paths: paths)
+        }
     ) {
         self.defaults = defaults
         self.profileValidator = profileValidator
+        self.ssoLogin = ssoLogin
     }
 
     var selectedProfile: AWSProfile? {
@@ -88,8 +101,36 @@ final class ProfileViewModel: ObservableObject {
 
     func beginConfiguration() {
         configurationGeneration += 1
+        loginMessage = nil
+        requiresSSOLogin = false
         isValidatingProfile = true
         profileStatus = .checking
+    }
+
+    func signIn() async -> Bool {
+        guard canSignIn, let profile = selectedProfile else { return false }
+        configurationGeneration += 1
+        let generation = configurationGeneration
+        isSigningIn = true
+        loginMessage = nil
+        defer { isSigningIn = false }
+        do {
+            try await ssoLogin(profile.name, AWSConfigurationPaths())
+            try Task.checkCancellation()
+            guard generation == configurationGeneration, selectedProfileID == profile.id else { return false }
+            // The caller must rebuild the provider and validate identity before loading resources.
+            return true
+        } catch {
+            guard generation == configurationGeneration, selectedProfileID == profile.id else { return false }
+            if error is CancellationError {
+                loginMessage = "SSO login cancelled. You can try again when ready."
+            } else if let error = error as? AWSSSOLoginService.LoginError {
+                loginMessage = error.localizedDescription
+            } else {
+                loginMessage = AWSSSOLoginService.LoginError.failed.localizedDescription
+            }
+            return false
+        }
     }
 
     func configureProvider(forceRefresh: Bool = false) async -> Bool {
@@ -100,6 +141,7 @@ final class ProfileViewModel: ObservableObject {
 
         saveSelection()
         isValidatingProfile = true
+        requiresSSOLogin = false
         profileStatus = .checking
         defer {
             if generation == configurationGeneration {
@@ -135,6 +177,7 @@ final class ProfileViewModel: ObservableObject {
             return false
         } catch {
             guard generation == configurationGeneration else { return false }
+            requiresSSOLogin = profile.isSSO && UserFacingError.requiresSSOLogin(error)
             profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profile.name))
             return false
         }

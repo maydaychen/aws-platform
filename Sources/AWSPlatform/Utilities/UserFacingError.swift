@@ -3,41 +3,51 @@ import SotoCore
 import SotoS3
 
 enum UserFacingError {
+    static func requiresSSOLogin(_ error: Error) -> Bool {
+        if let error = error as? AWSSSOCredentialError {
+            switch error.code {
+            case "tokenCacheNotFound", "tokenExpired", "clientRegistrationExpired", "invalidTokenFormat":
+                return true
+            case "getRoleCredentialsFailed":
+                return error.message.hasPrefix("HTTP 401:")
+            default:
+                return false
+            }
+        }
+        let code = (error as? AWSResponseError)?.errorCode ?? (error as? AWSErrorType)?.errorCode
+        return ["ExpiredToken", "ExpiredTokenException", "InvalidClientTokenId", "InvalidToken"].contains(code ?? "")
+    }
+
     static func loginMessage(for error: Error, profileName: String) -> String {
         if let error = error as? AWSCLICredentialProvider.ExportError {
             return error.localizedDescription
         }
-        let reflectedType = String(reflecting: type(of: error))
-        let description = error.localizedDescription
-        let lowercased = description.lowercased()
-
-        if reflectedType.contains("ConfigFileLoader.ConfigFileError") {
-            if lowercased.contains("missingprofile") {
-                return "AWS profile `\(profileName)` was not found in `~/.aws/config` or `~/.aws/credentials`."
-            }
-            if lowercased.contains("invalidinifile") {
-                return "AWS config file format is invalid. Check `~/.aws/config` and `~/.aws/credentials` for malformed INI content."
-            }
-            if lowercased.contains("missingaccesskeyid") {
-                return "AWS credentials for `\(profileName)` are missing `aws_access_key_id`. Check `~/.aws/credentials` or run `aws sso login --profile \(profileName)`."
-            }
-            if lowercased.contains("missingsecretaccesskey") {
-                return "AWS credentials for `\(profileName)` are missing `aws_secret_access_key`. Check `~/.aws/credentials` or run `aws sso login --profile \(profileName)`."
-            }
-            return "AWS profile configuration is invalid for `\(profileName)`. Check `~/.aws/config` and `~/.aws/credentials`."
+        if requiresSSOLogin(error) {
+            return "AWS credentials are missing, expired or invalid. For an SSO profile, choose SSO Login; otherwise check the profile credentials."
         }
-
-        if reflectedType.contains("AWSSSOCredentialError") || reflectedType.contains("SSOCredential") {
-            return "AWS SSO login required. Run `aws sso login --profile \(profileName)` and retry."
+        if let error = error as? AWSSSOCredentialError {
+            switch error.code {
+            case "configFileNotFound", "profileNotFound", "ssoConfigMissing", "ssoSessionNotFound":
+                return "SSO configuration is missing or incomplete for `\(profileName)`. Check the profile and its sso-session in the AWS config file."
+            case "getRoleCredentialsFailed" where error.message.hasPrefix("HTTP 403:"):
+                return "SSO access denied. Check that your user has access to this profile's account and role."
+            case "tokenRefreshFailed":
+                return "Unable to refresh the SSO session. Check your network and retry, or use SSO Login to authorize again."
+            default:
+                return "Unable to obtain SSO credentials. Check your network, SSO configuration and account permissions, then retry."
+            }
         }
-
-        if lowercased.contains("sso") || lowercased.contains("expired") || lowercased.contains("token") {
-            return "AWS profile is not logged in. Run `aws sso login --profile \(profileName)`."
+        if String(reflecting: type(of: error)).contains("ConfigFileLoader.ConfigFileError") {
+            return "AWS profile configuration or credentials are missing or invalid for `\(profileName)`. Check the AWS config and credentials files."
         }
-        if lowercased.contains("credential") || lowercased.contains("signature") || lowercased.contains("access key") {
-            return "AWS credentials are invalid or missing for `\(profileName)`. Check `~/.aws/config`, `~/.aws/credentials`, or run `aws sso login --profile \(profileName)`."
+        let code = (error as? AWSResponseError)?.errorCode ?? (error as? AWSErrorType)?.errorCode
+        if ["AccessDenied", "AccessDeniedException", "UnauthorizedException", "ForbiddenException"].contains(code ?? "") {
+            return "AWS access denied. Check the selected account, role and IAM permissions."
         }
-        return "AWS profile validation failed for `\(profileName)`: \(error.localizedDescription)"
+        if error is URLError {
+            return "Unable to connect to AWS. Check your network, proxy and endpoint settings, then retry."
+        }
+        return "AWS connection validation failed for `\(profileName)`. Check your network, region and credentials, then retry."
     }
 
     static func message(for error: Error) -> String {

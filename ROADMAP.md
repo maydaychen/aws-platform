@@ -2,10 +2,11 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏和全部页面的统一样式已完成本地回归与模拟数据渲染检查，等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏、统一样式和应用内 SSO 登录已完成本地回归与模拟数据渲染检查，等待用户进行真实 AWS 账号验收。
 
 ## 最近完成
 
+- 2026-10-03 09:18：增加应用内 `SSO Login`，后台调用本机 AWS CLI 并等待浏览器授权，成功后自动重建客户端、验证身份和加载资源。支持取消、5 分钟超时、Profile／Region 切换隔离与 CLI 缺失提示；共享 CLI 配置路径及环境清理，登录原始输出不保存。连接错误区分明确凭据失效与网络／配置／权限失败，README 补充流程及模拟截图。
 - 2026-10-03 03:10：确认具名 SSO session 的现有认证路径，补充单个 Profile 引用 session、多个 Profile 共用 session、多个独立 session 并存的配置回归；README 增加共享会话示例及按 Profile 登录说明。无需修改认证实现或本机 AWS 配置。
 - 2026-10-03 03:00：统一配置栏、紧凑服务导航、收藏及资源列表、详情网格、标签与环境变量分组、空态和警告样式；改善长名称／ARN／路径、深浅色代码阅读和图标可访问标签。补齐资源行选择标识；S3 对象空态限制在列表内，保留搜索／刷新入口。两张模拟组件截图由 README 提供入口。
 - 2026-10-03 02:33：增加 EC2、Lambda、S3 Bucket 本地收藏、搜索、取消收藏和侧栏快捷入口；按 Profile、账号、浏览 Region、服务和资源 ID 隔离，打开时恢复作用域并校验账号。不可用收藏保留并提示，损坏存储保留原始数据且禁用编辑。补充 EC2 列表请求代次校验，阻止旧请求错误清空新收藏目标列表。
@@ -14,6 +15,7 @@
 
 ## 最近验证
 
+- 2026-10-03 09:18：正式测试集 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，87 项测试通过，`git diff --check` 通过。新增 18 项测试覆盖参数与环境隔离、失败输出保护、进程退出／取消／超时及强制清理、重复登录、迟到结果、身份重验和错误分类。另以临时离线渲染测试生成 6 种状态在 960／1280 宽度和深浅色下的 24 张截图，已检查登录栏布局，临时测试入口已移除。没有执行真实 AWS 登录或资源请求，浏览器授权、自动重连的真实账号完整链路及 macOS 13 运行时待验收。
 - 2026-10-03 03:10：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，69 项测试通过。新增 3 项配置测试覆盖 Profile 独立账号／角色／资源 Region 和辅助节过滤；对照 AWS 官方文档与锁定的 Soto 源码，确认按 Profile 解析关联 session、按 session 名称查找缓存。未执行真实 SSO 登录、凭据导出或资源请求，共享会话的真实账号切换仍待验收。
 - 2026-10-03 03:01：正式测试集 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过，`git diff --check` 通过。临时离线渲染入口另行通过，生成 20 种页面／状态在 960×600、1280×800 和深浅色下的 80 张首屏截图及滚动位置截图；已核对所有服务页签、收藏、长字段、环境变量遮罩、代码、容器镜像、二进制文件、空态及错误／警告布局。临时测试入口已移除；未调用真实 AWS，截图是模拟组件组合，不代表完整应用交互或 macOS 13 实机验收。
 - 2026-10-03 02:35：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过；新增 14 项收藏存储／导航测试和 1 项先失败后修复的 EC2 迟到错误回归。覆盖持久化、去重、损坏数据保护、搜索、账号隔离、资源定位及失效收藏保留。模拟数据的独立收藏组件完成浅色／深色离线渲染检查，文字与星标可辨；`git diff --check` 通过。未调用真实 AWS，未验收完整窗口交互或 macOS 13 运行时。
@@ -22,6 +24,7 @@
 
 ## 已完成
 
+- 应用内 SSO 登录、取消和超时提示；登录成功后自动重连，支持共享 session 的具名 Profile 及自定义配置路径。
 - 全部页面采用统一搜索框、资源计数、自适应详情卡片及原生深浅色；长详情值可换行与选择复制，环境变量仍默认遮罩。
 - 本地资源收藏、搜索与定位；仅保存资源定位元数据，应用窗口共享列表，重启后恢复。
 - SwiftUI 三栏界面和 Profile、Region、服务切换。
@@ -37,16 +40,16 @@
 - Lambda 增强接口失败时局部降级，切换函数、Profile 或 Region 时取消旧详情与代码请求，并隔离过期结果。
 - S3 Bucket 列表、四项 Public Access Block 状态、对象分页和前缀浏览。
 - 过滤 AWS 配置中的 `sso-session`、`services` 等非 Profile section。
-- 移除应用内 SSO 登录和 Lambda Invoke，保持只读产品边界。
+- 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、收藏存储／导航和自定义 SSO 凭据桥接的 69 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、收藏存储／导航、SSO 登录和自定义凭据桥接的 87 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
 - 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 正常路径和权限不足路径。
 - 真实窗口中的拖动分栏、键盘导航、源码横向滚动及 macOS 13 运行时验收；模拟组件布局与长文本渲染已检查。
-- 用户验收重点：首次 SSO 失败后终端登录并重试；多个 Profile 共用 session 时跨账号／角色切换；仅 credentials 的 Profile；自定义配置路径的普通凭据和 SSO；列表外 Region；快速切换账号／S3 目录；Lambda 部分 GetFunction 无权限。
+- 用户验收重点：应用内 SSO 按钮打开浏览器、授权完成后自动加载、取消／拒绝授权及登录中切换 Profile；终端登录后重试；多个 Profile 共用 session 时跨账号／角色切换；仅 credentials 的 Profile；自定义配置路径的普通凭据和 SSO；列表外 Region；快速切换账号／S3 目录；Lambda 部分 GetFunction 无权限。
 - 收藏真实账号验收：三个服务的添加／取消／搜索、重启恢复、跨 Profile／Region 定位、快速连续打开；Profile 缺失、账号变更、资源删除和权限不足时保留收藏并提示。
 
 ## 待办

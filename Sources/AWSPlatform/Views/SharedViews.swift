@@ -54,6 +54,7 @@ struct ListToolbar: View {
     @Binding var searchText: String
     let onRefresh: () -> Void
     let onCancel: () -> Void
+    var searchPlaceholder = "Search resources"
 
     var body: some View {
         VStack(spacing: 8) {
@@ -84,7 +85,7 @@ struct ListToolbar: View {
                 .accessibilityLabel("Refresh \(title)")
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isLoading)
-            ResourceSearchField(text: $searchText)
+            ResourceSearchField(text: $searchText, placeholder: searchPlaceholder)
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 12)

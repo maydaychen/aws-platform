@@ -12,6 +12,7 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **S3 buckets** - Browse bucket security settings, objects, and folders
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
+- **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
@@ -110,6 +111,22 @@ Before use, enable Cost Explorer in the AWS console and grant the current role `
 The following component preview uses mock cost data:
 
 ![Cost dashboard](docs/ui-costs-light.png)
+
+### AWS Health Events
+
+After manually selecting and verifying a Profile, open `Health` in the sidebar. It loads account-specific events across all regions for that account, including upcoming scheduled changes. Public events are excluded, and management accounts do not aggregate organization members. No queries run without a selected Profile. The resource Region selector is hidden on this page; changing a resource Region elsewhere does not reload Health. The commercial, China, and GovCloud partitions use their respective Health endpoints.
+
+Search by event type, ARN, service, or Region, and filter locally by status, category, service, and event Region. Select an event to read its latest description, metadata, times in UTC, and affected resources. Details and affected resources load independently and show separate errors. Missing values remain explicitly unavailable. This is a list of AWS Health events and their latest state, not a history of every update to each event.
+
+The list loads on first entry and stays in memory when you return. Use `Refresh` to reload or `Cancel` to stop waiting; there is no scheduled polling. Changing or clearing the Profile, changing the session, signing in again, or retrying the connection clears the old results and invalidates old requests. Pagination failures do not present partial lists as complete results; a failed refresh labels the previous list as potentially out of date.
+
+AWS Health API access requires an eligible AWS Support plan. Accounts without access receive a specific message and can still check events in the AWS Health console. The role needs `health:DescribeEvents`, `health:DescribeEventDetails`, and `health:DescribeAffectedEntities`; access failures identify the relevant permission. See the [Health API access requirements](https://docs.aws.amazon.com/health/latest/ug/health-api.html) and [event query API](https://docs.aws.amazon.com/health/latest/APIReference/API_DescribeEvents.html).
+
+The following component previews use mock Health data:
+
+![AWS Health events in light mode](docs/ui-health-light.png)
+
+![AWS Health events in dark mode](docs/ui-health-dark.png)
 
 ### CloudWatch Alarms
 
@@ -222,6 +239,7 @@ Sources/AWSPlatform/
 │   ├── CloudWatchAlarm.swift
 │   ├── SNSTopic.swift
 │   ├── CostModels.swift
+│   ├── HealthModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── EC2Instance.swift
@@ -232,6 +250,7 @@ Sources/AWSPlatform/
 │   ├── AWSAlarmService.swift     # CloudWatch alarms, tags, and history
 │   ├── AWSSNSService.swift       # SNS Topics, configuration, tags, and subscriptions
 │   ├── AWSCostService.swift       # Cost Explorer queries and complete pagination
+│   ├── AWSHealthService.swift    # Account-specific Health events, details, and affected resources
 │   ├── AWSCLICredentialProvider.swift # SSO credential bridge for custom configuration paths
 │   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
 ├── Utilities/                   # Utilities
@@ -241,6 +260,7 @@ Sources/AWSPlatform/
 │   ├── AlarmViewModel.swift
 │   ├── SNSViewModel.swift
 │   ├── CostViewModel.swift
+│   ├── HealthViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
@@ -251,6 +271,7 @@ Sources/AWSPlatform/
     ├── CloudWatch/
     ├── SNS/
     ├── Cost/
+    ├── Health/
     ├── EC2/
     ├── Lambda/
     ├── S3/

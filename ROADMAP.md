@@ -2,12 +2,15 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志已完成本地回归与模拟组件渲染检查。已提供面向 macOS 13+ 的 Intel／Apple Silicon Universal 正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 及 Apple Silicon 离线启动检查；Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件已完成本地回归与模拟组件渲染检查。已提供面向 macOS 13+ 的 Intel／Apple Silicon Universal 正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 及 Apple Silicon 离线启动检查；Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
 
 源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；当前未发布应用二进制 Release。
 
+本次 Health 功能仅完成本地源码交付，尚未推送，也未包含在已有的 `0.1.0 (1)` 正式分发包中。
+
 ## 最近完成
 
+- 2026-10-04 00:56：新增侧栏 Health 当前账号事件页，按显式选择并验证的 Profile 查询全区域 `ACCOUNT_SPECIFIC` 事件；过滤公共事件，不聚合组织成员。支持搜索、状态／类别／服务／事件区域筛选、最新事件说明、metadata、UTC 时间和受影响资源，完整分页、独立详情错误、手动刷新／取消及迟到结果隔离。资源 Region 不触发重查；API 访问计划和权限不足给出对应提示。中英文 README 和两张模拟组件截图已同步。
 - 2026-10-03 23:39：双语 README 和正式打包相关的 3 个提交已推送 GitHub `main`，远端核对为 `8b59836`。按用户授权将本机 AWS CLI 从 Intel 版 `2.19.2` 升级为官方 Universal `2.37.9`，沿用原安装位置和命令入口，解除旧 CLI 的架构阻塞；AWS 配置与凭据保持不变，未执行真实 SSO 登录或 AWS 数据查询。
 - 2026-10-03 23:28：根目录 `README.md` 改为完整英文版，原中文正文保留为 `README.zh-CN.md`，两版顶部增加相对路径语言切换链接；功能、权限、费用提示、命令、配置示例和截图保持对应。仅调整项目文档。
 - 2026-10-03 17:30：交付 `0.1.0 (1)` 正式 Universal ZIP／DMG，源构建提交为 `89461dd`；新增 `scripts/package-distribution.py`，串联双架构构建、完整许可收集、Developer ID 签名、App／DMG 分别公证及票据装订，生成校验和与分发清单。正式产物位于 `dist/AWSPlatform-0.1.0-universal/`，保留原本地预览包。README 和脚本说明同步打包入口及原生 AWS CLI 前提；未创建 GitHub Release。
@@ -30,6 +33,7 @@
 
 ## 最近验证
 
+- 2026-10-04 00:56：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，362 项正式测试及 1 项临时渲染测试全部通过。新增 50 项正式测试覆盖当前账号／分区校验、公共事件过滤、完整分页、未来事件、失败／取消、空 Profile 零调用、切换 Profile 迟到响应隔离和 Region 不重建全局客户端。修正 catch 属性遮蔽、可选枚举歧义及测试样例 ARN；搜索文案完善后重新严格编译与渲染通过。15 张离线截图覆盖 720／1000 宽度深浅色、空／错误／加载、独立详情失败和完整受影响资源，已抽查关键状态；临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用检查和 `git diff --check` 通过。未调用真实 AWS，实际 Support／IAM／分页和 macOS 13／Intel 实机运行仍待验收。
 - 2026-10-03 23:39：待推送 3 个提交的 Gitleaks 扫描及 `git diff --check` 通过；GitHub `main` 提交回读一致，两份远端 README 与本地提交内容逐字节相同，语言互链有效。官方 CLI 安装包的 AWS Developer ID Installer 签名和 Gatekeeper 通过，安装器报告升级成功，安装收据为 `2.37.9`；显式 `arch -arm64` 启动返回 `exe/arm64`，双架构检查通过。已有 Hardened Runtime 签名诊断程序中的原生 Process 和实际 `AWSSSOLoginService.run` 执行 `--version` 均成功，合成配置解析通过；安装前后 AWS config／credentials 的内容哈希一致。此验收不包含真实 SSO 授权和 AWS 查询。
 - 2026-10-03 23:28：中英文 README 静态审计各检查 14 个本地引用，均无问题；中文正文与原版完全一致，英文版章节层级、全部原有链接／截图目标、代码命令和配置示例（排除翻译注释）逐项比对通过，权限及查询边界人工复核一致。语言切换、打包说明标题锚点和 `git diff --check` 通过；纯文档变更，未重复构建或执行 AWS 查询。
 - 2026-10-03 17:30：arm64／x86_64 Release 构建和 11 项离线打包测试通过。独立核验主程序双切片最低系统为 13.0，嵌套 Developer ID 签名、Hardened Runtime、安全时间戳有效；26 项依赖许可附件及补充来源哈希一致。Apple 回读 App／DMG 两次公证均为 Accepted，最终 App／DMG 票据与 Gatekeeper 通过；ZIP 独立解压和 DMG 只读挂载后的应用内容、签名及信任检查一致。解压副本以空 AWS 配置、隔离偏好在 Apple Silicon 上运行 8 秒，未见启动崩溃；README 审计、脚本秘密扫描及 `git diff --check` 通过。未调用真实 AWS，未进行 Intel／macOS 13 实机验收；另定位本机旧 Intel AWS CLI 在缺少 Rosetta 时无法启动，与应用签名无关。
@@ -49,10 +53,10 @@
 - 2026-10-03 03:10：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，69 项测试通过。新增 3 项配置测试覆盖 Profile 独立账号／角色／资源 Region 和辅助节过滤；对照 AWS 官方文档与锁定的 Soto 源码，确认按 Profile 解析关联 session、按 session 名称查找缓存。未执行真实 SSO 登录、凭据导出或资源请求，共享会话的真实账号切换仍待验收。
 - 2026-10-03 03:01：正式测试集 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过，`git diff --check` 通过。临时离线渲染入口另行通过，生成 20 种页面／状态在 960×600、1280×800 和深浅色下的 80 张首屏截图及滚动位置截图；已核对所有服务页签、收藏、长字段、环境变量遮罩、代码、容器镜像、二进制文件、空态及错误／警告布局。临时测试入口已移除；未调用真实 AWS，截图是模拟组件组合，不代表完整应用交互或 macOS 13 实机验收。
 - 2026-10-03 02:35：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，66 项测试通过；新增 14 项收藏存储／导航测试和 1 项先失败后修复的 EC2 迟到错误回归。覆盖持久化、去重、损坏数据保护、搜索、账号隔离、资源定位及失效收藏保留。模拟数据的独立收藏组件完成浅色／深色离线渲染检查，文字与星标可辨；`git diff --check` 通过。未调用真实 AWS，未验收完整窗口交互或 macOS 13 运行时。
-- 2026-10-03 01:10：先以两个失败回归复现 S3 重置后旧数据回填、旧错误清空新数据；最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，51 项测试通过，较原有增加 20 项。覆盖迟到成功／失败、目录切换、加载状态归属、Lambda 状态缺失与权限降级、连接重试、配置路径、Region 恢复及凭据输出隔离。`git diff --check` 通过；未连接真实 AWS，未运行实际 CLI 凭据导出，未验证窗口渲染。
 
 ## 已完成
 
+- AWS Health 只读当前账号事件记录，全区域查询、公共事件过滤、本地筛选、最新说明与受影响资源；按 Profile 隔离，未选不查询，权限和 Support 计划不足明确提示。
 - macOS 13+ 的 Intel／Apple Silicon 通用应用构建、资源与 Swift 兼容运行库打包、完整许可收集、Developer ID 签名、Apple 公证及正式 ZIP／DMG 交付；正式打包入口为 `scripts/package-distribution.py`，本地预览入口为 `scripts/build-universal.sh`。
 - EC2／Lambda CloudWatch 指标和 Lambda 日志检索，按明确 Profile／Region／资源隔离，手动读取／刷新／取消；共享日志组按函数隔离，分页与显示上限明确提示，查询和正文仅保存在当前页内存中。
 - CloudWatch 告警动作中的合法 SNS Topic ARN 可在同 Profile／账号／Region 内打开详情；不自动选其他 Profile、换区域或选择不存在目标的替代资源。
@@ -78,11 +82,12 @@
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、收藏／关联资源导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 312 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、收藏／关联资源导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 362 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
+- Health 真实账号验收：与 AWS Health 控制台对照当前 Profile 账号的专属事件、未来计划变更、最新说明和受影响资源；验证 API Support 计划限制、三项读取权限、实际分页、全区域事件与资源 Region 独立，以及清空／切换 Profile 或 session 后旧数据不可见。当前页面展示事件最新状态，不保存事件每次更新的历史流水。
 - 指标／日志和告警 SNS 跳转真实账号验收：与控制台对照相同 UTC 时段及 5 分钟聚合；验证指标空／部分／无权限、默认和共享日志组函数隔离、过滤语法、实际分页／取消／显示上限；验证空 Profile 不请求、切换账号／Region／资源／页签清空结果。指标需要 `cloudwatch:GetMetricData`，日志需要 `logs:FilterLogEvents`，共享组额外需要 `logs:DescribeLogStreams`；日志组配置依赖 `lambda:GetFunction`。告警 SNS 动作只跳同范围 Topic，目标删除／无权限应提示而不误选；真实查询可能产生 CloudWatch 使用费用。
 - SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、节点默认收起／点击展开后 Lambda 跳转、Endpoint 显示／隐藏、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。

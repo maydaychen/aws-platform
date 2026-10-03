@@ -12,6 +12,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
+- **AWS Health 事件** - 查看当前 Profile 账号跨区域的专属事件，支持搜索、筛选、事件说明和受影响资源
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
@@ -110,6 +111,22 @@ open Package.swift
 以下为模拟费用数据的组件示例：
 
 ![费用面板](docs/ui-costs-light.png)
+
+### AWS Health 事件
+
+手动选择并验证 Profile 后，打开侧栏 `Health`，加载该账号所有区域的专属事件，包括尚未开始的计划变更。公共事件会被过滤，管理账号不会聚合组织成员；未选 Profile 时不查询。此页隐藏资源 Region 选择器，在其他页面切换资源 Region 不会重查 Health；商业区、中国区和 GovCloud 使用各自的 Health 端点。
+
+支持按事件类型、ARN、服务或 Region 搜索，以及状态、类别、服务和事件 Region 的本地筛选。选择事件后显示最新说明、metadata、UTC 时间和受影响资源；说明与资源独立加载，失败分别提示，缺失值明确标记。页面展示 AWS Health 事件及其最新状态，不是每条事件所有更新的历史流水。
+
+列表首次进入时加载，再次进入保留内存结果；使用 `Refresh` 手动重查，`Cancel` 取消等待，不定时轮询。切换或清空 Profile、切换 session、重新登录或重试连接会清空旧结果并使旧请求失效。分页失败不会把部分列表当完整结果，刷新失败时会标记此前列表可能已经过期。
+
+AWS Health API 要求账号具备符合条件的 AWS Support 计划；不满足条件时显示专门提示，仍可在 AWS Health 控制台查看事件。角色需要 `health:DescribeEvents`、`health:DescribeEventDetails` 和 `health:DescribeAffectedEntities`；权限不足时指出对应权限。详见 [Health API 访问要求](https://docs.aws.amazon.com/health/latest/ug/health-api.html) 和 [事件查询 API](https://docs.aws.amazon.com/health/latest/APIReference/API_DescribeEvents.html) 。
+
+以下是使用模拟 Health 数据渲染的组件示例：
+
+![浅色 AWS Health 事件](docs/ui-health-light.png)
+
+![深色 AWS Health 事件](docs/ui-health-dark.png)
 
 ### CloudWatch Alarms
 
@@ -222,6 +239,7 @@ Sources/AWSPlatform/
 │   ├── CloudWatchAlarm.swift
 │   ├── SNSTopic.swift
 │   ├── CostModels.swift
+│   ├── HealthModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── EC2Instance.swift
@@ -232,6 +250,7 @@ Sources/AWSPlatform/
 │   ├── AWSAlarmService.swift     # CloudWatch 告警、标签和历史读取
 │   ├── AWSSNSService.swift       # SNS Topic、配置、标签和订阅读取
 │   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页
+│   ├── AWSHealthService.swift    # 账号专属 Health 事件、详情和受影响资源
 │   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
@@ -241,6 +260,7 @@ Sources/AWSPlatform/
 │   ├── AlarmViewModel.swift
 │   ├── SNSViewModel.swift
 │   ├── CostViewModel.swift
+│   ├── HealthViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
@@ -251,6 +271,7 @@ Sources/AWSPlatform/
     ├── CloudWatch/
     ├── SNS/
     ├── Cost/
+    ├── Health/
     ├── EC2/
     ├── Lambda/
     ├── S3/

@@ -2,6 +2,71 @@ import XCTest
 @testable import AWSPlatform
 
 final class AWSServiceProviderTests: XCTestCase {
+    func testHealthPreservesGlobalClientWhenResourceRegionChanges() async throws {
+        let provider = AWSServiceProvider()
+        let profile = makeProfile(name: "health-profile")
+        let paths = AWSConfigurationPaths(environment: [:])
+        let scope = HealthScope(profile: profile, identity: AWSIdentity(
+            account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/session", userID: "test"
+        ), paths: paths)
+        await provider.configure(profile: profile, region: "ap-southeast-1", paths: paths)
+        let first = try await provider.healthClient(scope: scope)
+        await provider.configure(profile: profile, region: "eu-west-1", paths: paths)
+        let second = try await provider.healthClient(scope: scope)
+        XCTAssertTrue(first.client === second.client)
+        XCTAssertEqual(second.config.region.rawValue, "us-east-1")
+        XCTAssertEqual(second.config.endpoint, "https://health.us-east-1.amazonaws.com")
+        await provider.configure(profile: profile, region: "eu-west-1", forceRefresh: true, paths: paths)
+        let refreshed = try await provider.healthClient(scope: scope)
+        XCTAssertFalse(second.client === refreshed.client)
+        await provider.shutdown()
+    }
+
+    func testHealthRejectsDifferentProfilePathsAndClearedClient() async throws {
+        let provider = AWSServiceProvider()
+        let profile = makeProfile(name: "health-profile")
+        let paths = AWSConfigurationPaths(environment: [:])
+        let identity = AWSIdentity(account: "111122223333", arn: "arn:aws:iam::111122223333:user/test", userID: "test")
+        await provider.configure(profile: profile, region: "us-west-2", paths: paths)
+        let staleScopes = [
+            HealthScope(profile: makeProfile(name: "other"), identity: identity, paths: paths),
+            HealthScope(profile: profile, identity: identity, paths: AWSConfigurationPaths(environment: [
+                "AWS_CONFIG_FILE": "/example/different-config"
+            ]))
+        ]
+        for scope in staleScopes {
+            do {
+                _ = try await provider.healthClient(scope: scope)
+                XCTFail("Stale Health scope must not borrow another profile's client")
+            } catch { XCTAssertEqual(error as? HealthError, .invalidScope) }
+        }
+        await provider.configure(profile: nil, region: "us-west-2", paths: paths)
+        do {
+            _ = try await provider.healthClient(scope: HealthScope(profile: profile, identity: identity, paths: paths))
+            XCTFail("A cleared profile must not have a Health client")
+        } catch { XCTAssertEqual(error as? HealthError, .invalidScope) }
+    }
+
+    func testHealthEndpointsUseIdentityPartitionAndMatchingSigningRegion() async throws {
+        let provider = AWSServiceProvider()
+        let profile = makeProfile(name: "health-profile")
+        let paths = AWSConfigurationPaths(environment: [:])
+        for (partition, resourceRegion, signingRegion, endpoint) in [
+            ("aws", "eu-west-1", "us-east-1", "https://health.us-east-1.amazonaws.com"),
+            ("aws-cn", "cn-north-1", "cn-northwest-1", "https://health.cn-northwest-1.amazonaws.com.cn"),
+            ("aws-us-gov", "us-gov-east-1", "us-gov-west-1", "https://health.us-gov-west-1.amazonaws.com")
+        ] {
+            let scope = HealthScope(profile: profile, identity: AWSIdentity(
+                account: "111122223333", arn: "arn:\(partition):iam::111122223333:user/test", userID: "test"
+            ), paths: paths)
+            await provider.configure(profile: profile, region: resourceRegion, paths: paths)
+            let client = try await provider.healthClient(scope: scope)
+            XCTAssertEqual(client.config.region.rawValue, signingRegion)
+            XCTAssertEqual(client.config.endpoint, endpoint)
+        }
+        await provider.shutdown()
+    }
+
     func testSNSFollowsResourceRegionAndPreservesSharedCostClient() async throws {
         let provider = AWSServiceProvider()
         let profile = makeProfile(name: "sns-profile")

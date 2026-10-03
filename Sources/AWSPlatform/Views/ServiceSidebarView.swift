@@ -33,6 +33,16 @@ struct ServiceSidebarView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut("b", modifiers: [.command, .shift])
+            Button {
+                destination = .health
+            } label: {
+                Label("Health", systemImage: "heart.text.square")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(destination == .health ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
             Text("SERVICES")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)

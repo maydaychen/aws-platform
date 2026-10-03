@@ -8,6 +8,7 @@ struct ContentView: View {
     @StateObject private var relatedNavigation = SNSRelatedResourceNavigation()
     @StateObject private var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
+    @StateObject private var healthVM: HealthViewModel
     @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var snsVM: SNSViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
@@ -40,6 +41,12 @@ struct ContentView: View {
         _costVM = StateObject(wrappedValue: CostViewModel(loader: { scope, query in
             try await costs.load(scope: scope, query: query)
         }))
+        let health = AWSHealthService(provider: profiles.provider)
+        _healthVM = StateObject(wrappedValue: HealthViewModel(
+            listLoader: { try await health.loadEvents(scope: $0) },
+            detailLoader: { try await health.loadDetails(scope: $0, event: $1) },
+            entityLoader: { try await health.loadEntities(scope: $0, event: $1) }
+        ))
         let alarms = AWSAlarmService(provider: profiles.provider)
         _relationshipsVM = StateObject(wrappedValue: SNSRelationshipViewModel(loader: {
             try await alarms.loadAlarms(scope: $0.alarmScope)
@@ -66,7 +73,7 @@ struct ContentView: View {
                 profileVM.loadProfiles()
                 reconfigureServices(forceRefresh: true)
             }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
-               showsResourceRegion: destination != .costs)
+               showsResourceRegion: destination != .costs && destination != .health)
             if let message = relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
@@ -85,6 +92,9 @@ struct ContentView: View {
                 ServiceSidebarView(selectedService: $selectedService, destination: $destination)
                 if destination == .costs {
                     costPane
+                        .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
+                } else if destination == .health {
+                    healthPane
                         .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     middlePane
@@ -110,12 +120,14 @@ struct ContentView: View {
         }
         .onChange(of: profileVM.selectedProfileID) { _ in
             costVM.reset()
+            healthVM.reset()
             cancelFavoriteIfScopeChanged()
             if profileVM.isSigningIn { clearResources() }
             else { reconfigureServices() }
         }
         .onChange(of: profileVM.profileSource) { _ in
             costVM.reset()
+            healthVM.reset()
             loginTask?.cancel()
             favoriteNavigation.cancel()
             reconfigureServices()
@@ -148,6 +160,7 @@ struct ContentView: View {
             }
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
+            if selection == .health { configureHealth() }
             loadVisibleAlarms()
             loadVisibleSNS()
         }
@@ -158,6 +171,7 @@ struct ContentView: View {
             loginTask?.cancel()
             reconfigureTask?.cancel()
             costVM.reset()
+            healthVM.reset()
             alarmsVM.reset()
             snsVM.reset()
             Task { await profileVM.shutdown() }
@@ -182,6 +196,26 @@ struct ContentView: View {
               case .valid(let identity) = profileVM.profileStatus else { return }
         costVM.configure(scope: CostScope(profile: profile, identity: identity))
         if destination == .costs { costVM.loadIfNeeded() }
+    }
+
+    @ViewBuilder
+    private var healthPane: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load Health events.", icon: "heart.text.square")
+                .padding()
+        } else {
+            HealthView(vm: healthVM)
+        }
+    }
+
+    private func configureHealth() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        healthVM.configure(scope: HealthScope(profile: profile, identity: identity))
+        if destination == .health { healthVM.loadIfNeeded() }
     }
 
     private func configureAlarms() {
@@ -447,6 +481,7 @@ struct ContentView: View {
     private func signIn() {
         guard profileVM.canSignIn, loginTask == nil else { return }
         costVM.reset()
+        healthVM.reset()
         clearResources()
         favoriteNavigation.cancel()
         loginTask = Task {
@@ -469,7 +504,10 @@ struct ContentView: View {
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
-        if forceRefresh { costVM.reset() }
+        if forceRefresh {
+            costVM.reset()
+            healthVM.reset()
+        }
         clearResources()
         profileVM.beginConfiguration()
 
@@ -488,6 +526,7 @@ struct ContentView: View {
                 return
             }
             configureCosts()
+            configureHealth()
             let target = favoriteNavigation.target
             if target != nil {
                 guard case .valid(let identity) = profileVM.profileStatus,

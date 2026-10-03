@@ -8,6 +8,7 @@ import SotoCostExplorer
 import SotoCloudWatch
 import SotoCloudWatchLogs
 import SotoSNS
+import SotoHealth
 
 actor AWSServiceProvider {
     private var awsClient: AWSClient?
@@ -37,7 +38,7 @@ actor AWSServiceProvider {
         }
 
         if !forceRefresh, currentProfile == profile, currentPaths == paths, let awsClient {
-            // Resource Region changes must not close an in-flight global Cost query.
+            // Resource Region changes must not close in-flight global queries.
             if currentRegion != region {
                 ec2 = EC2(client: awsClient, region: .init(rawValue: region))
                 lambda = Lambda(client: awsClient, region: .init(rawValue: region))
@@ -117,6 +118,24 @@ actor AWSServiceProvider {
             throw CostError.invalidIdentity
         }
         return CostExplorer(client: awsClient, partition: partition)
+    }
+
+    func healthClient(scope: HealthScope) throws -> Health {
+        let endpoint = try scope.endpoint()
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
+        ])
+        guard currentProfile == scope.profile, currentPaths == paths, let awsClient else {
+            throw HealthError.invalidScope
+        }
+        let partition: AWSPartition
+        switch endpoint.partition {
+        case "aws-cn": partition = .awscn
+        case "aws-us-gov": partition = .awsusgov
+        default: partition = .aws
+        }
+        return Health(client: awsClient, partition: partition, endpoint: endpoint.url)
+            .with(region: .init(rawValue: endpoint.region))
     }
 
     func cloudWatchClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) throws -> CloudWatch {

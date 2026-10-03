@@ -7,6 +7,7 @@ struct ContentView: View {
     @StateObject private var favoriteNavigation = FavoriteNavigation()
     @StateObject private var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
+    @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
@@ -25,6 +26,12 @@ struct ContentView: View {
         _costVM = StateObject(wrappedValue: CostViewModel(loader: { scope, query in
             try await costs.load(scope: scope, query: query)
         }))
+        let alarms = AWSAlarmService(provider: profiles.provider)
+        _alarmsVM = StateObject(wrappedValue: AlarmViewModel(
+            listLoader: { try await alarms.loadAlarms(scope: $0) },
+            tagLoader: { try await alarms.loadTags(scope: $0, alarm: $1) },
+            historyLoader: { try await alarms.loadHistory(scope: $0, alarm: $1) }
+        ))
     }
 
     private var showingFavorites: Bool { destination == .favorites }
@@ -93,15 +100,18 @@ struct ContentView: View {
             if s3BrowsingBucket != nil { s3VM.leaveObjectBrowser() }
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
+            loadVisibleAlarms()
         }
         .onChange(of: destination) { selection in
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
+            loadVisibleAlarms()
         }
         .onDisappear {
             loginTask?.cancel()
             reconfigureTask?.cancel()
             costVM.reset()
+            alarmsVM.reset()
             Task { await profileVM.shutdown() }
         }
     }
@@ -124,6 +134,19 @@ struct ContentView: View {
               case .valid(let identity) = profileVM.profileStatus else { return }
         costVM.configure(scope: CostScope(profile: profile, identity: identity))
         if destination == .costs { costVM.loadIfNeeded() }
+    }
+
+    private func configureAlarms() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        alarmsVM.configure(scope: AlarmScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
+        loadVisibleAlarms()
+    }
+
+    private func loadVisibleAlarms() {
+        guard destination == .resources, selectedService == .alarms,
+              profileVM.isProfileReady, favoriteNavigation.target == nil else { return }
+        alarmsVM.loadIfNeeded()
     }
 
     @ViewBuilder
@@ -152,6 +175,8 @@ struct ContentView: View {
             } else {
                 S3BucketListView(vm: s3VM)
             }
+        case .alarms:
+            AlarmListView(vm: alarmsVM)
         }
     }
 
@@ -213,6 +238,9 @@ struct ContentView: View {
         case .s3:
             guard s3BrowsingBucket == nil, let bucket = s3VM.selectedBucket else { return nil }
             resource = (bucket.name, bucket.name)
+        case .alarms:
+            guard let alarm = alarmsVM.selectedAlarm else { return nil }
+            resource = (alarm.arn, alarm.name)
         }
         let favorite = ResourceFavorite(
             profileName: profileName, accountID: identity.account, region: profileVM.selectedRegion,
@@ -242,6 +270,7 @@ struct ContentView: View {
         case .ec2: return "ec2/" + (ec2VM.selectedInstance?.instanceId ?? "")
         case .lambda: return "lambda/" + (lambdaVM.selectedFunction?.functionName ?? "")
         case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
+        case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
         }
     }
 
@@ -291,6 +320,12 @@ struct ContentView: View {
             } else {
                 EmptyStateView(text: "Select an S3 bucket", icon: "externaldrive")
             }
+        case .alarms:
+            if let alarm = alarmsVM.selectedAlarm {
+                AlarmDetailView(alarm: alarm, vm: alarmsVM)
+            } else {
+                EmptyStateView(text: "Select a CloudWatch alarm", icon: "bell.badge")
+            }
         }
     }
 
@@ -311,6 +346,7 @@ struct ContentView: View {
         ec2VM.reset()
         lambdaVM.reset()
         s3VM.reset()
+        alarmsVM.reset()
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
@@ -341,14 +377,16 @@ struct ContentView: View {
             ec2VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .ec2)
             lambdaVM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .lambda)
             s3VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .s3)
+            configureAlarms()
             guard let target else { return }
             switch target.service {
             case .ec2: await ec2VM.loadInstances()
             case .lambda: await lambdaVM.loadFunctions()
             case .s3: await s3VM.loadBuckets()
+            case .alarms: await alarmsVM.loadAlarms()
             }
             guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
-            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM)
+            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM)
         }
     }
 }

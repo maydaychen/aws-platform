@@ -5,6 +5,7 @@ import SotoLambda
 import SotoS3
 import SotoSTS
 import SotoCostExplorer
+import SotoCloudWatch
 
 actor AWSServiceProvider {
     private var awsClient: AWSClient?
@@ -114,6 +115,13 @@ actor AWSServiceProvider {
             throw CostError.invalidIdentity
         }
         return CostExplorer(client: awsClient, partition: partition)
+    }
+
+    func cloudWatchClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) throws -> CloudWatch {
+        guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
+            throw AlarmError.invalidScope
+        }
+        return CloudWatch(client: awsClient, region: .init(rawValue: region))
     }
 
     func shutdown() async {

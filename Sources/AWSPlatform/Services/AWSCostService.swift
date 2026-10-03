@@ -17,13 +17,13 @@ struct AWSCostService: Sendable {
         self.provider = provider
         costLoader = nil
         dimensionLoader = nil
-        now = Date.init
+        now = { Date() }
     }
 
     init(
         costLoader: @escaping CostLoader,
         dimensionLoader: @escaping DimensionLoader,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         provider = nil
         self.costLoader = costLoader

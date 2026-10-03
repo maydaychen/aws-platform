@@ -2,6 +2,45 @@ import XCTest
 @testable import AWSPlatform
 
 final class AWSServiceProviderTests: XCTestCase {
+    func testCloudWatchUsesSelectedRegionWithoutReplacingCostClient() async throws {
+        let provider = AWSServiceProvider()
+        let profile = makeProfile(name: "alarm-profile")
+        let paths = AWSConfigurationPaths(environment: [:])
+        await provider.configure(profile: profile, region: "ap-southeast-1", paths: paths)
+        let first = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "ap-southeast-1")
+        let cost = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        XCTAssertEqual(first.config.region.rawValue, "ap-southeast-1")
+        await provider.configure(profile: profile, region: "eu-west-1", paths: paths)
+        let next = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "eu-west-1")
+        XCTAssertEqual(next.config.region.rawValue, "eu-west-1")
+        XCTAssertTrue(next.client === first.client)
+        XCTAssertTrue(next.client === cost.client)
+        await provider.shutdown()
+    }
+
+    func testCloudWatchRejectsStaleProfilePathsRegionAndClearedScope() async throws {
+        let provider = AWSServiceProvider()
+        let profile = makeProfile(name: "alarm-profile")
+        let paths = AWSConfigurationPaths(environment: [:])
+        let otherPaths = AWSConfigurationPaths(environment: ["AWS_CONFIG_FILE": "/example/other-config"])
+        await provider.configure(profile: profile, region: "us-east-1", paths: paths)
+        for (requestedProfile, requestedPaths, region) in [
+            (makeProfile(name: "other"), paths, "us-east-1"),
+            (profile, otherPaths, "us-east-1"),
+            (profile, paths, "eu-west-1")
+        ] {
+            do {
+                _ = try await provider.cloudWatchClient(profile: requestedProfile, paths: requestedPaths, region: region)
+                XCTFail("A stale request must not borrow another scope's client")
+            } catch { XCTAssertTrue(error is AlarmError) }
+        }
+        await provider.shutdown()
+        do {
+            _ = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "us-east-1")
+            XCTFail("Cleared profile must have no client")
+        } catch { XCTAssertTrue(error is AlarmError) }
+    }
+
     func testResourceRegionChangePreservesCostClientButChangesResourceRegion() async throws {
         let provider = AWSServiceProvider()
         let profile = makeProfile(name: "cost-profile")

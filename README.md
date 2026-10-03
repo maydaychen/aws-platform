@@ -7,10 +7,11 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
+- **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
-- **资源收藏** - 本地保存 EC2 实例、Lambda 函数和 S3 Bucket，搜索并在当前 Profile 内恢复收藏时的 Region
+- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket 和 CloudWatch Alarm，搜索并在当前 Profile 内恢复收藏时的 Region
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
@@ -87,6 +88,27 @@ open Package.swift
 
 ![费用面板](docs/ui-costs-light.png)
 
+### CloudWatch Alarms
+
+手动选择 Profile 和 Region 后，打开侧栏 `CloudWatch` 查看当前账号、当前区域的 Metric Alarm 与 Composite Alarm。首次进入加载列表，支持名称／ARN／指标搜索、状态和类型筛选、手动刷新与取消。返回同一已加载页面不会重复请求，不进行定时轮询；未选 Profile 不查询，切换 Profile、Region 或 session 会清空旧列表和详情。
+
+列表不会自动选中第一个告警。选择告警后可查看：
+
+- `Overview`：状态、原因、更新时间、最近状态切换时间、描述和标签。
+- `Configuration`：单指标、维度、Metric Math／Metrics Insights 表达式、阈值与评估设置，或 Composite 的规则和动作抑制设置。
+- `Actions`：ALARM、OK、INSUFFICIENT_DATA 对应的目标 ARN 及动作启用状态；目标可能是 SNS 或其他 AWS 服务，仅显示已有配置。
+- `History`：最近 30 天的历史记录，按时间倒序，含状态／配置变更及动作记录，可展开返回的详情数据。
+
+标签和历史仅针对选中的告警读取；各自失败时显示独立错误，基础配置仍可查看，可点击详情右上角的刷新按钮重试。分页失败不会将半份列表或历史当作完整结果。告警可以加入现有本地收藏，按 ARN 保存和定位，仍须先手动选择匹配 Profile 并校验账号；告警删除或无权限时保留收藏并提示。
+
+角色需具备 `cloudwatch:DescribeAlarms`，历史与标签分别需要 `cloudwatch:DescribeAlarmHistory`、`cloudwatch:ListTagsForResource`。为获取 Composite Alarm，前两个权限必须允许 `Resource: "*"`，不能只限定单个告警 ARN。可见范围仍由当前角色权限决定。详见 [DescribeAlarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html) 、[DescribeAlarmHistory](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarmHistory.html) 和 [ListTagsForResource](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListTagsForResource.html) 。
+
+当前模块只读取 Metric／Composite Alarm，不支持 Log Alarm；不请求指标曲线，不创建、删除、启停告警或改变告警状态，也不向 SNS 发布消息。
+
+以下为模拟告警数据的组件示例：
+
+![CloudWatch 告警](docs/ui-alarms-light.png)
+
 ### 应用内 SSO 登录
 
 1. 在 `SSO Session` 中选择已配置的 session，点击 `SSO Login`。应用后台调用本机 `aws sso login --sso-session <name>`，由 AWS CLI 打开默认浏览器完成授权；不会打开终端窗口，也不需要预先选择 Profile。
@@ -115,6 +137,7 @@ Sources/AWSPlatform/
 │   ├── AWSProfile.swift
 │   ├── AWSSOSession.swift
 │   ├── AWSService.swift
+│   ├── CloudWatchAlarm.swift
 │   ├── CostModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
@@ -123,6 +146,7 @@ Sources/AWSPlatform/
 │   └── S3Bucket.swift
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
+│   ├── AWSAlarmService.swift     # CloudWatch 告警、标签和历史读取
 │   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页
 │   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
@@ -130,6 +154,7 @@ Sources/AWSPlatform/
 │   ├── ConfigReader.swift
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
+│   ├── AlarmViewModel.swift
 │   ├── CostViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
@@ -138,6 +163,7 @@ Sources/AWSPlatform/
 │   ├── ProfileViewModel.swift
 │   └── S3ViewModel.swift
 └── Views/                       # 界面视图
+    ├── CloudWatch/
     ├── Cost/
     ├── EC2/
     ├── Lambda/

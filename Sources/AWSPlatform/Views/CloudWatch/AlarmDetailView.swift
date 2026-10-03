@@ -1,0 +1,207 @@
+import AppKit
+import SwiftUI
+
+struct AlarmDetailView: View {
+    enum Tab: String, CaseIterable, Identifiable {
+        case overview = "Overview", configuration = "Configuration", actions = "Actions", history = "History"
+        var id: Self { self }
+    }
+
+    let alarm: CloudWatchAlarm
+    @ObservedObject var vm: AlarmViewModel
+    @State private var selectedTab: Tab
+
+    init(alarm: CloudWatchAlarm, vm: AlarmViewModel, tab: Tab = .overview) {
+        self.alarm = alarm
+        self.vm = vm
+        _selectedTab = State(initialValue: tab)
+    }
+
+    private var isCurrentSelection: Bool { vm.selectedAlarm?.arn == alarm.arn }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            Picker("Section", selection: $selectedTab) {
+                ForEach(Tab.allCases) { tab in Text(tab.rawValue).tag(tab) }
+            }
+            .labelsHidden().pickerStyle(.segmented).padding(12)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch selectedTab {
+                    case .overview: overview
+                    case .configuration: configuration
+                    case .actions: actions
+                    case .history: history
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16).padding(.bottom, 16)
+            }
+        }
+        .onChange(of: alarm.arn) { _ in selectedTab = .overview }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Text(alarm.name).font(.title2.weight(.semibold)).lineLimit(3)
+                    .textSelection(.enabled).help(alarm.name)
+                Spacer(minLength: 0)
+                Button(action: vm.refreshDetails) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(!isCurrentSelection || vm.isTagsLoading || vm.isHistoryLoading)
+                .help("Refresh tags and the last 30 days of history")
+                .accessibilityLabel("Refresh alarm details")
+            }
+            HStack(spacing: 10) {
+                AlarmStateLabel(state: alarm.state)
+                Text(alarm.kind.title).foregroundColor(.secondary)
+                Spacer(minLength: 0)
+            }
+            .font(.caption)
+            HStack(alignment: .top, spacing: 6) {
+                Text(alarm.arn).font(.caption.monospaced()).foregroundColor(.secondary)
+                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(alarm.arn, forType: .string)
+                } label: { Image(systemName: "doc.on.doc") }
+                .buttonStyle(.borderless).help("Copy alarm ARN").accessibilityLabel("Copy alarm ARN")
+            }
+        }
+        .padding(16)
+    }
+
+    private var overview: some View {
+        Group {
+            if let description = alarm.description, !description.isEmpty {
+                Text(description).font(.callout).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            DetailGrid(items: [
+                ("State updated", AlarmDisplay.date(alarm.stateUpdatedAt)),
+                ("State transitioned", AlarmDisplay.date(alarm.stateTransitionedAt)),
+                ("Configuration updated", AlarmDisplay.date(alarm.configurationUpdatedAt)),
+                ("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled))
+            ])
+            DetailSectionTitle(title: "State reason")
+            AlarmTextBlock(text: alarm.reason ?? "No state reason returned.")
+            if let data = alarm.reasonData, !data.isEmpty {
+                DisclosureGroup("State reason data") { AlarmTextBlock(text: data, monospaced: true) }
+                    .font(.caption)
+            }
+            DetailSectionTitle(title: "Tags")
+            tags
+        }
+    }
+
+    @ViewBuilder
+    private var tags: some View {
+        if isCurrentSelection && vm.isTagsLoading {
+            ProgressView("Loading tags…").controlSize(.small)
+        } else if isCurrentSelection, let error = vm.tagsError {
+            NoticeBanner(message: error)
+        } else if isCurrentSelection && !vm.tags.isEmpty {
+            DetailKeyValueRows(values: vm.tags)
+        } else {
+            Text("No tags returned.").font(.callout).foregroundColor(.secondary)
+        }
+    }
+
+    private var configuration: some View {
+        Group {
+            if !alarm.configuration.isEmpty {
+                DetailGrid(items: alarm.configuration.map { ($0.label, $0.value) })
+            }
+            if let rule = alarm.rule {
+                DetailSectionTitle(title: "Composite rule")
+                AlarmTextBlock(text: rule, monospaced: true)
+            }
+            if !alarm.metrics.isEmpty {
+                DetailSectionTitle(title: "Metric configuration")
+                Text("Configuration only. Metric values are not queried.")
+                    .font(.caption).foregroundColor(.secondary)
+                ForEach(alarm.metrics) { metric in AlarmMetricView(metric: metric) }
+            } else if alarm.kind == .metric {
+                Text("No metric configuration returned.").font(.callout).foregroundColor(.secondary)
+            }
+            if alarm.configuration.isEmpty && alarm.rule == nil && alarm.metrics.isEmpty {
+                Text("No alarm configuration returned.").font(.callout).foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var actions: some View {
+        Group {
+            DetailGrid(items: [("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled))])
+            Text("Configured targets are read-only. Targets can include services other than SNS; this page does not resolve targets or send notifications.")
+                .font(.caption).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            actionTargets("ALARM targets", targets: alarm.alarmActions)
+            actionTargets("OK targets", targets: alarm.okActions)
+            actionTargets("INSUFFICIENT_DATA targets", targets: alarm.insufficientDataActions)
+        }
+    }
+
+    private func actionTargets(_ title: String, targets: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            DetailSectionTitle(title: title)
+            if targets.isEmpty {
+                Text("None configured").font(.callout).foregroundColor(.secondary)
+            } else {
+                ForEach(Array(targets.enumerated()), id: \.offset) { _, target in
+                    AlarmTextBlock(text: target, monospaced: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var history: some View {
+        Text("Last 30 days · UTC · Most recent first")
+            .font(.caption).foregroundColor(.secondary)
+        if isCurrentSelection && vm.isHistoryLoading {
+            ProgressView("Loading alarm history…").controlSize(.small)
+        } else if isCurrentSelection, let error = vm.historyError {
+            NoticeBanner(message: error)
+        } else if isCurrentSelection && !vm.history.isEmpty {
+            ForEach(vm.history) { entry in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(entry.type).font(.headline)
+                    Text(AlarmDisplay.date(entry.timestamp)).font(.caption).foregroundColor(.secondary)
+                    Text(entry.summary).font(.callout).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let contributor = entry.contributorID {
+                        Text("Contributor: \(contributor)").font(.caption).textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let data = entry.data, !data.isEmpty {
+                        DisclosureGroup("Event data") { AlarmTextBlock(text: data, monospaced: true) }
+                            .font(.caption)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            }
+        } else {
+            Text("No history returned for the last 30 days.").font(.callout).foregroundColor(.secondary)
+        }
+    }
+}
+
+enum AlarmDisplay {
+    static func date(_ date: Date?) -> String {
+        guard let date else { return "Unknown" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss 'UTC'"
+        return formatter.string(from: date)
+    }
+
+    static func boolean(_ value: Bool?) -> String { value.map { $0 ? "Yes" : "No" } ?? "Unknown" }
+}

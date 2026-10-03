@@ -2,10 +2,11 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏、统一样式、按 session 登录和第一版 Cost Explorer 费用面板已完成本地回归与模拟组件渲染检查。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏、统一样式、按 session 登录、Cost Explorer 费用面板和 CloudWatch Alarms 已完成本地回归与模拟组件渲染检查。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
 
 ## 最近完成
 
+- 2026-10-03 11:46：新增 CloudWatch Metric／Composite Alarm 只读浏览，按当前 Profile 和资源 Region 隔离；首次进入列表才加载，支持搜索、状态／类型筛选、手动刷新和取消。详情展示状态原因、单指标／Math／Insights 配置、Composite 规则及抑制配置、动作目标 ARN；选择告警后独立加载标签和最近 30 天历史。完整分页、ARN 校验、错误脱敏与迟到结果隔离，接入现有 ARN 收藏定位。未增加 SNS 查询／发送、指标数据或告警写入；同时消除 Cost 时间默认闭包的 Sendable 编译警告，查询行为不变。README 和模拟组件截图已同步。
 - 2026-10-03 11:16：实现按当前 Profile 经 STS 验证账号查询的 Cost Explorer 面板；所有汇总、日明细及费用区域请求强制 LINKED_ACCOUNT，不自动汇总组织成员。提供本月／上月汇总、日趋势、服务明细、UTC 完整日与独立费用 Region 筛选、8 组内存缓存、手动刷新和取消。完整分页、Decimal 金额／币种校验、错误脱敏与迟到结果隔离；资源 Region 切换保留 AWSClient，不触发费用重复加载。README 和四张模拟组件示例已同步。
 - 2026-10-03 10:13：将前期推荐但尚未实现的功能及 Cost 分期候选合并到待办，区分已有能力与新增范围；仅记录后续计划，未启动功能开发。
 - 2026-10-03 10:09：将后续 AWS 查询统一以显式选择的 Profile 为单位的长期约束写入 `AGENTS.md` 的 `AWS Query Scope`；涵盖 Session 登录边界、未选不查询、禁止自动跨 Profile 聚合，以及切换时的请求与缓存隔离。仅更新项目规范，未修改运行代码。
@@ -17,6 +18,7 @@
 
 ## 最近验证
 
+- 2026-10-03 11:46：最终源码严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，无编译警告，178 项正式单测全部通过；新增 36 项覆盖两类告警映射、分页、账号／Region／分区校验、历史窗口、取消、局部权限失败、切换后过期结果和收藏兼容／定位。另有 3 项临时离线渲染测试通过，生成告警 14 种状态在 960／1280 宽度与深浅色下的 56 张截图，并刷新共享导航下的 Cost／资源组件示例；抽查四个页签、长名称／ARN／规则、空态、错误和加载态。独立审查核对核心代码、测试及关键截图；临时入口已移除，`git diff --check` 通过。未执行真实 AWS 查询或真实窗口交互，IAM 组合、实际分页及 macOS 13 运行时仍待用户验收；原有 Cost Charts 警告仍见工程待办。
 - 2026-10-03 11:16：最终源码通过 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，142 项正式单测和 2 项临时渲染测试共 144 项全部通过，`git diff --check` 通过。新增 38 项正式测试覆盖账号／区域过滤、日期边界、分页／取消／异常金额与币种、错误脱敏、缓存与 Profile／身份／配置隔离、跨 UTC 日月刷新及资源 Region 客户端复用。生成 36 张 Cost 状态／报表截图及 6 张资源／空 Profile 截图，抽查深浅色、960／1280 宽度、长文本、负数退款、无数据、月初、错误、加载及自定义日期；独立审查核对核心代码和关键截图。临时测试入口已移除。未执行真实 AWS 登录／费用 API，账单对照、实际窗口操作和 macOS 13 运行时仍待验收；渲染日志的 Charts anchor 警告见工程待办。
 - 2026-10-03 10:13：核对待办与此前功能建议、当前已完成清单及 Profile 查询约束的一致性，检查 Markdown 结构和 `git diff --check` 通过；仅文档变更，未运行 Swift 测试或 AWS 查询。
 - 2026-10-03 10:09：检查 `AGENTS.md` 新增规则的 Markdown 结构、关键约束及与现有 Session／Profile 流程的一致性，`git diff --check` 通过；本次仅文档变更，未重复运行 Swift 测试。
@@ -30,6 +32,7 @@
 
 ## 已完成
 
+- CloudWatch Metric／Composite Alarm 列表与四页签详情，按 Profile／Region 隔离；按需加载、手动刷新、配置／标签／近 30 天历史和动作 ARN 只读展示，支持本地收藏。
 - Cost Explorer 只读费用面板，按当前 Profile 的 STS 账号隔离；UTC 完整日、独立费用 Region、缓存／手动刷新、取消、完整分页、币种／估算状态与调用开销提示。
 - 应用内按具名 session 登录、取消和超时提示；登录后不选 Profile、不加载账号数据。手动选择关联 Profile 后验证并加载资源，支持共享 session 及自定义配置路径。
 - 全部页面采用统一搜索框、资源计数、自适应详情卡片及原生深浅色；长详情值可换行与选择复制，环境变量仍默认遮罩。
@@ -49,16 +52,17 @@
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、收藏存储／导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 142 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms、收藏存储／导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流的 178 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
+- CloudWatch Alarms 真实账号验收：当前 Profile／Region 的 Metric 和 Composite 列表、筛选与刷新、单指标／Math／Insights 配置、30 天历史和标签权限局部降级；验证 ARN 收藏、分页、快速切换／取消、清空 Profile 后不再展示数据，以及切换资源 Region 不触发 Cost 重查。读取 Composite 所需 `DescribeAlarms`／`DescribeAlarmHistory` 必须允许 `Resource: "*"`。
 - Cost 真实账号验收：启用 Cost Explorer 并检查读取与账单权限；对照当前账号、相同 UTC 日期／费用 Region／UnblendedCost 的控制台数据，验证管理账号不包含其他成员账号；验证无权限、数据准备中、分页、取消、退款与实际币种；切换资源 Region 不重新查询费用，切换 Profile 后旧数据清空。真实 API 调用由用户验证，可能产生调用费用。
 - 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 正常路径和权限不足路径。
 - 真实窗口中的拖动分栏、键盘导航、源码横向滚动及 macOS 13 运行时验收；模拟组件布局与长文本渲染已检查。
 - 用户验收重点：先选 session 后点击 SSO 登录，授权成功保持 Profile 为空，手动选 Profile 后才加载；清空 Profile、重新登录、切换 session 后数据清空；取消／拒绝授权及登录中切换 session；终端登录缓存复用；多个 Profile 共用 session 时跨账号／角色切换；`Other profiles` 中仅 credentials 和旧式 SSO；自定义配置路径；快速切换账号／S3 目录；Lambda 部分 GetFunction 无权限。
-- 收藏真实账号验收：三个服务的添加／取消／搜索、重启恢复；先手动选择匹配 Profile，再定位收藏 Region；空选项不显示收藏，跨 Profile 点击只提示、不自动选择；快速连续打开、Profile 缺失、账号变更、资源删除和权限不足时保留收藏并提示。
+- 收藏真实账号验收：EC2、Lambda、S3 和 CloudWatch 告警的添加／取消／搜索、重启恢复；先手动选择匹配 Profile，再定位收藏 Region；空选项不显示收藏，跨 Profile 点击只提示、不自动选择；快速连续打开、Profile 缺失、账号变更、资源删除和权限不足时保留收藏并提示。
 
 ## 待办
 
@@ -66,6 +70,7 @@
 
 ### 功能候选
 
+- SNS 只读浏览：按当前 Profile／Region 查看 Topic、订阅和已有配置，评估从告警动作 ARN 关联跳转；消息发布、订阅变更等写入另行确定范围。
 - 最近访问：本地记录访问过的资源，按 Profile 隔离；打开记录前要求已手动选择匹配 Profile，沿用收藏的账号校验与失效提示。
 - 指标与日志：EC2／Lambda 的 CloudWatch 指标、Lambda 日志检索；保留后续评估 EC2 Auto Scaling 归属、Load Balancer Target Health 和 Lambda X-Ray Trace。
 - 权限诊断：在现有登录／网络／配置／权限错误分类及局部降级基础上，补充逐接口检查结果、缺少的读取权限和可操作提示。

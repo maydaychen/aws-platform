@@ -3,6 +3,51 @@ import XCTest
 
 @MainActor
 final class FavoriteNavigationTests: XCTestCase {
+    private func makeAlarmVM(rows: [CloudWatchAlarm] = []) -> AlarmViewModel {
+        AlarmViewModel(listLoader: { _ in rows }, tagLoader: { _, _ in [:] }, historyLoader: { _, _ in [] })
+    }
+
+    func testAlarmFavoriteResolvesByARNAndClearsFilters() async {
+        let alarm = CloudWatchAlarm(arn: "arn:aws:cloudwatch:us-east-1:111111111111:alarm:HighCPU",
+                                    name: "HighCPU", kind: .metric, state: "ALARM")
+        let alarms = makeAlarmVM(rows: [alarm])
+        alarms.configure(scope: AlarmScope(profile: profiles[0], identity: AWSIdentity(
+            account: "111111111111", arn: "arn:aws:iam::111111111111:user/test", userID: "test"
+        ), region: "us-east-1"))
+        await alarms.loadAlarms()
+        alarms.searchText = "hidden"
+        alarms.stateFilter = "OK"
+        alarms.kindFilter = .composite
+        let favorite = FavoritesViewModelTests.makeFavorite(service: .alarms, resourceID: alarm.arn)
+        let navigation = FavoriteNavigation()
+        XCTAssertTrue(navigation.begin(favorite, profiles: profiles, selectedProfileName: "work"))
+        XCTAssertTrue(navigation.verifyAccount("111111111111"))
+        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel(), alarms: alarms)
+        XCTAssertEqual(alarms.selectedAlarm, alarm)
+        XCTAssertEqual(alarms.filteredAlarms, [alarm])
+        XCTAssertNil(navigation.error)
+        XCTAssertNil(navigation.target)
+        await alarms.waitForDetails()
+    }
+
+    func testMissingAlarmFavoriteReportsFailureWithoutSelectingAnotherAlarm() async {
+        let existing = CloudWatchAlarm(arn: "arn:aws:cloudwatch:us-east-1:111111111111:alarm:other",
+                                       name: "other", kind: .composite, state: "OK")
+        let alarms = makeAlarmVM(rows: [existing])
+        alarms.configure(scope: AlarmScope(profile: profiles[0], identity: AWSIdentity(
+            account: "111111111111", arn: "arn:aws:iam::111111111111:user/test", userID: "test"
+        ), region: "us-east-1"))
+        await alarms.loadAlarms()
+        let navigation = FavoriteNavigation()
+        let favorite = FavoritesViewModelTests.makeFavorite(service: .alarms,
+            resourceID: "arn:aws:cloudwatch:us-east-1:111111111111:alarm:deleted")
+        _ = navigation.begin(favorite, profiles: profiles, selectedProfileName: "work")
+        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel(), alarms: alarms)
+        XCTAssertNil(alarms.selectedAlarm)
+        XCTAssertTrue(navigation.error?.contains("not found") == true)
+        XCTAssertTrue(navigation.error?.contains("still saved") == true)
+    }
+
     private var profiles: [AWSProfile] {
         [AWSProfile(name: "work", region: "us-east-1", ssoStartURL: nil,
                     ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)]
@@ -65,7 +110,7 @@ final class FavoriteNavigationTests: XCTestCase {
         ec2.healthFilter = .attention
         let navigation = FavoriteNavigation()
         _ = navigation.begin(FavoritesViewModelTests.makeFavorite(), profiles: profiles, selectedProfileName: "work")
-        navigation.resolve(ec2: ec2, lambda: lambda, s3: s3)
+        navigation.resolve(ec2: ec2, lambda: lambda, s3: s3, alarms: makeAlarmVM())
         XCTAssertEqual(ec2.selectedInstance?.instanceId, instance.instanceId)
         XCTAssertEqual(ec2.filteredInstances, [instance])
         XCTAssertNil(navigation.target)
@@ -86,7 +131,7 @@ final class FavoriteNavigationTests: XCTestCase {
         lambda.packageFilter = "Image"
         let navigation = FavoriteNavigation()
         _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .lambda, resourceID: "handler"), profiles: profiles, selectedProfileName: "work")
-        navigation.resolve(ec2: EC2ViewModel(), lambda: lambda, s3: S3ViewModel())
+        navigation.resolve(ec2: EC2ViewModel(), lambda: lambda, s3: S3ViewModel(), alarms: makeAlarmVM())
         XCTAssertEqual(lambda.selectedFunction, function)
         XCTAssertEqual(lambda.filteredFunctions, [function])
         XCTAssertNil(navigation.error)
@@ -102,7 +147,7 @@ final class FavoriteNavigationTests: XCTestCase {
         s3.objectSearchText = "hidden"
         let navigation = FavoriteNavigation()
         _ = navigation.begin(FavoritesViewModelTests.makeFavorite(service: .s3, resourceID: bucket.name), profiles: profiles, selectedProfileName: "work")
-        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: s3)
+        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: s3, alarms: makeAlarmVM())
         XCTAssertEqual(s3.selectedBucket, bucket)
         XCTAssertEqual(s3.filteredBuckets, [bucket])
         XCTAssertEqual(s3.objectSearchText, "")
@@ -117,7 +162,7 @@ final class FavoriteNavigationTests: XCTestCase {
         store.toggle(favorite)
         let navigation = FavoriteNavigation()
         _ = navigation.begin(favorite, profiles: profiles, selectedProfileName: "work")
-        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel())
+        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel(), alarms: makeAlarmVM())
         XCTAssertNotNil(navigation.error)
         XCTAssertTrue(store.contains(favorite))
         _ = navigation.begin(favorite, profiles: profiles, selectedProfileName: "work")

@@ -3,6 +3,27 @@ import XCTest
 
 @MainActor
 final class FavoritesViewModelTests: XCTestCase {
+    func testAlarmFavoritesRoundTripAlongsideExistingServices() throws {
+        let suite = "AlarmFavorites.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let existing = [Self.makeFavorite(), Self.makeFavorite(service: .lambda), Self.makeFavorite(service: .s3)]
+        defaults.set(try JSONEncoder().encode(existing), forKey: FavoritesViewModel.storageKey)
+        let store = FavoritesViewModel(defaults: defaults)
+        let arn = "arn:aws:cloudwatch:us-east-1:111111111111:alarm:HighCPU"
+        let alarm = Self.makeFavorite(service: .alarms, resourceID: arn, name: "HighCPU")
+        store.toggle(alarm)
+        let restored = FavoritesViewModel(defaults: defaults)
+        XCTAssertEqual(Set(restored.favorites.map(\.id)), Set((existing + [alarm]).map(\.id)))
+        XCTAssertNil(restored.storageError)
+        XCTAssertEqual(AWSService.ec2.rawValue, "EC2")
+        XCTAssertEqual(AWSService.lambda.rawValue, "Lambda")
+        XCTAssertEqual(AWSService.s3.rawValue, "S3")
+        XCTAssertTrue(alarm.matches("CloudWatch"))
+        let anotherRegion = Self.makeFavorite(region: "eu-west-1", service: .alarms, resourceID: arn)
+        XCTAssertNotEqual(alarm.id, anotherRegion.id)
+    }
+
     func testFavoriteSurvivesRelaunchAndRemovalIsPersisted() throws {
         let suite = "FavoritesViewModelTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

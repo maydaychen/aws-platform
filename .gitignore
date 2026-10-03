@@ -55,5 +55,13 @@ iOSInjectionProject/
 # Secrets
 *.pem
 *.key
+*.p12
+*.pfx
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
+/.aws/
+
+# Local agent configuration
+AGENTS.local.md

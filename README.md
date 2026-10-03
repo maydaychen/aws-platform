@@ -26,7 +26,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 
 ## 技术栈
 
-- Swift 5.9+ / SwiftUI
+- Swift 6.2+ / SwiftUI（源码构建工具链）
 - macOS 13+，支持 Intel（x86_64）和 Apple Silicon（arm64）
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
 
@@ -34,8 +34,8 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 
 ### 前置条件
 
-- macOS 13.0+
-- Xcode 15.0+ 或 Swift 5.9+
+- 应用运行需要 macOS 13.0+
+- 源码构建需要提供 Swift 6.2+ 的完整 Xcode；构建机器的 macOS 版本需满足所用 Xcode 的系统要求
 - 已配置 AWS CLI (`~/.aws/config` 和 `~/.aws/credentials`)
 - 使用 SSO 时，先配置具名 `sso-session` 并安装 AWS CLI v2；可在应用内点击 `SSO Login` 或在终端执行 `aws sso login --sso-session <name>`。浏览资源还需配置引用该 session 的 Profile
 
@@ -43,7 +43,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 
 ```bash
 # 克隆仓库
-git clone https://www.maydaychenhome.top:18779/maydaychen-mac/aws-platform.git
+git clone https://github.com/maydaychen/aws-platform.git
 cd aws-platform
 
 # 构建
@@ -64,9 +64,11 @@ open Package.swift
 
 在 Xcode 中直接 Cmd+R 运行。
 
+项目清单声明 Swift tools 5.9，但 `Package.resolved` 当前锁定的部分依赖要求 Swift 6.2+；请以此工具链要求构建。
+
 ### 打包通用应用
 
-选择完整的 Xcode 工具链后，在项目根目录执行：
+选择提供 Swift 6.2+ 的完整 Xcode 工具链后，在项目根目录执行：
 
 ```bash
 ./scripts/build-universal.sh
@@ -173,7 +175,7 @@ Lambda 指标使用函数名维度，包含该函数的版本和别名。指标�
 
 Lambda 的 `Logs` 页在函数配置加载成功后可用。选择时间范围，按需输入 CloudWatch filter pattern，再点击 `Search`；过滤条件使用 AWS 语法。结果显示事件时间、日志流、写入时间和可选择的多行正文；长消息先显示预览，可展开全文。修改范围或过滤条件会清空上次搜索，需要重新点击搜索。
 
-日志组优先采用函数的 `LoggingConfig.LogGroup`，未配置时使用 `/aws/lambda/<functionName>`。自定义组先完整枚举日志流，严格匹配当前函数名称，再分批读取；枚举失败时不会降级读取整个共享组。需要 `logs:FilterLogEvents`，自定义日志组还需要 `logs:DescribeLogStreams`；读取函数配置沿用 `lambda:GetFunctionConfiguration`。参考 [Lambda 日志组](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-loggroups.html) 和 [FilterLogEvents](https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_FilterLogEvents.html) 。
+日志组优先采用函数的 `LoggingConfig.LogGroup`，未配置时使用 `/aws/lambda/<functionName>`。自定义组先完整枚举日志流，严格匹配当前函数名称，再分批读取；枚举失败时不会降级读取整个共享组。需要 `logs:FilterLogEvents`，自定义日志组还需要 `logs:DescribeLogStreams`；读取函数配置沿用 `lambda:GetFunction`。参考 [Lambda 日志组](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-loggroups.html) 和 [FilterLogEvents](https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_FilterLogEvents.html) 。
 
 点击 `Load more` 继续同一次查询的分页。已加载事件按时间倒序展示；未读完时明确提示部分结果，不将它们称为整个时段的“最新日志”。最多保留 5,000 条事件或 8 MiB 的 UTF-8 正文，超限时不保留超出的整条消息；达到上限或分页保护限制时需缩小范围或增加过滤条件。日志保留 AWS 的数据遮罩，不申请解除遮罩权限。
 
@@ -303,6 +305,8 @@ Region 列表包含 SDK 已知的常用区域以及配置中的区域，也可�
 
 Lambda 列表通过 `GetFunction` 补充状态和标签，最多同时读取 4 个函数。部分函数权限不足或读取失败时，列表仍保留，显示提示；状态筛选不包含状态未知的函数。相关权限至少包括 `lambda:ListFunctions` 和用于补充信息的 `lambda:GetFunction`。
 
+手动加载 Lambda 部署包源码时，应用下载 ZIP 并写入系统临时目录进行解压；处理结束时尝试删除本次临时目录。源码查看会在本机产生临时文件。
+
 参考：[AWS CLI 凭据导出](https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html) 、[AWS CLI 环境变量](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) 、[Lambda 列表接口字段范围](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html) 。
 
 ## 项目进度
@@ -311,4 +315,4 @@ Lambda 列表通过 `GetFunction` 补充状态和标签，最多同时读取 4 �
 
 ## License
 
-MIT
+本项目原创代码采用 [MIT License](LICENSE)。第三方依赖保留各自许可，版本及上游许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

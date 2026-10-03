@@ -146,9 +146,10 @@ struct SNSRelationshipView: View {
             }
             .padding(.top, 10)
         } label: {
-            nodeLabel(source.alarm.name, nodeID: "alarm:" + source.alarm.arn)
+            nodeLabel(source.alarm.name, nodeID: "alarm:" + source.alarm.arn,
+                      symbol: "bell.badge", accent: .purple)
         }
-        .relationshipCard()
+        .relationshipCard(accent: .purple, isExpanded: expandedNodeIDs.contains("alarm:" + source.alarm.arn))
     }
 
     private var topicColumn: some View {
@@ -164,9 +165,10 @@ struct SNSRelationshipView: View {
                 }
                 .padding(.top, 10)
             } label: {
-                nodeLabel(topic.name, nodeID: "topic:" + topic.arn)
+                nodeLabel(topic.name, nodeID: "topic:" + topic.arn,
+                          symbol: "dot.radiowaves.left.and.right", accent: .orange)
             }
-            .relationshipCard()
+            .relationshipCard(accent: .orange, isExpanded: expandedNodeIDs.contains("topic:" + topic.arn))
         }
     }
 
@@ -216,9 +218,11 @@ struct SNSRelationshipView: View {
             }
             .padding(.top, 10)
         } label: {
-            nodeLabel(target?.resourceID ?? subscriptionTitle(subscription), nodeID: "subscription:" + subscription.id)
+            nodeLabel(target?.resourceID ?? subscriptionTitle(subscription), nodeID: "subscription:" + subscription.id,
+                      symbol: subscription.protocolName == "lambda" ? "function" : "arrow.up.right",
+                      accent: .blue)
         }
-        .relationshipCard()
+        .relationshipCard(accent: .blue, isExpanded: expandedNodeIDs.contains("subscription:" + subscription.id))
     }
 
     @ViewBuilder
@@ -283,15 +287,26 @@ struct SNSRelationshipView: View {
         )
     }
 
-    private func nodeLabel(_ title: String, nodeID: String) -> some View {
+    private func nodeLabel(_ title: String, nodeID: String, symbol: String, accent: Color) -> some View {
         Button {
             if expandedNodeIDs.contains(nodeID) { expandedNodeIDs.remove(nodeID) }
             else { expandedNodeIDs.insert(nodeID) }
         } label: {
-            Text(title).font(.headline)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 30, height: 30)
+                    .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(accent.opacity(0.12)))
+                    .accessibilityHidden(true)
+                Text(title).font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityValue(expandedNodeIDs.contains(nodeID) ? "Expanded" : "Collapsed")
@@ -311,10 +326,45 @@ struct SNSRelationshipView: View {
 }
 
 private extension View {
-    func relationshipCard() -> some View {
-        frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.08)))
+    func relationshipCard(accent: Color? = nil, isExpanded: Bool = false) -> some View {
+        modifier(SNSRelationshipCardStyle(accent: accent, isExpanded: isExpanded))
+    }
+}
+
+private struct SNSRelationshipCardStyle: ViewModifier {
+    let accent: Color?
+    let isExpanded: Bool
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovered = false
+
+    private var highlighted: Bool { accent != nil && (isHovered || isExpanded) }
+    private var tint: Color { accent ?? .clear }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        let isDark = colorScheme == .dark
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background {
+                shape.fill(Color(nsColor: .controlBackgroundColor))
+                shape.fill(LinearGradient(
+                    colors: [tint.opacity(highlighted ? 0.09 : 0.035), .clear],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+            }
+            .overlay {
+                shape.strokeBorder(LinearGradient(
+                    colors: [Color.primary.opacity(isDark ? 0.16 : 0.07), Color.primary.opacity(0.035)],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                shape.strokeBorder(contrast == .increased ? Color.primary.opacity(0.48) : tint.opacity(highlighted ? 0.36 : 0.12))
+            }
+            .shadow(color: .black.opacity(isDark ? 0.18 : (highlighted ? 0.09 : 0.045)),
+                    radius: highlighted ? 9 : 5, x: 0, y: highlighted ? 4 : 2)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: highlighted)
+            .onHover { isHovered = $0 }
     }
 }

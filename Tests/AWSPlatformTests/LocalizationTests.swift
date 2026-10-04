@@ -6,6 +6,20 @@ final class LocalizationTests: XCTestCase {
     private let en = Locale(identifier: "en")
     private let zh = Locale(identifier: "zh-Hans")
 
+    func testLambdaPreviewErrorsRenderInBothLanguages() {
+        let errors: [LambdaCodeError] = [
+            .invalidDownloadURL, .downloadFailed(nil), .downloadFailed(403),
+            .downloadTooLarge, .downloadTimedOut, .invalidArchive, .unsupportedArchive,
+            .unsafeArchivePath, .archiveTooLarge, .tooManyFiles, .previewTooLarge,
+            .extractionTimedOut
+        ]
+        for error in errors {
+            let message = UserFacingError.message(for: error)
+            XCTAssertEqual(L10n.text(message, locale: en), message)
+            XCTAssertNotEqual(L10n.text(message, locale: zh), message, "Missing translation: \(message)")
+        }
+    }
+
     func testSystemLanguageUsesSupportedPreferredLanguageAndFallsBackToEnglish() {
         XCTAssertEqual(AppLanguage.system.locale(preferredLanguages: ["zh-Hans-CN", "en"]).language.languageCode?.identifier, "zh")
         XCTAssertEqual(AppLanguage.system.locale(preferredLanguages: ["en-GB", "zh-Hans"]).language.languageCode?.identifier, "en")

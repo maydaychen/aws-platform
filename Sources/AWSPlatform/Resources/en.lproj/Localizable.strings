@@ -527,6 +527,15 @@
 "Lambda code download URL is invalid." = "Lambda code download URL is invalid.";
 "Lambda code download failed with HTTP %@." = "Lambda code download failed with HTTP %@.";
 "Lambda code download failed." = "Lambda code download failed.";
+"Lambda code download timed out. Try again." = "Lambda code download timed out. Try again.";
+"Lambda deployment package exceeds the download size limit." = "Lambda deployment package exceeds the download size limit.";
+"Lambda deployment package exceeds the expanded size limit." = "Lambda deployment package exceeds the expanded size limit.";
+"Lambda deployment package is damaged or has inconsistent ZIP metadata." = "Lambda deployment package is damaged or has inconsistent ZIP metadata.";
+"Lambda deployment package contains unsafe, duplicate, or unsupported file paths." = "Lambda deployment package contains unsafe, duplicate, or unsupported file paths.";
+"Lambda deployment package contains too many files or directories." = "Lambda deployment package contains too many files or directories.";
+"Lambda source files exceed the total text preview limit." = "Lambda source files exceed the total text preview limit.";
+"Lambda source preview supports only unencrypted, single-disk ZIP files using Store or Deflate, without ZIP64 or special file entries." = "Lambda source preview supports only unencrypted, single-disk ZIP files using Store or Deflate, without ZIP64 or special file entries.";
+"Lambda source preview timed out while reading the ZIP." = "Lambda source preview timed out while reading the ZIP.";
 "Lambda logs" = "Lambda logs";
 "Lambda resource policy does not contain statements." = "Lambda resource policy does not contain statements.";
 "Lambda resource policy is not valid JSON." = "Lambda resource policy is not valid JSON.";
@@ -1261,7 +1270,6 @@
 "Unable to read CloudWatch alarm configuration. Check the selected profile, region and permissions, then refresh." = "Unable to read CloudWatch alarm configuration. Check the selected profile, region and permissions, then refresh.";
 "Unable to refresh the SSO session. Check your network and retry, or use SSO Login to authorize again." = "Unable to refresh the SSO session. Check your network and retry, or use SSO Login to authorize again.";
 "Unable to start AWS CLI. Check its installation and try again." = "Unable to start AWS CLI. Check its installation and try again.";
-"Unable to unzip Lambda deployment package." = "Unable to unzip Lambda deployment package.";
 "Unauthenticated request" = "Unauthenticated request";
 "Unhealthy threshold" = "Unhealthy threshold";
 "Unimpaired" = "Unimpaired";

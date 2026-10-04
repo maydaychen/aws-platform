@@ -252,6 +252,243 @@ final class LambdaViewModelTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testLateCodeRequestDoesNotClearNewRequestLoading() async {
+        let oldGate = TestGate()
+        let newGate = TestGate()
+        var requestCount = 0
+        let function = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { function in
+            requestCount += 1
+            if requestCount == 1 {
+                await oldGate.wait()
+            } else {
+                await newGate.wait()
+            }
+            return Self.withCode(function, content: "source")
+        })
+        vm.functions = [function]
+        vm.selectedFunction = function
+
+        let oldRequest = Task { await vm.loadCode(for: function.functionName) }
+        await oldGate.waitForEntry()
+        let newRequest = Task { await vm.loadCode(for: function.functionName) }
+        await newGate.waitForEntry()
+        await oldGate.open()
+        await oldRequest.value
+
+        XCTAssertTrue(vm.isCodeLoading, "A superseded request must not clear the current request's loading state")
+        XCTAssertTrue(vm.selectedFunction?.codeFiles.isEmpty == true)
+        await newGate.open()
+        await newRequest.value
+        XCTAssertFalse(vm.isCodeLoading)
+        XCTAssertEqual(vm.selectedFunction?.codeFiles.first?.content, "source")
+    }
+
+    @MainActor
+    func testLateCodeFailureDoesNotReplaceNewRequestState() async {
+        let oldGate = TestGate()
+        let newGate = TestGate()
+        var requestCount = 0
+        let function = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { function in
+            requestCount += 1
+            if requestCount == 1 {
+                await oldGate.wait()
+                throw LambdaTestError.failed
+            }
+            await newGate.wait()
+            return Self.withCode(function, content: "latest")
+        })
+        vm.functions = [function]
+        vm.selectedFunction = function
+
+        let oldRequest = Task { await vm.loadCode(for: function.functionName) }
+        await oldGate.waitForEntry()
+        let newRequest = Task { await vm.loadCode(for: function.functionName) }
+        await newGate.waitForEntry()
+        await oldGate.open()
+        await oldRequest.value
+
+        XCTAssertTrue(vm.isCodeLoading)
+        XCTAssertNil(vm.codeError)
+        await newGate.open()
+        await newRequest.value
+        XCTAssertNil(vm.codeError)
+        XCTAssertEqual(vm.selectedFunction?.codeFiles.first?.content, "latest")
+    }
+
+    @MainActor
+    func testManualCodeCancellationCancelsManagedTaskAndRejectsLateSource() async {
+        let gate = TestGate()
+        let finished = expectation(description: "Cancelled loader returned")
+        var wasCancelled = false
+        let function = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { function in
+            await gate.wait()
+            wasCancelled = Task.isCancelled
+            defer { finished.fulfill() }
+            return Self.withCode(function, content: "cancelled")
+        })
+        vm.functions = [function]
+        vm.selectedFunction = function
+        vm.loadCodeForSelection()
+        await gate.waitForEntry()
+
+        vm.cancelCodeLoading()
+        XCTAssertFalse(vm.isCodeLoading)
+        XCTAssertNil(vm.codeError)
+        await gate.open()
+        await fulfillment(of: [finished], timeout: 1)
+        await Task.yield()
+
+        XCTAssertTrue(wasCancelled)
+        XCTAssertFalse(vm.isCodeLoading)
+        XCTAssertNil(vm.codeError)
+        XCTAssertTrue(vm.selectedFunction?.codeFiles.isEmpty == true)
+    }
+
+    @MainActor
+    func testSelectionChangesRejectLateCodeWhenSameFunctionIsSelectedAgain() async {
+        let gate = TestGate()
+        let first = makeFunction(name: "first")
+        let second = makeFunction(name: "second")
+        let vm = LambdaViewModel(codeLoader: { function in
+            await gate.wait()
+            return Self.withCode(function, content: "outdated")
+        })
+        vm.functions = [first, second]
+        vm.selectedFunction = first
+        let request = Task { await vm.loadCode(for: first.functionName) }
+        await gate.waitForEntry()
+
+        vm.selectedFunction = second
+        vm.selectedFunction = first
+        await gate.open()
+        await request.value
+
+        XCTAssertEqual(vm.selectedFunction?.functionName, "first")
+        XCTAssertTrue(vm.selectedFunction?.codeFiles.isEmpty == true)
+        XCTAssertNil(vm.codeError)
+        XCTAssertFalse(vm.isCodeLoading)
+    }
+
+    @MainActor
+    func testProfileReconfigurationRejectsLateCodeSuccessForSameFunctionName() async {
+        let gate = TestGate()
+        let oldFunction = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { function in
+            await gate.wait()
+            return Self.withCode(function, content: "old-profile")
+        })
+        vm.functions = [oldFunction]
+        vm.selectedFunction = oldFunction
+        let request = Task { await vm.loadCode(for: oldFunction.functionName) }
+        await gate.waitForEntry()
+
+        vm.configure(provider: AWSServiceProvider(), refreshImmediately: false)
+        var currentFunction = oldFunction
+        currentFunction.arn = "arn:aws:lambda:us-east-1:222222222222:function:example"
+        vm.functions = [currentFunction]
+        vm.selectedFunction = currentFunction
+        await gate.open()
+        await request.value
+
+        XCTAssertEqual(vm.selectedFunction?.arn, currentFunction.arn)
+        XCTAssertEqual(vm.functions, [currentFunction])
+        XCTAssertTrue(vm.selectedFunction?.codeFiles.isEmpty == true)
+        XCTAssertNil(vm.codeError)
+        XCTAssertFalse(vm.isCodeLoading)
+    }
+
+    @MainActor
+    func testResetRejectsLateCodeFailureForSameFunctionName() async {
+        let gate = TestGate()
+        let function = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { _ in
+            await gate.wait()
+            throw LambdaTestError.failed
+        })
+        vm.functions = [function]
+        vm.selectedFunction = function
+        let request = Task { await vm.loadCode(for: function.functionName) }
+        await gate.waitForEntry()
+
+        vm.reset()
+        vm.functions = [function]
+        vm.selectedFunction = function
+        await gate.open()
+        await request.value
+
+        XCTAssertNil(vm.codeError)
+        XCTAssertTrue(vm.selectedFunction?.codeFiles.isEmpty == true)
+        XCTAssertFalse(vm.isCodeLoading)
+    }
+
+    @MainActor
+    func testCodeLoadingRequiresCurrentSelection() async {
+        var requests = 0
+        let function = makeFunction(name: "example")
+        let vm = LambdaViewModel(codeLoader: { function in
+            requests += 1
+            return Self.withCode(function, content: "source")
+        })
+        vm.functions = [function]
+        await vm.loadCode(for: function.functionName)
+        vm.loadCodeForSelection()
+        await Task.yield()
+
+        XCTAssertEqual(requests, 0)
+        XCTAssertFalse(vm.isCodeLoading)
+        XCTAssertTrue(vm.functions[0].codeFiles.isEmpty)
+        XCTAssertNil(vm.codeError)
+    }
+
+    @MainActor
+    func testCodeLoaderPreservesUpdatedFunctionMetadata() async {
+        let function = makeFunction(name: "example")
+        var updated = Self.withCode(function, content: "source")
+        updated.runtime = "nodejs22.x"
+        updated.arn = "arn:aws:lambda:us-east-1:123456789012:function:example"
+        updated.tags = ["environment": "test"]
+        updated.memorySize = 512
+        let result = updated
+        let vm = LambdaViewModel(codeLoader: { _ in result })
+        vm.functions = [function]
+        vm.selectedFunction = function
+
+        await vm.loadCode(for: function.functionName)
+
+        XCTAssertEqual(vm.functions, [updated])
+        XCTAssertEqual(vm.selectedFunction, updated)
+        XCTAssertNil(vm.codeError)
+        XCTAssertFalse(vm.isCodeLoading)
+    }
+
+    @MainActor
+    func testCodeFailureStaysInCodePaneAndCancellationHasNoError() async {
+        let function = makeFunction(name: "example")
+        var requests = 0
+        let vm = LambdaViewModel(codeLoader: { _ in
+            requests += 1
+            if requests == 1 { throw LambdaTestError.failed }
+            throw CancellationError()
+        })
+        vm.functions = [function]
+        vm.selectedFunction = function
+
+        await vm.loadCode(for: function.functionName)
+        XCTAssertEqual(vm.codeError, "Lambda test operation failed.")
+        XCTAssertNil(vm.error)
+        XCTAssertNil(vm.detailError)
+        XCTAssertFalse(vm.isCodeLoading)
+
+        await vm.loadCode(for: function.functionName)
+        XCTAssertNil(vm.codeError)
+        XCTAssertFalse(vm.isCodeLoading)
+        XCTAssertEqual(vm.functions, [function])
+    }
+
     func testPaginatorCollectsEveryPageInOrder() async throws {
         let values: [Int] = try await LambdaPaginator.collect { marker in
             switch marker {
@@ -378,6 +615,12 @@ final class LambdaViewModelTests: XCTestCase {
             codeLocation: nil,
             codeFiles: []
         )
+    }
+
+    private static func withCode(_ function: LambdaFunctionModel, content: String) -> LambdaFunctionModel {
+        var updated = function
+        updated.codeFiles = [LambdaCodeFile(path: "index.js", content: content, isBinary: false)]
+        return updated
     }
 
     private static func makeDetail(

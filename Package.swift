@@ -10,9 +10,12 @@ let package = Package(
         .package(url: "https://github.com/soto-project/soto-core.git", from: "7.0.0"),
     ],
     targets: [
+        // Public macOS SDK zlib; no additional downloaded dependency.
+        .systemLibrary(name: "CZlib"),
         .executableTarget(
             name: "AWSPlatform",
             dependencies: [
+                "CZlib",
                 .product(name: "SotoCore", package: "soto-core"),
                 .product(name: "SotoEC2", package: "soto"),
                 .product(name: "SotoLambda", package: "soto"),

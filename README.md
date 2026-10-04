@@ -444,7 +444,11 @@ The Region list includes commonly used regions known to the SDK and regions foun
 
 The Lambda list uses `GetFunction` to supplement function state and tags, fetching at most four functions concurrently. If some functions cannot be read or access is denied, the list remains available with a message. State filters exclude functions with unknown state. Required permissions include at least `lambda:ListFunctions` and `lambda:GetFunction` for the additional information.
 
-When you manually load source code from a Lambda deployment package, the app downloads its ZIP to a system temporary directory and extracts it there. It attempts to delete that temporary directory when processing finishes. Viewing source code therefore creates temporary files on the local machine.
+When you manually load Lambda source code, the app streams the ZIP into a private system temporary directory, reads its contents in memory, and attempts to remove the temporary directory on success, failure, or cancellation. Archive entries are never extracted to filesystem paths. Viewing source code still creates a temporary ZIP on the local machine.
+
+Source preview is limited to a 50 MiB download, 250 MiB of expanded data, 10,000 file/directory entries, and 10 MiB of cumulative text preview. Each text file retains the existing 200,000-byte preview limit; binary and larger files remain listed without content. Hidden entries are not displayed but still count toward archive limits. Downloads time out after 60 seconds; ZIP processing has a 30-second limit. Use `Cancel` while loading to stop the operation. Switching functions or clearing/changing the Profile invalidates old requests.
+
+Preview supports ordinary, unencrypted, single-disk ZIPs using Store or Deflate. ZIP64, symbolic links, special file entries, alternate path/link metadata, unsafe or duplicate paths, paths over 1,024 bytes or 32 components, and inconsistent sizes or CRCs are rejected with an error. These are local preview limits, not AWS deployment quotas. Container-image functions continue to display image information rather than ZIP source.
 
 References: [AWS CLI credential export](https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html), [AWS CLI environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html), and [fields returned by the Lambda list API](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html).
 

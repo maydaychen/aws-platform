@@ -7,6 +7,7 @@ final class LambdaViewModel: ObservableObject {
     typealias FunctionLoader = () async throws -> [LambdaFunctionModel]
     typealias DetailLoader = (String) async throws -> LambdaFunctionDetailModel
     typealias SummaryLoader = @Sendable (String) async throws -> LambdaFunctionSummary
+    typealias CodeLoader = (LambdaFunctionModel) async throws -> LambdaFunctionModel
 
     @Published var functions: [LambdaFunctionModel] = []
     @Published var selectedFunction: LambdaFunctionModel? {
@@ -34,16 +35,20 @@ final class LambdaViewModel: ObservableObject {
     private var functionLoader: FunctionLoader?
     private var detailLoader: DetailLoader?
     private var summaryLoader: SummaryLoader?
+    private var codeLoader: CodeLoader?
     private var listGeneration = 0
+    private var codeGeneration = 0
 
     init(
         functionLoader: FunctionLoader? = nil,
         detailLoader: DetailLoader? = nil,
-        summaryLoader: SummaryLoader? = nil
+        summaryLoader: SummaryLoader? = nil,
+        codeLoader: CodeLoader? = nil
     ) {
         self.functionLoader = functionLoader
         self.detailLoader = detailLoader
         self.summaryLoader = summaryLoader
+        self.codeLoader = codeLoader
     }
 
     var availableStates: [String] {
@@ -113,10 +118,9 @@ final class LambdaViewModel: ObservableObject {
         listGeneration += 1
         loadTask?.cancel()
         detailTask?.cancel()
-        codeLoadTask?.cancel()
+        cancelCodeLoading()
         isLoading = false
         isDetailLoading = false
-        isCodeLoading = false
     }
 
     func reset() {
@@ -196,11 +200,10 @@ final class LambdaViewModel: ObservableObject {
 
     func loadDetailForSelection() {
         detailTask?.cancel()
-        codeLoadTask?.cancel()
+        cancelCodeLoading()
         functionDetail = nil
         detailError = nil
         codeError = nil
-        isCodeLoading = false
 
         guard let functionName = selectedFunction?.functionName, detailLoader != nil else {
             isDetailLoading = false
@@ -268,160 +271,97 @@ final class LambdaViewModel: ObservableObject {
     }
 
     func loadCodeForSelection() {
-        guard let selectedFunction else { return }
-        codeLoadTask?.cancel()
+        cancelCodeLoading()
+        guard let selectedFunction,
+              functions.contains(where: { $0.functionName == selectedFunction.functionName }),
+              provider != nil || codeLoader != nil else { return }
         codeError = nil
+        isCodeLoading = true
         codeLoadTask = Task { await loadCode(for: selectedFunction.functionName) }
     }
 
+    func cancelCodeLoading() {
+        codeGeneration += 1
+        codeLoadTask?.cancel()
+        codeLoadTask = nil
+        isCodeLoading = false
+    }
+
     func loadCode(for functionName: String) async {
-        guard let provider else { return }
+        guard !Task.isCancelled,
+              selectedFunction?.functionName == functionName,
+              let function = functions.first(where: { $0.functionName == functionName }),
+              provider != nil || codeLoader != nil else { return }
+        codeGeneration += 1
+        let generation = codeGeneration
+        let provider = provider
         isCodeLoading = true
         codeError = nil
         defer {
-            if selectedFunction?.functionName == functionName {
-                isCodeLoading = false
-            }
+            if generation == codeGeneration { isCodeLoading = false }
         }
 
         do {
-            let client = try await provider.lambdaClient()
-            let response = try await client.getFunction(.init(functionName: functionName))
-            try Task.checkCancellation()
-
-            guard var updated = functions.first(where: { $0.functionName == functionName }) else {
+            let updated: LambdaFunctionModel
+            if let codeLoader {
+                updated = try await codeLoader(function)
+            } else if let provider {
+                updated = try await Self.fetchCode(for: function, provider: provider)
+            } else {
                 return
             }
-            updated.arn = response.configuration?.functionArn
-            updated.runtime = response.configuration?.runtime?.rawValue
-            updated.state = response.configuration?.state?.rawValue
-            updated.lastUpdateStatus = response.configuration?.lastUpdateStatus?.rawValue
-            updated.handler = response.configuration?.handler
-            updated.role = response.configuration?.role
-            updated.timeout = response.configuration?.timeout
-            updated.memorySize = response.configuration?.memorySize
-            updated.codeSize = response.configuration?.codeSize
-            updated.environment = response.configuration?.environment?.variables ?? updated.environment
-            updated.vpcConfig = response.configuration?.vpcConfig?.vpcId
-            updated.packageType = response.configuration?.packageType?.rawValue ?? updated.packageType
-            updated.codeLocation = response.code?.location
-            updated.imageUri = response.code?.imageUri
-            updated.tags = response.tags ?? updated.tags
-
-            if updated.packageType == "Image" {
-                updated.codeFiles = [
-                    LambdaCodeFile(
-                        path: "Container Image",
-                        content: updated.imageUri,
-                        isBinary: true
-                    )
-                ]
-            } else if let location = response.code?.location {
-                updated.codeFiles = try await Self.downloadCodeFiles(from: location)
-            }
-
             try Task.checkCancellation()
-            guard let index = functions.firstIndex(where: { $0.functionName == functionName }),
+            guard generation == codeGeneration,
+                  let index = functions.firstIndex(where: { $0.functionName == functionName }),
                   selectedFunction?.functionName == functionName else {
                 return
             }
             functions[index] = updated
             selectedFunction = updated
         } catch {
-            if Task.isCancelled || error is CancellationError { return }
-            guard selectedFunction?.functionName == functionName else { return }
+            guard generation == codeGeneration, !Task.isCancelled,
+                  !(error is CancellationError),
+                  selectedFunction?.functionName == functionName else { return }
             codeError = UserFacingError.message(for: error)
         }
     }
 
-    private nonisolated static func downloadCodeFiles(
-        from location: String
-    ) async throws -> [LambdaCodeFile] {
-        guard let url = URL(string: location) else {
-            throw LambdaCodeError.invalidDownloadURL
-        }
-
-        let (zipData, response) = try await URLSession.shared.data(from: url)
-        guard let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode) else {
-            throw LambdaCodeError.downloadFailed((response as? HTTPURLResponse)?.statusCode)
-        }
+    private static func fetchCode(
+        for function: LambdaFunctionModel,
+        provider: AWSServiceProvider
+    ) async throws -> LambdaFunctionModel {
+        let client = try await provider.lambdaClient()
+        let response = try await client.getFunction(.init(functionName: function.functionName))
         try Task.checkCancellation()
+        var updated = function
+        updated.arn = response.configuration?.functionArn
+        updated.runtime = response.configuration?.runtime?.rawValue
+        updated.state = response.configuration?.state?.rawValue
+        updated.lastUpdateStatus = response.configuration?.lastUpdateStatus?.rawValue
+        updated.handler = response.configuration?.handler
+        updated.role = response.configuration?.role
+        updated.timeout = response.configuration?.timeout
+        updated.memorySize = response.configuration?.memorySize
+        updated.codeSize = response.configuration?.codeSize
+        updated.environment = response.configuration?.environment?.variables ?? updated.environment
+        updated.vpcConfig = response.configuration?.vpcConfig?.vpcId
+        updated.packageType = response.configuration?.packageType?.rawValue ?? updated.packageType
+        updated.codeLocation = response.code?.location
+        updated.imageUri = response.code?.imageUri
+        updated.tags = response.tags ?? updated.tags
 
-        let extractionTask = Task.detached(priority: .userInitiated) {
-            let root = FileManager.default.temporaryDirectory
-                .appendingPathComponent("AWSPlatformLambdaCode", isDirectory: true)
-                .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            let zipURL = root.appendingPathComponent("function.zip")
-            let extractURL = root.appendingPathComponent("expanded", isDirectory: true)
-            defer { try? FileManager.default.removeItem(at: root) }
-
-            try Task.checkCancellation()
-            try FileManager.default.createDirectory(at: extractURL, withIntermediateDirectories: true)
-            try zipData.write(to: zipURL, options: .atomic)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            process.arguments = ["-x", "-k", zipURL.path, extractURL.path]
-            try process.run()
-            process.waitUntilExit()
-
-            try Task.checkCancellation()
-            guard process.terminationStatus == 0 else {
-                throw LambdaCodeError.unzipFailed
-            }
-
-            return try readCodeFiles(in: extractURL)
-        }
-
-        return try await withTaskCancellationHandler {
-            try await extractionTask.value
-        } onCancel: {
-            extractionTask.cancel()
-        }
-    }
-
-    private nonisolated static func readCodeFiles(in directory: URL) throws -> [LambdaCodeFile] {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-
-        var files: [LambdaCodeFile] = []
-        for case let fileURL as URL in enumerator {
-            try Task.checkCancellation()
-            let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-            guard values.isRegularFile == true else { continue }
-
-            let relativePath = fileURL.path.replacingOccurrences(of: directory.path + "/", with: "")
-            let fileSize = values.fileSize ?? 0
-            let isText = isLikelyTextFile(fileURL)
-            let content = isText && fileSize <= 200_000
-                ? try? String(contentsOf: fileURL, encoding: .utf8)
-                : nil
-
-            files.append(
+        if updated.packageType == "Image" {
+            updated.codeFiles = [
                 LambdaCodeFile(
-                    path: relativePath,
-                    content: content,
-                    isBinary: content == nil
+                    path: "Container Image",
+                    content: updated.imageUri,
+                    isBinary: true
                 )
-            )
+            ]
+        } else if let location = response.code?.location {
+            updated.codeFiles = try await LambdaCodePreview().load(from: location)
         }
-
-        return files.sorted { $0.path < $1.path }
-    }
-
-    private nonisolated static func isLikelyTextFile(_ url: URL) -> Bool {
-        let textExtensions: Set<String> = [
-            "c", "conf", "cpp", "cs", "css", "go", "h", "html", "java", "js", "json",
-            "jsx", "kt", "mjs", "php", "properties", "py", "rb", "rs", "sh", "swift",
-            "toml", "ts", "tsx", "txt", "xml", "yaml", "yml"
-        ]
-        return textExtensions.contains(url.pathExtension.lowercased())
+        return updated
     }
 
     private static func fetchFunctions(client: Lambda) async throws -> [LambdaFunctionModel] {
@@ -836,26 +776,6 @@ final class LambdaViewModel: ObservableObject {
             return error.errorCode
         }
         return nil
-    }
-}
-
-enum LambdaCodeError: LocalizedError {
-    case invalidDownloadURL
-    case downloadFailed(Int?)
-    case unzipFailed
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidDownloadURL:
-            return "Lambda code download URL is invalid."
-        case .downloadFailed(let statusCode):
-            if let statusCode {
-                return "Lambda code download failed with HTTP \(statusCode)."
-            }
-            return "Lambda code download failed."
-        case .unzipFailed:
-            return "Unable to unzip Lambda deployment package."
-        }
     }
 }
 

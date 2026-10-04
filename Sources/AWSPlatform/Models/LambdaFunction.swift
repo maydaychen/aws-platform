@@ -23,7 +23,7 @@ struct LambdaFunctionModel: Identifiable, Hashable {
     var id: String { functionName }
 }
 
-struct LambdaCodeFile: Identifiable, Hashable {
+struct LambdaCodeFile: Identifiable, Hashable, Sendable {
     let path: String
     let content: String?
     let isBinary: Bool

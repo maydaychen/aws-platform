@@ -444,7 +444,11 @@ Region 列表包含 SDK 已知的常用区域以及配置中的区域，也可�
 
 Lambda 列表通过 `GetFunction` 补充状态和标签，最多同时读取 4 个函数。部分函数权限不足或读取失败时，列表仍保留，显示提示；状态筛选不包含状态未知的函数。相关权限至少包括 `lambda:ListFunctions` 和用于补充信息的 `lambda:GetFunction`。
 
-手动加载 Lambda 部署包源码时，应用下载 ZIP 并写入系统临时目录进行解压；处理结束时尝试删除本次临时目录。源码查看会在本机产生临时文件。
+手动加载 Lambda 源码时，应用将 ZIP 流式下载到私有系统临时目录，在内存中读取内容，并在成功、失败或取消后尝试删除临时目录。ZIP 条目不会按其路径解压到文件系统；查看源码仍会在本机产生临时 ZIP 文件。
+
+源码预览上限为：下载 50 MiB、展开内容 250 MiB、文件及目录共 10,000 项、累计文本预览 10 MiB。单个文本仍保留 200,000 字节的预览限制；二进制和较大的文件只列出名称。隐藏条目不展示，但仍计入部署包限制。下载最多等待 60 秒，ZIP 处理限时 30 秒；加载时可点击「取消」。切换函数或清空／切换 Profile 后，旧请求失效。
+
+预览支持使用 Store 或 Deflate 的普通未加密单卷 ZIP。ZIP64、符号链接、特殊文件、替代路径／链接元数据、不安全或重复路径、超过 1,024 字节或 32 层的路径，以及大小或 CRC 不一致的内容会被拒绝并显示错误。这些是本地预览限制，不是 AWS 部署配额。容器镜像函数继续展示镜像信息，不读取 ZIP 源码。
 
 参考：[AWS CLI 凭据导出](https://docs.aws.amazon.com/cli/latest/reference/configure/export-credentials.html) 、[AWS CLI 环境变量](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) 、[Lambda 列表接口字段范围](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html) 。
 

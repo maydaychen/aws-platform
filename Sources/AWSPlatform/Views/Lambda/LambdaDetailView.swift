@@ -401,6 +401,11 @@ struct LambdaDetailView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
+                if vm.isCodeLoading {
+                    Button(L10n.text("Cancel", locale: locale)) {
+                        vm.cancelCodeLoading()
+                    }
+                }
                 Button(L10n.text(vm.isCodeLoading ? "Loading…" : "Load Code", locale: locale)) {
                     vm.loadCodeForSelection()
                 }

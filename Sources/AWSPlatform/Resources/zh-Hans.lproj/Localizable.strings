@@ -527,6 +527,15 @@
 "Lambda code download URL is invalid." = "Lambda 代码下载 URL 无效。";
 "Lambda code download failed with HTTP %@." = "Lambda 代码下载失败，HTTP 状态码为 %1$@。";
 "Lambda code download failed." = "Lambda 代码下载失败。";
+"Lambda code download timed out. Try again." = "Lambda 代码下载超时，请重试。";
+"Lambda deployment package exceeds the download size limit." = "Lambda 部署包超过下载大小上限。";
+"Lambda deployment package exceeds the expanded size limit." = "Lambda 部署包超过展开内容的大小上限。";
+"Lambda deployment package is damaged or has inconsistent ZIP metadata." = "Lambda 部署包已损坏或 ZIP 元数据不一致。";
+"Lambda deployment package contains unsafe, duplicate, or unsupported file paths." = "Lambda 部署包包含不安全、重复或不支持的文件路径。";
+"Lambda deployment package contains too many files or directories." = "Lambda 部署包的文件或目录数量超过上限。";
+"Lambda source files exceed the total text preview limit." = "Lambda 源码超过累计文本预览大小上限。";
+"Lambda source preview supports only unencrypted, single-disk ZIP files using Store or Deflate, without ZIP64 or special file entries." = "Lambda 源码预览仅支持使用 Store 或 Deflate 的未加密单卷 ZIP，不支持 ZIP64 或特殊文件。";
+"Lambda source preview timed out while reading the ZIP." = "Lambda 源码预览读取 ZIP 超时。";
 "Lambda logs" = "Lambda 日志";
 "Lambda resource policy does not contain statements." = "Lambda 资源策略不包含策略语句。";
 "Lambda resource policy is not valid JSON." = "Lambda 资源策略不是有效的 JSON。";
@@ -1261,7 +1270,6 @@
 "Unable to read CloudWatch alarm configuration. Check the selected profile, region and permissions, then refresh." = "无法读取 CloudWatch 告警配置。请检查所选 Profile、区域和权限后刷新。";
 "Unable to refresh the SSO session. Check your network and retry, or use SSO Login to authorize again." = "无法刷新 SSO 会话。请检查网络后重试，或使用 SSO 登录重新授权。";
 "Unable to start AWS CLI. Check its installation and try again." = "无法启动 AWS CLI。请检查安装后重试。";
-"Unable to unzip Lambda deployment package." = "无法解压 Lambda 部署包。";
 "Unauthenticated request" = "未经身份验证的请求";
 "Unhealthy threshold" = "不健康阈值";
 "Unimpaired" = "未受影响";

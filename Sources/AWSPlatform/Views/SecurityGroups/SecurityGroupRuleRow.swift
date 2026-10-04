@@ -1,15 +1,17 @@
 import SwiftUI
 
 struct SecurityGroupRuleRow: View {
+    @Environment(\.locale) private var locale
     let rule: SecurityGroupRule
     let inbound: Bool
 
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 12) {
-                DetailGrid(items: [("Protocol", rule.protocolName), ("Ports / ICMP type and code", rule.portRange)])
+                DetailGrid(items: [("Protocol", L10n.text(rule.protocolName, locale: locale)),
+                                   ("Ports / ICMP type and code", L10n.text(rule.portRange, locale: locale))])
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(inbound ? "Source" : "Destination").font(.caption).foregroundColor(.secondary)
+                    Text(L10n.text(inbound ? "Source" : "Destination", locale: locale)).font(.caption).foregroundColor(.secondary)
                     Text(verbatim: rule.target).font(.callout.monospaced()).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -19,8 +21,8 @@ struct SecurityGroupRuleRow: View {
                 }
                 if rule.referencedGroupID != nil || rule.referencedAccountID != nil {
                     DetailGrid(items: [
-                        ("Referenced group", rule.referencedGroupID ?? "Not returned"),
-                        ("Referenced account", rule.referencedAccountID ?? "Not returned")
+                        ("Referenced group", rule.referencedGroupID ?? L10n.text("Not returned", locale: locale)),
+                        ("Referenced account", rule.referencedAccountID ?? L10n.text("Not returned", locale: locale))
                     ])
                 }
                 if !rule.fields.isEmpty { SecurityGroupFieldRows(fields: rule.fields) }
@@ -28,7 +30,7 @@ struct SecurityGroupRuleRow: View {
             .padding(.top, 10)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(rule.protocolName) · \(rule.portRange)").font(.callout.weight(.medium))
+                Text("\(L10n.text(rule.protocolName, locale: locale)) · \(L10n.text(rule.portRange, locale: locale))").font(.callout.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
                 Text(rule.target).font(.caption).foregroundColor(.secondary).lineLimit(2).help(rule.target)
             }
@@ -40,14 +42,17 @@ struct SecurityGroupRuleRow: View {
 }
 
 struct SecurityGroupFieldRows: View {
+    @Environment(\.locale) private var locale
     let fields: [ELBField]
+    var isVerbatimLabels = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(fields.indices, id: \.self) { index in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(verbatim: fields[index].name).font(.caption).foregroundColor(.secondary)
-                    Text(verbatim: fields[index].value.isEmpty ? "(empty)" : fields[index].value)
+                    Text(verbatim: isVerbatimLabels ? fields[index].name : L10n.text(fields[index].name, locale: locale))
+                        .font(.caption).foregroundColor(.secondary)
+                    Text(verbatim: displayedValue(fields[index]))
                         .font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 10)
@@ -56,5 +61,11 @@ struct SecurityGroupFieldRows: View {
         }
         .padding(.horizontal, 12)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func displayedValue(_ field: ELBField) -> String {
+        if field.value.isEmpty { return L10n.text("(empty)", locale: locale) }
+        if !isVerbatimLabels && field.name == "Target type" { return L10n.text(field.value, locale: locale) }
+        return field.value
     }
 }

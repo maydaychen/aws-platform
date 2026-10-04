@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AlarmListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: AlarmViewModel
 
     var body: some View {
@@ -8,14 +9,14 @@ struct AlarmListView: View {
             ListToolbar(title: "CloudWatch Alarms", isLoading: vm.isLoading, searchText: $vm.searchText,
                         onRefresh: vm.refresh, onCancel: vm.cancelLoading)
             HStack(spacing: 8) {
-                Picker("State", selection: $vm.stateFilter) {
+                Picker(L10n.text("State", locale: locale), selection: $vm.stateFilter) {
                     ForEach(vm.availableStates, id: \.self) { state in
-                        Text(state == "All" ? "All states" : state).tag(state)
+                        Text(state == "All" ? L10n.text("All states", locale: locale) : state).tag(state)
                     }
                 }
-                Picker("Alarm type", selection: $vm.kindFilter) {
-                    Text("All types").tag(Optional<AlarmKind>.none)
-                    ForEach(AlarmKind.allCases) { kind in Text(kind.title).tag(Optional(kind)) }
+                Picker(L10n.text("Alarm type", locale: locale), selection: $vm.kindFilter) {
+                    Text(L10n.text("All types", locale: locale)).tag(Optional<AlarmKind>.none)
+                    ForEach(AlarmKind.allCases) { kind in Text(L10n.text(kind.title, locale: locale)).tag(Optional(kind)) }
                 }
             }
             .labelsHidden()
@@ -31,7 +32,7 @@ struct AlarmListView: View {
                     HStack(spacing: 8) {
                         AlarmStateLabel(state: alarm.state)
                         Spacer(minLength: 0)
-                        Text(alarm.kind.title).foregroundColor(.secondary)
+                        Text(L10n.text(alarm.kind.title, locale: locale)).foregroundColor(.secondary)
                     }
                     .font(.caption)
                 }
@@ -42,7 +43,7 @@ struct AlarmListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isLoading && vm.alarms.isEmpty {
-                    ProgressView("Loading alarms…")
+                    ProgressView(L10n.text("Loading alarms…", locale: locale))
                 } else if !vm.isLoading && vm.filteredAlarms.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "bell")
                 }
@@ -60,10 +61,11 @@ struct AlarmListView: View {
 }
 
 struct AlarmStateLabel: View {
+    @Environment(\.locale) private var locale
     let state: String
 
     var body: some View {
-        Label(state, systemImage: icon)
+        Label(state == "Unknown" ? L10n.text("Unknown", locale: locale) : state, systemImage: icon)
             .foregroundColor(color)
             .lineLimit(1)
             .help(state)

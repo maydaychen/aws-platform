@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct SecurityGroupDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", inbound = "Inbound rules", outbound = "Outbound rules", tags = "Tags"
         var id: Self { self }
@@ -43,9 +44,9 @@ struct SecurityGroupDetailView: View {
                             case .outbound: ruleList(group.outboundRules, inbound: false)
                             case .tags:
                                 if group.tags.isEmpty {
-                                    Text("No tags returned.").font(.callout).foregroundColor(.secondary)
+                                    Text(L10n.text("No tags returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
                                 } else {
-                                    SecurityGroupFieldRows(fields: group.tags)
+                                    SecurityGroupFieldRows(fields: group.tags, isVerbatimLabels: true)
                                 }
                             }
                         }
@@ -69,11 +70,11 @@ struct SecurityGroupDetailView: View {
                 Spacer(minLength: 0)
                 if vm.isLoading {
                     Button(action: vm.cancel) { Image(systemName: "xmark.circle") }
-                        .help("Cancel security group refresh").accessibilityLabel("Cancel security group refresh")
+                        .help(L10n.text("Cancel security group refresh", locale: locale)).accessibilityLabel(L10n.text("Cancel security group refresh", locale: locale))
                 }
                 Button(action: vm.refresh) { Image(systemName: "arrow.clockwise") }
                     .disabled(vm.isLoading)
-                    .help("Refresh security groups and rules").accessibilityLabel("Refresh security groups and rules")
+                    .help(L10n.text("Refresh security groups and rules", locale: locale)).accessibilityLabel(L10n.text("Refresh security groups and rules", locale: locale))
             }
             HStack(spacing: 6) {
                 Text(group.id).font(.caption.monospaced()).foregroundColor(.secondary).textSelection(.enabled)
@@ -81,10 +82,10 @@ struct SecurityGroupDetailView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(group.id, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy security group ID").accessibilityLabel("Copy security group ID")
+                .buttonStyle(.borderless).help(L10n.text("Copy security group ID", locale: locale)).accessibilityLabel(L10n.text("Copy security group ID", locale: locale))
             }
             if vm.isStale {
-                Text("Showing previously loaded security group configuration.")
+                Text(L10n.text("Showing previously loaded security group configuration.", locale: locale))
                     .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -95,8 +96,8 @@ struct SecurityGroupDetailView: View {
     private func overview(_ group: SecurityGroupModel) -> some View {
         DetailGrid(items: [
             ("Group ID", group.id), ("Name", group.name),
-            ("Owner account", group.ownerID ?? "Not returned"), ("VPC", group.vpcID ?? "Not returned"),
-            ("Region", vm.scope?.region ?? "Not returned"),
+            ("Owner account", group.ownerID ?? L10n.text("Not returned", locale: locale)), ("VPC", group.vpcID ?? L10n.text("Not returned", locale: locale)),
+            ("Region", vm.scope?.region ?? L10n.text("Not returned", locale: locale)),
             ("Inbound rules", String(group.inboundRules.count)), ("Outbound rules", String(group.outboundRules.count))
         ])
         if let description = group.description, !description.isEmpty {
@@ -112,11 +113,12 @@ struct SecurityGroupDetailView: View {
     @ViewBuilder
     private func ruleList(_ rules: [SecurityGroupRule], inbound: Bool) -> some View {
         let rows = filteredRules(rules)
-        Text(rows.count == rules.count ? "\(rules.count) \(rules.count == 1 ? "rule" : "rules")"
-             : "\(rows.count) of \(rules.count) rules")
+        Text(rows.count == rules.count
+             ? L10n.format(rules.count == 1 ? "%@ rule" : "%@ rules", String(rules.count), locale: locale)
+             : L10n.format("%@ of %@ rules", String(rows.count), String(rules.count), locale: locale))
             .font(.caption).foregroundColor(.secondary)
         if rows.isEmpty {
-            EmptyStateView(text: rules.isEmpty ? "No \(inbound ? "inbound" : "outbound") rules returned."
+            EmptyStateView(text: rules.isEmpty ? (inbound ? "No inbound rules returned." : "No outbound rules returned.")
                            : "No matching rules. Try another search.", icon: "line.3.horizontal.decrease.circle")
                 .frame(minHeight: 180)
         } else {

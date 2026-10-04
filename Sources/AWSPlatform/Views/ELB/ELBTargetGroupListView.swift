@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ELBTargetGroupListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: ELBViewModel
 
     var body: some View {
@@ -11,8 +12,8 @@ struct ELBTargetGroupListView: View {
                 .disabled(vm.scope == nil)
             VStack(alignment: .leading, spacing: 8) {
                 ELBScopeCaption(scope: vm.scope)
-                Picker("Target type", selection: $vm.targetTypeFilter) {
-                    Text("All target types").tag("All")
+                Picker(L10n.text("Target type", locale: locale), selection: $vm.targetTypeFilter) {
+                    Text(L10n.text("All target types", locale: locale)).tag("All")
                     ForEach(Set(vm.targetGroups.map(\.targetType)).sorted(), id: \.self) { type in Text(type).tag(type) }
                 }
                 .labelsHidden().disabled(vm.scope == nil)
@@ -23,7 +24,7 @@ struct ELBTargetGroupListView: View {
             List(vm.filteredTargetGroups, selection: $vm.selectedTargetGroup) { group in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(group.name).fontWeight(.medium).lineLimit(2).help(group.name)
-                    Text("\(group.targetType) · \(ELBDisplay.returned(group.protocolName))\(group.port.map { ":\($0)" } ?? "")")
+                    Text("\(group.targetType) · \(ELBDisplay.returned(group.protocolName, locale: locale))\(group.port.map { ":\($0)" } ?? "")")
                         .font(.caption).foregroundColor(.secondary).lineLimit(1)
                 }
                 .padding(.vertical, 5).tag(group).help(group.arn)
@@ -31,7 +32,7 @@ struct ELBTargetGroupListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isTargetGroupsLoading && vm.targetGroups.isEmpty {
-                    ProgressView("Loading target groups…")
+                    ProgressView(L10n.text("Loading target groups…", locale: locale))
                 } else if !vm.isTargetGroupsLoading && vm.filteredTargetGroups.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "target")
                 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HealthEventListView: View {
     @ObservedObject var vm: HealthViewModel
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +22,7 @@ struct HealthEventListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isLoading && vm.events.isEmpty {
-                    ProgressView("Loading Health events…")
+                    ProgressView(L10n.text("Loading Health events…", locale: locale))
                 } else if !vm.isLoading && vm.filteredEvents.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "heart.text.square")
                 }
@@ -42,33 +43,35 @@ struct HealthEventListView: View {
 
     private func filter(_ title: String, selection: Binding<String>, values: [String]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundColor(.secondary)
-            Picker(title, selection: selection) {
+            Text(L10n.text(title, locale: locale)).font(.caption).foregroundColor(.secondary)
+            Picker(L10n.text(title, locale: locale), selection: selection) {
                 ForEach(values, id: \.self) { value in
-                    Text(HealthDisplay.label(value)).tag(value)
+                    Text(value == "All" || title == "Status" || title == "Category"
+                         ? HealthDisplay.label(value, locale: locale)
+                         : HealthDisplay.returned(value, locale: locale)).tag(value)
                 }
             }
             .labelsHidden()
             .frame(maxWidth: .infinity)
-            .help(title == "Event region" ? "Filter event regions within this account. Independent of the resource region." : title)
+            .help(L10n.text(title == "Event region" ? "Filter event regions within this account. Independent of the resource region." : title, locale: locale))
         }
     }
 
     private func eventRow(_ event: HealthEvent) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(HealthDisplay.returned(event.typeCode)).fontWeight(.medium)
+            Text(HealthDisplay.returned(event.typeCode, locale: locale)).fontWeight(.medium)
                 .lineLimit(2).help(event.typeCode)
             HStack(spacing: 8) {
-                Text("\(HealthDisplay.returned(event.service)) · \(HealthDisplay.returned(event.region))")
+                Text("\(HealthDisplay.returned(event.service, locale: locale)) · \(HealthDisplay.returned(event.region, locale: locale))")
                     .foregroundColor(.secondary).lineLimit(1)
                 Spacer(minLength: 0)
                 HealthStatusLabel(status: event.status)
             }
             .font(.caption)
-            Text("Updated \(HealthDisplay.date(event.lastUpdatedTime))")
+            Text(L10n.format("Updated %@", HealthDisplay.date(event.lastUpdatedTime, locale: locale), locale: locale))
                 .font(.caption2.monospacedDigit()).foregroundColor(.secondary)
                 .lineLimit(1)
-                .help(HealthDisplay.date(event.lastUpdatedTime))
+                .help(HealthDisplay.date(event.lastUpdatedTime, locale: locale))
         }
         .padding(.vertical, 5)
         .help(event.arn)
@@ -77,8 +80,8 @@ struct HealthEventListView: View {
     private var footer: some View {
         HStack {
             Text(vm.filteredEvents.count == vm.events.count
-                 ? "\(vm.events.count) \(vm.events.count == 1 ? "event" : "events")"
-                 : "\(vm.filteredEvents.count) of \(vm.events.count) events")
+                 ? L10n.format(vm.events.count == 1 ? "%@ event" : "%@ events", String(vm.events.count), locale: locale)
+                 : L10n.format("%@ of %@ events", String(vm.filteredEvents.count), String(vm.events.count), locale: locale))
             Spacer(minLength: 0)
             Text("UTC")
         }
@@ -97,10 +100,11 @@ struct HealthEventListView: View {
 
 struct HealthStatusLabel: View {
     let status: String
+    @Environment(\.locale) private var locale
 
     var body: some View {
-        Label(HealthDisplay.label(status), systemImage: icon)
-            .foregroundColor(color).lineLimit(1).help(HealthDisplay.returned(status))
+        Label(HealthDisplay.label(status, locale: locale), systemImage: icon)
+            .foregroundColor(color).lineLimit(1).help(HealthDisplay.returned(status, locale: locale))
     }
 
     private var icon: String {
@@ -124,26 +128,31 @@ struct HealthStatusLabel: View {
 }
 
 enum HealthDisplay {
-    static func returned(_ value: String?) -> String {
-        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "Not returned" }
+    static func returned(_ value: String?, locale: Locale) -> String {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return L10n.text("Not returned", locale: locale) }
         return value
     }
 
-    static func label(_ value: String) -> String {
-        switch value {
-        case "open": return "Open"
-        case "upcoming": return "Upcoming"
-        case "closed": return "Closed"
-        case "issue": return "Issue"
-        case "scheduledChange": return "Scheduled change"
-        case "accountNotification": return "Account notification"
-        case "investigation": return "Investigation"
-        default: return returned(value)
+    static func label(_ value: String, locale: Locale) -> String {
+        switch value.lowercased() {
+        case "all": return L10n.text("All", locale: locale)
+        case "open": return L10n.text("Ongoing", locale: locale)
+        case "upcoming": return L10n.text("Upcoming", locale: locale)
+        case "closed": return L10n.text("Closed", locale: locale)
+        case "pending": return L10n.text("Pending", locale: locale)
+        case "resolved": return L10n.text("Resolved", locale: locale)
+        case "impaired": return L10n.text("Impaired", locale: locale)
+        case "unimpaired": return L10n.text("Unimpaired", locale: locale)
+        case "issue": return L10n.text("Issue", locale: locale)
+        case "scheduledchange": return L10n.text("Scheduled change", locale: locale)
+        case "accountnotification": return L10n.text("Account notification", locale: locale)
+        case "investigation": return L10n.text("Investigation", locale: locale)
+        default: return returned(value, locale: locale)
         }
     }
 
-    static func date(_ value: Date?) -> String {
-        guard let value else { return "Not returned" }
+    static func date(_ value: Date?, locale: Locale) -> String {
+        guard let value else { return L10n.text("Not returned", locale: locale) }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)

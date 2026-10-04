@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProfileBarView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: ProfileViewModel
     let onRetry: () -> Void
     var onLogin: () -> Void = {}
@@ -14,39 +15,39 @@ struct ProfileBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Label("AWS Platform", systemImage: "cloud.fill")
+                Label(L10n.text("AWS Platform", locale: locale), systemImage: "cloud.fill")
                     .font(.headline)
                 Spacer()
                 profileStatusView
             }
             HStack(spacing: 12) {
-                Picker("SSO Session", selection: Binding(
+                Picker(L10n.text("SSO Session", locale: locale), selection: Binding(
                     get: { vm.profileSource },
                     set: { vm.selectSource($0) }
                 )) {
-                    Text("Select session").tag(Optional<AWSProfileSource>.none)
+                    Text(L10n.text("Select session", locale: locale)).tag(Optional<AWSProfileSource>.none)
                     ForEach(vm.sessions) { session in
                         Text(session.name).tag(Optional(AWSProfileSource.session(session.id)))
                     }
                     Divider()
-                    Text("Other profiles").tag(Optional(AWSProfileSource.other))
+                    Text(L10n.text("Other profiles", locale: locale)).tag(Optional(AWSProfileSource.other))
                 }
                 .frame(minWidth: 250, idealWidth: 380, maxWidth: 440)
                 if vm.isSigningIn {
-                    Button("Cancel Login", action: onCancelLogin)
+                    Button(L10n.text("Cancel Login", locale: locale), action: onCancelLogin)
                 } else if vm.selectedSession != nil {
-                    Button("SSO Login", action: onLogin)
+                    Button(L10n.text("SSO Login", locale: locale), action: onLogin)
                         .disabled(!vm.canSignIn)
-                        .help("Sign in to this session. Choose a profile afterwards to load resources.")
+                        .help(L10n.text("Sign in to this session. Choose a profile afterwards to load resources.", locale: locale))
                 }
                 Spacer()
             }
             HStack(spacing: 12) {
-                Picker("Profile", selection: Binding(
+                Picker(L10n.text("Profile", locale: locale), selection: Binding(
                     get: { vm.selectedProfileID ?? "" },
                     set: { vm.selectProfile(id: $0.isEmpty ? nil : $0) }
                 )) {
-                    Text("Select profile").tag("")
+                    Text(L10n.text("Select profile", locale: locale)).tag("")
                     ForEach(vm.availableProfiles) { profile in
                         Text(profile.displayName).tag(profile.id)
                     }
@@ -57,23 +58,23 @@ struct ProfileBarView: View {
                 if showsResourceRegion {
                     resourceRegionControls
                 } else {
-                    Label(globalScopeMessage, systemImage: "globe")
+                    Label(L10n.text(globalScopeMessage, locale: locale), systemImage: "globe")
                         .font(.caption).foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)
-                Button(vm.selectedProfile == nil ? "Reload Config" : "Retry Connection", action: onRetry)
+                Button(L10n.text(vm.selectedProfile == nil ? "Reload Config" : "Retry Connection", locale: locale), action: onRetry)
                     .disabled(vm.isValidatingProfile || vm.isSigningIn)
-                    .help("Reload profiles and revalidate credentials after signing in")
+                    .help(L10n.text("Reload profiles and revalidate credentials after signing in", locale: locale))
             }
             if vm.isSigningIn {
-                Text("Complete SSO authorization in your browser. This may take up to 5 minutes. If no browser opens, cancel and sign in from Terminal.")
+                Text(L10n.text("Complete SSO authorization in your browser. This may take up to 5 minutes. If no browser opens, cancel and sign in from Terminal.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
             } else if let message = vm.loginMessage {
                 NoticeBanner(message: message)
             } else if case .failed(let message) = vm.profileStatus {
                 NoticeBanner(message: message)
             } else if vm.selectedProfile == nil {
-                Text(vm.selectionPrompt).font(.caption).foregroundColor(.secondary)
+                Text(L10n.text(vm.selectionPrompt, locale: locale)).font(.caption).foregroundColor(.secondary)
             }
         }
         .padding(.horizontal)
@@ -83,7 +84,7 @@ struct ProfileBarView: View {
 
     @ViewBuilder
     private var resourceRegionControls: some View {
-        Picker("Region", selection: $vm.selectedRegion) {
+        Picker(L10n.text("Region", locale: locale), selection: $vm.selectedRegion) {
             ForEach(vm.availableRegions, id: \.self) { region in
                 Text(region).tag(region)
             }
@@ -97,19 +98,19 @@ struct ProfileBarView: View {
         } label: {
             Image(systemName: "pencil")
         }
-        .help("Enter another AWS region")
+        .help(L10n.text("Enter another AWS region", locale: locale))
         .disabled(vm.selectedProfile == nil || vm.isSigningIn)
-        .accessibilityLabel("Enter another AWS region")
+        .accessibilityLabel(L10n.text("Enter another AWS region", locale: locale))
         .popover(isPresented: $isCustomRegionPresented) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("AWS Region").font(.headline)
-                TextField("Region code", text: $customRegion)
+                Text(L10n.text("AWS Region", locale: locale)).font(.headline)
+                TextField(L10n.text("Region code", locale: locale), text: $customRegion)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(applyCustomRegion)
                 if let regionError {
-                    Text(regionError).font(.caption).foregroundColor(.orange)
+                    Text(L10n.text(regionError, locale: locale)).font(.caption).foregroundColor(.orange)
                 }
-                Button("Use Region", action: applyCustomRegion)
+                Button(L10n.text("Use Region", locale: locale), action: applyCustomRegion)
             }
             .padding()
             .frame(width: 280)
@@ -129,30 +130,30 @@ struct ProfileBarView: View {
         if vm.isSigningIn {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
-                Text("Waiting for browser authorization…").font(.caption).foregroundColor(.secondary)
+                Text(L10n.text("Waiting for browser authorization…", locale: locale)).font(.caption).foregroundColor(.secondary)
             }
         } else {
             switch vm.profileStatus {
             case .idle:
                 if let session = vm.selectedSession, vm.signedInSessionID == session.id {
-                    Label("Session signed in · Select profile", systemImage: "checkmark.circle.fill")
+                    Label(L10n.text("Session signed in · Select profile", locale: locale), systemImage: "checkmark.circle.fill")
                         .font(.caption).foregroundColor(.green)
                 }
             case .checking:
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Checking connection…").font(.caption).foregroundColor(.secondary)
+                    Text(L10n.text("Checking connection…", locale: locale)).font(.caption).foregroundColor(.secondary)
                 }
-                    .help("Checking AWS profile")
+                    .help(L10n.text("Checking AWS profile", locale: locale))
             case .valid(let identity):
                 Label(identity.account, systemImage: "checkmark.circle.fill")
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.green)
                     .help(identity.arn)
             case .failed(let message):
-                Label(vm.requiresSSOLogin ? "Login required" : "Connection failed", systemImage: "exclamationmark.triangle.fill")
+                Label(L10n.text(vm.requiresSSOLogin ? "Login required" : "Connection failed", locale: locale), systemImage: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
-                    .help(message)
+                    .help(L10n.text(message, locale: locale))
             }
         }
     }

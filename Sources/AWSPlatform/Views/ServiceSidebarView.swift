@@ -1,12 +1,14 @@
+import AppKit
 import SwiftUI
 
 struct ServiceSidebarView: View {
+    @Environment(\.locale) private var locale
     @Binding var selectedService: AWSService
     @Binding var destination: WorkspaceDestination
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("WORKSPACE")
+            Text(L10n.text("WORKSPACE", locale: locale))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 10)
@@ -14,7 +16,7 @@ struct ServiceSidebarView: View {
             Button {
                 destination = .favorites
             } label: {
-                Label("Favorites", systemImage: destination == .favorites ? "star.fill" : "star")
+                Label(L10n.text("Favorites", locale: locale), systemImage: destination == .favorites ? "star.fill" : "star")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
                 .background(destination == .favorites ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -25,7 +27,7 @@ struct ServiceSidebarView: View {
             Button {
                 destination = .recents
             } label: {
-                Label("Recent", systemImage: "clock.arrow.circlepath")
+                Label(L10n.text("Recent", locale: locale), systemImage: "clock.arrow.circlepath")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .background(destination == .recents ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -36,7 +38,7 @@ struct ServiceSidebarView: View {
             Button {
                 destination = .costs
             } label: {
-                Label("Costs", systemImage: "chart.bar.xaxis")
+                Label(L10n.text("Costs", locale: locale), systemImage: "chart.bar.xaxis")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .background(destination == .costs ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -47,14 +49,14 @@ struct ServiceSidebarView: View {
             Button {
                 destination = .health
             } label: {
-                Label("Health", systemImage: "heart.text.square")
+                Label(L10n.text("Health", locale: locale), systemImage: "heart.text.square")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .background(destination == .health ? Color.accentColor.opacity(0.18) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            Text("SERVICES")
+            Text(L10n.text("SERVICES", locale: locale))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 10)
@@ -78,7 +80,11 @@ struct ServiceSidebarView: View {
                     }
                 }
             }
-            Label("Read only", systemImage: "lock")
+            settingsLink
+                .buttonStyle(.plain)
+                .padding(10)
+                .help(L10n.text("Settings (⌘,)", locale: locale))
+            Label(L10n.text("Read only", locale: locale), systemImage: "lock")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(10)
@@ -87,5 +93,21 @@ struct ServiceSidebarView: View {
         .frame(width: 176)
         .frame(maxHeight: .infinity)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var settingsLink: some View {
+        if #available(macOS 14, *) {
+            SettingsLink {
+                Label(L10n.text("Settings", locale: locale), systemImage: "gearshape")
+            }
+        } else {
+            // SettingsLink requires macOS 14; the native Settings scene supplies this responder action on 13.
+            Button {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } label: {
+                Label(L10n.text("Settings", locale: locale), systemImage: "gearshape")
+            }
+        }
     }
 }

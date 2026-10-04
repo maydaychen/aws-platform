@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ELBLoadBalancerDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", listeners = "Listeners", targetGroups = "Target Groups"
         var id: Self { self }
@@ -33,7 +34,7 @@ struct ELBLoadBalancerDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ELBDetailHeader(name: loadBalancer.name, subtitle: "\(ELBDisplay.kind(loadBalancer.kind)) · \(ELBDisplay.returned(loadBalancer.scheme))",
+            ELBDetailHeader(name: loadBalancer.name, subtitle: "\(L10n.text(ELBDisplay.kind(loadBalancer.kind), locale: locale)) · \(ELBDisplay.returned(loadBalancer.scheme, locale: locale))",
                             arn: loadBalancer.arn, isLoading: isLoading, isEnabled: isCurrentSelection,
                             onRefresh: refresh, onCancel: cancel)
             Divider()
@@ -59,8 +60,8 @@ struct ELBLoadBalancerDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             ELBScopeCaption(scope: vm.scope)
             if let error = vm.loadBalancersError { NoticeBanner(message: error) }
-            DetailGrid(items: [("Type", ELBDisplay.kind(loadBalancer.kind)), ("Scheme", ELBDisplay.returned(loadBalancer.scheme)),
-                               ("State", ELBDisplay.returned(loadBalancer.state)), ("DNS name", ELBDisplay.returned(loadBalancer.dnsName))])
+            DetailGrid(items: [("Type", L10n.text(ELBDisplay.kind(loadBalancer.kind), locale: locale)), ("Scheme", ELBDisplay.returned(loadBalancer.scheme, locale: locale)),
+                               ("State", ELBDisplay.returned(loadBalancer.state, locale: locale)), ("DNS name", ELBDisplay.returned(loadBalancer.dnsName, locale: locale))])
             if !loadBalancer.fields.isEmpty {
                 DetailSectionTitle(title: "Configuration")
                 ELBFieldRows(fields: loadBalancer.fields)
@@ -70,18 +71,18 @@ struct ELBLoadBalancerDetailView: View {
 
     private var targetGroups: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Target groups associated with this load balancer in the current profile and region. These are configured relationships, not observed traffic.")
+            Text(L10n.text("Target groups associated with this load balancer in the current profile and region. These are configured relationships, not observed traffic.", locale: locale))
                 .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             if isCurrentSelection, let error = vm.targetGroupsError { NoticeBanner(message: error) }
             if isCurrentSelection && vm.isTargetGroupsLoading && vm.targetGroups.isEmpty {
-                ProgressView("Loading associated target groups…").controlSize(.small)
+                ProgressView(L10n.text("Loading associated target groups…", locale: locale)).controlSize(.small)
             } else if !associatedGroups.isEmpty {
                 ForEach(associatedGroups) { group in
                     ELBLinkedResourceRow(arn: group.arn, name: group.name, service: .targetGroups, scope: vm.scope, onOpen: onOpen)
                         .padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
                 }
             } else if vm.targetGroupsError == nil && !vm.isTargetGroupsLoading {
-                Text("No associated target groups were returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No associated target groups were returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
         }
         .onAppear { if isCurrentSelection { vm.loadTargetGroupsIfNeeded() } }

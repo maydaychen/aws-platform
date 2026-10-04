@@ -4,6 +4,7 @@ import SwiftUI
 struct HealthEventDetailView: View {
     let event: HealthEvent
     @ObservedObject var vm: HealthViewModel
+    @Environment(\.locale) private var locale
 
     private var isCurrentSelection: Bool { vm.scope != nil && vm.selectedEvent?.arn == event.arn }
     private var details: HealthEventDetails? {
@@ -21,17 +22,17 @@ struct HealthEventDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     DetailSectionTitle(title: "Overview")
                     DetailGrid(items: [
-                        ("Service", HealthDisplay.returned(displayedEvent.service)),
-                        ("Category", HealthDisplay.label(displayedEvent.category)),
-                        ("Event region", HealthDisplay.returned(displayedEvent.region)),
-                        ("Availability zone", HealthDisplay.returned(displayedEvent.availabilityZone)),
-                        ("Start time", HealthDisplay.date(displayedEvent.startTime)),
-                        ("End time", HealthDisplay.date(displayedEvent.endTime)),
-                        ("Last updated", HealthDisplay.date(displayedEvent.lastUpdatedTime))
+                        ("Service", HealthDisplay.returned(displayedEvent.service, locale: locale)),
+                        ("Category", HealthDisplay.label(displayedEvent.category, locale: locale)),
+                        ("Event region", HealthDisplay.returned(displayedEvent.region, locale: locale)),
+                        ("Availability zone", HealthDisplay.returned(displayedEvent.availabilityZone, locale: locale)),
+                        ("Start time", HealthDisplay.date(displayedEvent.startTime, locale: locale)),
+                        ("End time", HealthDisplay.date(displayedEvent.endTime, locale: locale)),
+                        ("Last updated", HealthDisplay.date(displayedEvent.lastUpdatedTime, locale: locale))
                     ])
                     description
                     if let details, !details.metadata.isEmpty {
-                        DisclosureGroup("Event metadata") {
+                        DisclosureGroup(L10n.text("Event metadata", locale: locale)) {
                             DetailKeyValueRows(values: details.metadata).padding(.top, 8)
                         }
                         .font(.callout)
@@ -47,22 +48,22 @@ struct HealthEventDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
-                Text(HealthDisplay.returned(displayedEvent.typeCode)).font(.title2.weight(.semibold))
+                Text(HealthDisplay.returned(displayedEvent.typeCode, locale: locale)).font(.title2.weight(.semibold))
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 if isLoading {
                     Button(action: vm.cancelDetails) { Image(systemName: "xmark.circle") }
-                        .help("Cancel loading event details and affected entities")
-                        .accessibilityLabel("Cancel loading Health event details")
+                        .help(L10n.text("Cancel loading event details and affected entities", locale: locale))
+                        .accessibilityLabel(L10n.text("Cancel loading Health event details", locale: locale))
                 }
                 Button(action: vm.refreshDetails) { Image(systemName: "arrow.clockwise") }
                     .disabled(!isCurrentSelection || isLoading)
-                    .help("Refresh event details and affected entities")
-                    .accessibilityLabel("Refresh Health event details")
+                    .help(L10n.text("Refresh event details and affected entities", locale: locale))
+                    .accessibilityLabel(L10n.text("Refresh Health event details", locale: locale))
             }
             HStack(spacing: 10) {
                 HealthStatusLabel(status: displayedEvent.status)
-                Text("All times in UTC").foregroundColor(.secondary)
+                Text(L10n.text("All times in UTC", locale: locale)).foregroundColor(.secondary)
             }
             .font(.caption)
             HStack(alignment: .top, spacing: 6) {
@@ -72,7 +73,7 @@ struct HealthEventDetailView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(event.arn, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy event ARN").accessibilityLabel("Copy event ARN")
+                .buttonStyle(.borderless).help(L10n.text("Copy event ARN", locale: locale)).accessibilityLabel(L10n.text("Copy event ARN", locale: locale))
             }
         }
         .padding(16)
@@ -82,12 +83,12 @@ struct HealthEventDetailView: View {
     private var description: some View {
         DetailSectionTitle(title: "Description")
         if isCurrentSelection && vm.isDetailLoading {
-            ProgressView("Loading event description…").controlSize(.small)
+            ProgressView(L10n.text("Loading event description…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.detailError {
             NoticeBanner(message: error)
             retryButton
         } else {
-            Text(HealthDisplay.returned(details?.description))
+            Text(HealthDisplay.returned(details?.description, locale: locale))
                 .font(.callout).foregroundColor(details?.description == nil ? .secondary : .primary)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,35 +99,35 @@ struct HealthEventDetailView: View {
     private var affectedEntities: some View {
         DetailSectionTitle(title: "Affected entities")
         if isCurrentSelection && vm.isEntitiesLoading {
-            ProgressView("Loading affected entities…").controlSize(.small)
+            ProgressView(L10n.text("Loading affected entities…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.entitiesError {
             NoticeBanner(message: error)
             retryButton
         } else if isCurrentSelection && !vm.entities.isEmpty {
-            Text("\(vm.entities.count) \(vm.entities.count == 1 ? "entity" : "entities")")
+            Text(L10n.format(vm.entities.count == 1 ? "%@ entity" : "%@ entities", String(vm.entities.count), locale: locale))
                 .font(.caption).foregroundColor(.secondary)
             LazyVStack(alignment: .leading, spacing: 12) {
                 ForEach(vm.entities) { entity in entityRow(entity) }
             }
         } else {
-            Text("No affected entities were returned.").font(.callout).foregroundColor(.secondary)
+            Text(L10n.text("No affected entities were returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
         }
     }
 
     private var retryButton: some View {
-        Button("Retry details", action: vm.refreshDetails)
+        Button(L10n.text("Retry details", locale: locale), action: vm.refreshDetails)
             .disabled(!isCurrentSelection || isLoading)
-            .help("Retry the event description and affected entities")
+            .help(L10n.text("Retry the event description and affected entities", locale: locale))
     }
 
     private func entityRow(_ entity: HealthAffectedEntity) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(HealthDisplay.returned(entity.value)).font(.callout.weight(.medium))
+            Text(HealthDisplay.returned(entity.value, locale: locale)).font(.callout.weight(.medium))
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             HealthStatusLabel(status: entity.status).font(.caption)
-            Text("Account: \(HealthDisplay.returned(entity.accountID))")
+            Text(L10n.format("Account: %@", HealthDisplay.returned(entity.accountID, locale: locale), locale: locale))
                 .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
-            Text("Updated \(HealthDisplay.date(entity.lastUpdatedTime))")
+            Text(L10n.format("Updated %@", HealthDisplay.date(entity.lastUpdatedTime, locale: locale), locale: locale))
                 .font(.caption.monospacedDigit()).foregroundColor(.secondary)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }

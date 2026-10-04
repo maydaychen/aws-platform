@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SecurityGroupListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: SecurityGroupsViewModel
 
     var body: some View {
@@ -14,9 +15,9 @@ struct SecurityGroupListView: View {
                         .font(.caption.monospacedDigit()).foregroundColor(.secondary)
                         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
-                Picker("VPC", selection: $vm.vpcFilter) {
+                Picker(L10n.text("VPC", locale: locale), selection: $vm.vpcFilter) {
                     ForEach(vm.availableVPCs, id: \.self) { value in
-                        Text(value == "All" ? "All VPCs" : value).tag(value)
+                        Text(value == "All" ? L10n.text("All VPCs", locale: locale) : value).tag(value)
                     }
                 }
                 .labelsHidden().disabled(vm.scope?.isValid != true)
@@ -34,15 +35,15 @@ struct SecurityGroupListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isLoading && vm.groups.isEmpty {
-                    ProgressView("Loading security groups…")
+                    ProgressView(L10n.text("Loading security groups…", locale: locale))
                 } else if !vm.isLoading && vm.filteredGroups.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "shield")
                 }
             }
             HStack {
                 Text(vm.filteredGroups.count == vm.groups.count
-                     ? "\(vm.groups.count) \(vm.groups.count == 1 ? "security group" : "security groups")"
-                     : "\(vm.filteredGroups.count) of \(vm.groups.count) security groups")
+                     ? L10n.format(vm.groups.count == 1 ? "%@ security group" : "%@ security groups", String(vm.groups.count), locale: locale)
+                     : L10n.format("%@ of %@ security groups", String(vm.filteredGroups.count), String(vm.groups.count), locale: locale))
                 Spacer(minLength: 0)
             }
             .font(.caption).foregroundColor(.secondary)

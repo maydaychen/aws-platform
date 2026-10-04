@@ -22,6 +22,7 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
 - **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
+- **Interface language** - Follow the system language, or choose Simplified Chinese or English; switch instantly without reloading AWS data
 - **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
 
 The app does not create, modify, or delete resources, or invoke Lambda functions.
@@ -90,6 +91,14 @@ The script uses the dependencies pinned in `Package.resolved`, builds Release ve
 - `dist/AWSPlatform-universal.zip`: an archive containing the app.
 
 These local builds use ad-hoc signing. For distribution, use `scripts/package-distribution.py` to sign with a local Developer ID Application identity, notarize with Apple, and staple the tickets. It produces versioned Universal ZIP and DMG files, checksums, and notarization records. A valid signing identity and configured `asc` authentication are required; see the [distribution packaging instructions (Chinese)](scripts/README.md#正式签名与公证). A regular `swift build` still builds only for the current machine's architecture.
+
+### Interface Language
+
+Open `Settings` at the bottom of the sidebar or press `Cmd+,`. Choose `Follow System`, `简体中文`, or `English`. The choice is saved locally and applies immediately to every open app window. Unsupported system languages fall back to English.
+
+Changing the language preserves the selected Session, Profile, Region, filters, resources, and loaded results. It does not log in, validate credentials, or send AWS requests. Service names, resource names, IDs, ARNs, AWS tags, logs, and event descriptions retain their original content. Native macOS menu labels follow the system language.
+
+For contributor guidance on display strings and resource packaging, see [Localization](docs/localization.md).
 
 ### Resource Favorites
 

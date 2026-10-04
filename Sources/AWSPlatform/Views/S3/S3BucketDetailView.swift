@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct S3BucketDetailView: View {
+    @Environment(\.locale) private var locale
     let bucket: S3BucketModel
     let onBrowse: () -> Void
 
@@ -8,7 +9,7 @@ struct S3BucketDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("S3 BUCKET", systemImage: "externaldrive")
+                    Label(L10n.text("S3 BUCKET", locale: locale), systemImage: "externaldrive")
                         .font(.caption).foregroundColor(.secondary)
                     Text(bucket.name)
                         .font(.title2.weight(.semibold))
@@ -18,7 +19,7 @@ struct S3BucketDetailView: View {
 
                 DetailGrid(items: detailItems)
 
-                Button("Browse Objects", action: onBrowse)
+                Button(L10n.text("Browse Objects", locale: locale), action: onBrowse)
                     .buttonStyle(.borderedProminent)
 
                 if let detailError = bucket.detailError {
@@ -37,17 +38,17 @@ struct S3BucketDetailView: View {
 
     private func display(_ value: Bool?) -> String {
         guard let value else { return "-" }
-        return value ? "Enabled" : "Disabled"
+        return L10n.text(value ? "Enabled" : "Disabled", locale: locale)
     }
 
     private func display(_ value: Bool) -> String {
-        value ? "Enabled" : "Disabled"
+        L10n.text(value ? "Enabled" : "Disabled", locale: locale)
     }
 
     private var detailItems: [(String, String)] {
         var items = [
             ("Region", bucket.region ?? "-"),
-            ("Created", bucket.creationDate?.formatted() ?? "-"),
+            ("Created", bucket.creationDate?.formatted(Date.FormatStyle().locale(locale)) ?? "-"),
             ("Versioning", display(bucket.versioningEnabled)),
             ("Encryption", display(bucket.encryptionEnabled))
         ]

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LambdaLogsView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: LambdaLogsViewModel
     let scope: MonitoringScope?
     let context: LambdaLogContext?
@@ -9,7 +10,7 @@ struct LambdaLogsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 controls
-                Text("Manual search only. CloudWatch Logs pricing applies; there is no automatic polling and results stay in memory.")
+                Text(L10n.text("Manual search only. CloudWatch Logs pricing applies; there is no automatic polling and results stay in memory.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let context {
@@ -17,7 +18,7 @@ struct LambdaLogsView: View {
                         Text(context.logGroup).font(.caption.monospaced()).textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                         if context.isCustomGroup {
-                            Text("Shared group: only streams belonging to this function are searched.")
+                            Text(L10n.text("Shared group: only streams belonging to this function are searched.", locale: locale))
                                 .font(.caption).foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -50,22 +51,22 @@ struct LambdaLogsView: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text("Lambda logs").font(.headline)
+                Text(L10n.text("Lambda logs", locale: locale)).font(.headline)
                 Spacer(minLength: 0)
                 if canSearch && vm.isLoading {
                     ProgressView().controlSize(.small)
-                    Button("Cancel", action: vm.cancelLoading)
+                    Button(L10n.text("Cancel", locale: locale), action: vm.cancelLoading)
                 }
-                Button("Search", action: vm.search).disabled(!canSearch || vm.isLoading)
+                Button(L10n.text("Search", locale: locale), action: vm.search).disabled(!canSearch || vm.isLoading)
             }
-            Picker("Time range", selection: $vm.timeRange) {
-                ForEach(MonitoringTimeRange.allCases, id: \.self) { range in Text(range.title).tag(range) }
+            Picker(L10n.text("Time range", locale: locale), selection: $vm.timeRange) {
+                ForEach(MonitoringTimeRange.allCases, id: \.self) { range in Text(L10n.text(range.title, locale: locale)).tag(range) }
             }
             .pickerStyle(.segmented).labelsHidden()
-            TextField("AWS filter pattern (optional)", text: $vm.filterPattern)
+            TextField(L10n.text("AWS filter pattern (optional)", locale: locale), text: $vm.filterPattern)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { if canSearch && !vm.isLoading { vm.search() } }
-            Text("Uses AWS filter-pattern syntax. Changing the range or filter clears the previous search.")
+            Text(L10n.text("Uses AWS filter-pattern syntax. Changing the range or filter clears the previous search.", locale: locale))
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -73,24 +74,24 @@ struct LambdaLogsView: View {
 
     private func queryHeader(_ query: LambdaLogQuery) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("\(MonitoringDisplay.dateTime(query.startTime)) through \(MonitoringDisplay.dateTime(query.endTime))")
+            Text(L10n.format("%@ through %@", MonitoringDisplay.dateTime(query.startTime), MonitoringDisplay.dateTime(query.endTime), locale: locale))
                 .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             if !query.filterPattern.isEmpty {
-                Text("Applied filter: \(query.filterPattern)").font(.caption.monospaced()).textSelection(.enabled)
+                Text(L10n.format("Applied filter: %@", query.filterPattern, locale: locale)).font(.caption.monospaced()).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("\(vm.events.count) loaded events · Newest among loaded events shown first")
+            Text(L10n.format("%@ loaded events · Newest among loaded events shown first", String(vm.events.count), locale: locale))
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if vm.limitReached {
-                Label("Display limit reached · Incomplete results", systemImage: "exclamationmark.triangle")
+                Label(L10n.text("Display limit reached · Incomplete results", locale: locale), systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundColor(.orange)
             } else if vm.hasMore {
-                Label("Partial results · More pages available", systemImage: "ellipsis.circle")
+                Label(L10n.text("Partial results · More pages available", locale: locale), systemImage: "ellipsis.circle")
                     .font(.caption).foregroundColor(.secondary)
             } else if vm.error != nil {
-                Text("Search incomplete").font(.caption).foregroundColor(.orange)
+                Text(L10n.text("Search incomplete", locale: locale)).font(.caption).foregroundColor(.orange)
             }
         }
     }
@@ -98,7 +99,7 @@ struct LambdaLogsView: View {
     @ViewBuilder
     private var emptyState: some View {
         if canSearch && vm.isLoading {
-            ProgressView("Searching log events…").frame(maxWidth: .infinity, minHeight: 140)
+            ProgressView(L10n.text("Searching log events…", locale: locale)).frame(maxWidth: .infinity, minHeight: 140)
         } else if !canSearch {
             EmptyStateView(text: "Load the selected function's details in a verified profile before searching logs.", icon: "doc.text.magnifyingglass")
                 .frame(minHeight: 160)
@@ -127,17 +128,17 @@ struct LambdaLogsView: View {
                 NoticeBanner(message: "The display limit has been reached. Results are incomplete; narrow the time range or filter and search again.")
             } else if vm.hasMore {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Partial results. More pages remain in the selected time range.")
+                    Text(L10n.text("Partial results. More pages remain in the selected time range.", locale: locale))
                         .font(.caption).foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
-                        Button(vm.isLoading ? "Loading…" : "Load more", action: vm.loadMore)
+                        Button(L10n.text(vm.isLoading ? "Loading…" : "Load more", locale: locale), action: vm.loadMore)
                             .disabled(vm.isLoading || !canSearch)
-                        if vm.isLoading { Button("Cancel", action: vm.cancelLoading) }
+                        if vm.isLoading { Button(L10n.text("Cancel", locale: locale), action: vm.cancelLoading) }
                     }
                 }
             } else if vm.hasSearched && !vm.isLoading && vm.error == nil {
-                Text("All available pages for this search have been read. New events can arrive later.")
+                Text(L10n.text("All available pages for this search have been read. New events can arrive later.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -148,6 +149,7 @@ struct LambdaLogsView: View {
 }
 
 private struct LambdaLogEventView: View {
+    @Environment(\.locale) private var locale
     let event: LambdaLogEvent
     @State private var showsFullMessage = false
     private let previewLength = 2_000
@@ -158,14 +160,14 @@ private struct LambdaLogEventView: View {
             Text(event.streamName).font(.caption.monospaced()).foregroundColor(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             if let ingestionTime = event.ingestionTime {
-                Text("Ingested \(MonitoringDisplay.dateTime(ingestionTime))").font(.caption).foregroundColor(.secondary)
+                Text(L10n.format("Ingested %@", MonitoringDisplay.dateTime(ingestionTime), locale: locale)).font(.caption).foregroundColor(.secondary)
             }
             Divider()
             Text(message).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if event.message.count > previewLength {
-                Button(showsFullMessage ? "Show preview" : "Show full message (\(event.message.count) characters)") {
+                Button(showsFullMessage ? L10n.text("Show preview", locale: locale) : L10n.format("Show full message (%@ characters)", String(event.message.count), locale: locale)) {
                     showsFullMessage.toggle()
                 }
                 .font(.caption)
@@ -177,8 +179,8 @@ private struct LambdaLogEventView: View {
     }
 
     private var message: String {
-        if event.message.isEmpty { return "(empty message)" }
+        if event.message.isEmpty { return L10n.text("(empty message)", locale: locale) }
         guard !showsFullMessage, event.message.count > previewLength else { return event.message }
-        return String(event.message.prefix(previewLength)) + "\n[Preview truncated. Expand to read the full message.]"
+        return String(event.message.prefix(previewLength)) + "\n" + L10n.text("[Preview truncated. Expand to read the full message.]", locale: locale)
     }
 }

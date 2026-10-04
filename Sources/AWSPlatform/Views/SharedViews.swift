@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EmptyStateView: View {
+    @Environment(\.locale) private var locale
     let text: String
     var icon: String = "tray"
 
@@ -9,7 +10,7 @@ struct EmptyStateView: View {
             Image(systemName: icon)
                 .font(.system(size: 30, weight: .light))
                 .foregroundColor(.secondary)
-            Text(text)
+            Text(L10n.text(text, locale: locale))
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -22,13 +23,15 @@ struct EmptyStateView: View {
 }
 
 struct DetailGrid: View {
+    @Environment(\.locale) private var locale
     let items: [(String, String)]
+    var localizesLabels = true
 
     var body: some View {
         LazyVGrid(columns: [.init(.adaptive(minimum: 210), alignment: .topLeading)], alignment: .leading, spacing: 10) {
             ForEach(items, id: \.0) { label, value in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(label)
+                    Text(localizesLabels ? L10n.text(label, locale: locale) : label)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(value)
@@ -48,6 +51,7 @@ struct DetailGrid: View {
 }
 
 struct ListToolbar: View {
+    @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     let isLoading: Bool
@@ -59,30 +63,30 @@ struct ListToolbar: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Text(title)
+                Text(L10n.text(title, locale: locale))
                     .font(.headline)
                 Spacer()
                 if isLoading {
                     HStack(spacing: 6) {
                         if reduceMotion {
-                            Text("Loading…").font(.caption).foregroundColor(.secondary)
+                            Text(L10n.text("Loading…", locale: locale)).font(.caption).foregroundColor(.secondary)
                         } else {
-                            ProgressView().controlSize(.small).accessibilityLabel("Refreshing \(title)")
+                            ProgressView().controlSize(.small).accessibilityLabel(L10n.format("Refreshing %@", L10n.text(title, locale: locale), locale: locale))
                         }
                     }
                     .transition(.opacity)
                     Button(action: onCancel) {
                         Image(systemName: "xmark.circle")
                     }
-                    .help("Cancel")
-                    .accessibilityLabel("Cancel refresh")
+                    .help(L10n.text("Cancel", locale: locale))
+                    .accessibilityLabel(L10n.text("Cancel refresh", locale: locale))
                 }
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(isLoading)
-                .help("Refresh")
-                .accessibilityLabel("Refresh \(title)")
+                .help(L10n.text("Refresh", locale: locale))
+                .accessibilityLabel(L10n.format("Refresh %@", L10n.text(title, locale: locale), locale: locale))
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isLoading)
             ResourceSearchField(text: $searchText, placeholder: searchPlaceholder)
@@ -94,21 +98,22 @@ struct ListToolbar: View {
 }
 
 struct ResourceSearchField: View {
+    @Environment(\.locale) private var locale
     @Binding var text: String
     var placeholder = "Search resources"
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-            TextField(placeholder, text: $text)
+            TextField(L10n.text(placeholder, locale: locale), text: $text)
                 .textFieldStyle(.plain)
-                .accessibilityLabel(placeholder)
+                .accessibilityLabel(L10n.text(placeholder, locale: locale))
             if !text.isEmpty {
                 Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
-                    .help("Clear search")
-                    .accessibilityLabel("Clear search")
+                    .help(L10n.text("Clear search", locale: locale))
+                    .accessibilityLabel(L10n.text("Clear search", locale: locale))
             }
         }
         .padding(7)
@@ -118,12 +123,15 @@ struct ResourceSearchField: View {
 }
 
 struct ResourceListFooter: View {
+    @Environment(\.locale) private var locale
     let visible: Int
     let total: Int
 
     var body: some View {
         HStack {
-            Text(visible == total ? "\(total) \(total == 1 ? "resource" : "resources")" : "\(visible) of \(total) resources")
+            Text(visible == total
+                 ? L10n.format(total == 1 ? "%@ resource" : "%@ resources", String(total), locale: locale)
+                 : L10n.format("%@ of %@ resources", String(visible), String(total), locale: locale))
             Spacer()
         }
         .font(.caption)
@@ -135,11 +143,12 @@ struct ResourceListFooter: View {
 }
 
 struct DetailSectionTitle: View {
+    @Environment(\.locale) private var locale
     let title: String
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(title).font(.headline)
+            Text(L10n.text(title, locale: locale)).font(.headline)
             Rectangle().fill(.primary.opacity(0.08)).frame(height: 1)
         }
         .padding(.top, 4)
@@ -147,6 +156,7 @@ struct DetailSectionTitle: View {
 }
 
 struct DetailKeyValueRows: View {
+    @Environment(\.locale) private var locale
     let values: [String: String]
 
     var body: some View {
@@ -168,12 +178,13 @@ struct DetailKeyValueRows: View {
 }
 
 struct NoticeBanner: View {
+    @Environment(\.locale) private var locale
     let message: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
-            Text(message).foregroundColor(.secondary).textSelection(.enabled)
+            Text(L10n.text(message, locale: locale)).foregroundColor(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }

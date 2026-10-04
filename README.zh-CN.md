@@ -22,6 +22,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
 - **最近访问** - 查看并重新打开当前 Profile／账号最近浏览的资源，支持本地历史、搜索和按范围删除
+- **界面语言**：跟随系统，或选择简体中文／English；即时切换，不重新加载 AWS 数据
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
@@ -90,6 +91,14 @@ open Package.swift
 - `dist/AWSPlatform-universal.zip`：包含上述应用的压缩包。
 
 上述本地包使用 ad-hoc 签名。正式分发入口为 `scripts/package-distribution.py`，使用本机 Developer ID Application 签名、Apple 公证和票据附加，输出版本化 Universal ZIP、DMG、校验值及公证记录；需要有效签名身份和已配置的 `asc` 认证，详见 [正式打包说明](scripts/README.md#正式签名与公证)。普通 `swift build` 仍只构建当前机器架构。
+
+### 界面语言
+
+点击侧栏底部的「设置」，或按 `Cmd+,`，选择「跟随系统」「简体中文」或「English」。语言偏好保存在本机，立即应用于所有已打开的应用窗口；不支持的系统语言回退为英文。
+
+切换语言会保留当前 Session、Profile、Region、筛选条件、资源选择和已加载结果，不会登录、验证凭据或发送 AWS 请求。服务名、资源名称、ID、ARN、AWS 标签、日志和事件说明保留原文。macOS 原生菜单使用系统语言。
+
+开发者文案与资源打包约定见 [Localization](docs/localization.md) 。
 
 ### 资源收藏
 

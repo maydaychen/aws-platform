@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct Route53RecordRow: View {
+    @Environment(\.locale) private var locale
     let record: Route53Record
     private let externalExpansion: Binding<Bool>?
     let onShowRelationships: (() -> Void)?
@@ -29,8 +30,8 @@ struct Route53RecordRow: View {
                 .padding(.vertical, 2)
             }
             if (record.alias != nil || record.type == "CNAME"), let onShowRelationships {
-                Button("View relationships", action: onShowRelationships)
-                    .help("Inspect configured targets for this exact record set")
+                Button(L10n.text("View relationships", locale: locale), action: onShowRelationships)
+                    .help(L10n.text("Inspect configured targets for this exact record set", locale: locale))
             }
         }
         .padding(12)
@@ -38,12 +39,14 @@ struct Route53RecordRow: View {
     }
 
     private var summary: String {
-        let value = record.alias != nil ? "Alias" : record.ttl.map { "TTL \($0)s" } ?? "TTL not returned"
-        return "\(value) · \(record.routingPolicy)\(record.setIdentifier.map { " · \($0)" } ?? "")"
+        let value = record.alias != nil ? L10n.text("Alias", locale: locale)
+            : record.ttl.map { L10n.format("TTL %@s", String($0), locale: locale) } ?? L10n.text("TTL not returned", locale: locale)
+        return "\(value) · \(Route53Display.routingPolicy(record.routingPolicy, locale: locale))\(record.setIdentifier.map { " · \($0)" } ?? "")"
     }
 }
 
 struct Route53RecordDetails: View {
+    @Environment(\.locale) private var locale
     let record: Route53Record
 
     var body: some View {
@@ -52,11 +55,12 @@ struct Route53RecordDetails: View {
                 .fixedSize(horizontal: false, vertical: true)
             DetailGrid(items: [
                 ("Record type", record.type),
-                ("TTL", record.alias != nil ? "Alias" : record.ttl.map { "\($0) seconds" } ?? "Not returned"),
-                ("Routing policy", record.routingPolicy)
+                ("TTL", record.alias != nil ? L10n.text("Alias", locale: locale)
+                 : record.ttl.map { L10n.format("%@ seconds", String($0), locale: locale) } ?? L10n.text("Not returned", locale: locale)),
+                ("Routing policy", Route53Display.routingPolicy(record.routingPolicy, locale: locale))
             ])
             if let identifier = record.setIdentifier {
-                DetailGrid(items: [("Set identifier", Route53Display.returned(identifier))])
+                DetailGrid(items: [("Set identifier", Route53Display.returned(identifier, locale: locale))])
             }
             if let alias = record.alias {
                 DetailSectionTitle(title: "Alias target")
@@ -70,7 +74,7 @@ struct Route53RecordDetails: View {
                 DetailSectionTitle(title: "Values")
                 Route53ValueBlock(values: record.values)
             } else if record.alias == nil {
-                Text("No record values returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No record values returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
             if !record.routingFields.isEmpty {
                 DetailSectionTitle(title: "Routing configuration")
@@ -81,14 +85,17 @@ struct Route53RecordDetails: View {
 }
 
 struct Route53FieldRows: View {
+    @Environment(\.locale) private var locale
     let fields: [Route53Field]
+    var isVerbatimLabels = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(fields.indices, id: \.self) { index in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(fields[index].name).font(.caption).foregroundColor(.secondary)
-                    Text(Route53Display.returned(fields[index].value)).font(.callout).textSelection(.enabled)
+                    Text(verbatim: isVerbatimLabels ? fields[index].name : L10n.text(fields[index].name, locale: locale))
+                        .font(.caption).foregroundColor(.secondary)
+                    Text(verbatim: displayedValue(fields[index])).font(.callout).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,15 +106,23 @@ struct Route53FieldRows: View {
         .padding(.horizontal, 12)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
     }
+
+    private func displayedValue(_ field: Route53Field) -> String {
+        if !isVerbatimLabels && ["Evaluate target health", "Multivalue answer"].contains(field.name) {
+            return L10n.text(field.value, locale: locale)
+        }
+        return Route53Display.returned(field.value, locale: locale)
+    }
 }
 
 struct Route53ValueBlock: View {
+    @Environment(\.locale) private var locale
     let values: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(values.indices, id: \.self) { index in
-                Text(Route53Display.returned(values[index])).font(.caption.monospaced())
+                Text(Route53Display.returned(values[index], locale: locale)).font(.caption.monospaced())
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if index != values.indices.last { Divider() }

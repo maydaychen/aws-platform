@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AlarmMetricView: View {
+    @Environment(\.locale) private var locale
     let metric: AlarmMetricQuery
 
     var body: some View {
@@ -9,12 +10,12 @@ struct AlarmMetricView: View {
                 .fixedSize(horizontal: false, vertical: true)
             DetailGrid(items: properties)
             if let expression = metric.expression {
-                Text("Expression").font(.caption).foregroundColor(.secondary)
+                Text(L10n.text("Expression", locale: locale)).font(.caption).foregroundColor(.secondary)
                 AlarmTextBlock(text: expression, monospaced: true)
             }
             if !metric.dimensions.isEmpty {
-                Text("Dimensions").font(.caption).foregroundColor(.secondary)
-                DetailGrid(items: metric.dimensions.map { ($0.label, $0.value) })
+                Text(L10n.text("Dimensions", locale: locale)).font(.caption).foregroundColor(.secondary)
+                DetailGrid(items: metric.dimensions.map { ($0.label, $0.value) }, localizesLabels: false)
             }
         }
         .padding(12)
@@ -24,11 +25,11 @@ struct AlarmMetricView: View {
     private var properties: [(String, String)] {
         var properties = [("Query ID", metric.id)]
         if let account = metric.accountID { properties.append(("Metric account", account)) }
-        if let returnData = metric.returnData { properties.append(("Return data", AlarmDisplay.boolean(returnData))) }
+        if let returnData = metric.returnData { properties.append(("Return data", AlarmDisplay.boolean(returnData, locale: locale))) }
         if let namespace = metric.namespace { properties.append(("Namespace", namespace)) }
         if let name = metric.metricName { properties.append(("Metric name", name)) }
         if let statistic = metric.statistic { properties.append(("Statistic", statistic)) }
-        if let period = metric.period { properties.append(("Period", "\(period) seconds")) }
+        if let period = metric.period { properties.append(("Period", L10n.format("%@ seconds", String(period), locale: locale))) }
         if let unit = metric.unit { properties.append(("Unit", unit)) }
         return properties
     }

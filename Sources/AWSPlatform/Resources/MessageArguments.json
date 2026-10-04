@@ -1,0 +1,99 @@
+{
+  "%@ Showing the previous event list; it may be out of date.": [
+    0
+  ],
+  "%@ Showing the previous hosted zone list; it may be out of date.": [
+    0
+  ],
+  "%@ Showing the previous list; it may be out of date.": [
+    0
+  ],
+  "%@ Showing the previous security group list; it may be out of date.": [
+    0
+  ],
+  "%@ was not found in the saved profile and region. It may have been removed or be inaccessible. %@": [
+    1
+  ],
+  "%@ was not found in the saved profile. It may have been removed or be inaccessible. %@": [
+    1
+  ],
+  "%@ was not found in the selected profile and region. It may have been removed or be inaccessible. %@": [
+    1
+  ],
+  "%@ was not found in the selected profile. It may have been removed or be inaccessible. %@": [
+    1
+  ],
+  "Aliases: %@": [
+    0
+  ],
+  "Async invoke configs: %@": [
+    0
+  ],
+  "Could not update the report. Showing the saved result below. %@": [
+    0
+  ],
+  "EBS volumes: %@": [
+    0
+  ],
+  "Encryption: %@": [
+    0
+  ],
+  "Event sources: %@": [
+    0
+  ],
+  "Function URLs: %@": [
+    0
+  ],
+  "Profile %@ is unavailable. Restore its AWS configuration and retry. %@": [
+    1
+  ],
+  "Provisioned concurrency: %@": [
+    0
+  ],
+  "Public Access Block: %@": [
+    0
+  ],
+  "Region: %@": [
+    0
+  ],
+  "Resource policy: %@": [
+    0
+  ],
+  "Security groups: %@": [
+    0
+  ],
+  "Showing the previous alarm list. %@": [
+    0
+  ],
+  "Showing the previous topic list. %@": [
+    0
+  ],
+  "Status checks: %@": [
+    0
+  ],
+  "Tags: %@": [
+    0
+  ],
+  "Type: %@; Code: %@": [
+    0,
+    1
+  ],
+  "Unable to open %@: %@ Open Relationships again to retry.": [
+    1
+  ],
+  "Unable to open %@: %@ The favorite is still saved.": [
+    1
+  ],
+  "Unable to open %@: %@ The recent resource is still saved.": [
+    1
+  ],
+  "Upstream check is incomplete. %@": [
+    0
+  ],
+  "Versioning: %@": [
+    0
+  ],
+  "Versions: %@": [
+    0
+  ]
+}

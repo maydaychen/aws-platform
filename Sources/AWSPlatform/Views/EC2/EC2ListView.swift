@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EC2ListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: EC2ViewModel
 
     var body: some View {
@@ -13,14 +14,14 @@ struct EC2ListView: View {
                 onCancel: { vm.cancelLoading() }
             )
             HStack(spacing: 8) {
-                Picker("State", selection: $vm.stateFilter) {
+                Picker(L10n.text("State", locale: locale), selection: $vm.stateFilter) {
                     ForEach(vm.availableStates, id: \.self) { state in
-                        Text(state == "All" ? "All states" : state).tag(state)
+                        Text(state == "All" ? L10n.text("All states", locale: locale) : state).tag(state)
                     }
                 }
-                Picker("Health", selection: $vm.healthFilter) {
+                Picker(L10n.text("Health status", locale: locale), selection: $vm.healthFilter) {
                     ForEach(EC2ViewModel.HealthFilter.allCases) { filter in
-                        Text(filter.title).tag(filter)
+                        Text(L10n.text(filter.title, locale: locale)).tag(filter)
                     }
                 }
             }
@@ -56,7 +57,7 @@ struct EC2ListView: View {
                 }
                 .padding(.vertical, 4)
                 .tag(instance)
-                .help("\(instance.instanceId) · \(instance.privateIP ?? "No private IP")")
+                .help("\(instance.instanceId) · \(instance.privateIP ?? L10n.text("No private IP", locale: locale))")
             }
             .listStyle(.inset)
             .overlay {
@@ -76,15 +77,15 @@ struct EC2ListView: View {
         if health?.needsAttention == true {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(.orange)
-                .help(health?.summary ?? "Needs attention")
+                .help(L10n.text(health?.summary ?? "Needs attention", locale: locale))
         } else if health?.summary == "Checks passed" {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
-                .help("Status checks passed")
+                .help(L10n.text("Status checks passed", locale: locale))
         } else {
             Image(systemName: "minus.circle")
                 .foregroundColor(.secondary)
-                .help(health?.summary ?? "Status checks unavailable")
+                .help(L10n.text(health?.summary ?? "Status checks unavailable", locale: locale))
         }
     }
 }

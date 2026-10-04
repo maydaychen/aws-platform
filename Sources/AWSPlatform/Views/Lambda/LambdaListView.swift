@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LambdaListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: LambdaViewModel
 
     var body: some View {
@@ -13,14 +14,14 @@ struct LambdaListView: View {
                 onCancel: { vm.cancelLoading() }
             )
             HStack(spacing: 8) {
-                Picker("State", selection: $vm.stateFilter) {
+                Picker(L10n.text("State", locale: locale), selection: $vm.stateFilter) {
                     ForEach(vm.availableStates, id: \.self) { state in
-                        Text(state == "All" ? "All states" : state).tag(state)
+                        Text(state == "All" ? L10n.text("All states", locale: locale) : state).tag(state)
                     }
                 }
-                Picker("Package", selection: $vm.packageFilter) {
+                Picker(L10n.text("Package", locale: locale), selection: $vm.packageFilter) {
                     ForEach(vm.availablePackageTypes, id: \.self) { packageType in
-                        Text(packageType == "All" ? "All packages" : packageType)
+                        Text(packageType == "All" ? L10n.text("All packages", locale: locale) : packageType)
                             .tag(packageType)
                     }
                 }
@@ -79,19 +80,19 @@ struct LambdaListView: View {
         if function.state == "Failed" || function.lastUpdateStatus == "Failed" {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(.red)
-                .help("Function state or last update failed")
+                .help(L10n.text("Function state or last update failed", locale: locale))
         } else if function.state == "Pending" || function.lastUpdateStatus == "InProgress" {
             Image(systemName: "clock.fill")
                 .foregroundColor(.orange)
-                .help("Function update is in progress")
+                .help(L10n.text("Function update is in progress", locale: locale))
         } else if function.state == "Active" {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
-                .help("Function is active")
+                .help(L10n.text("Function is active", locale: locale))
         } else {
             Image(systemName: "minus.circle")
                 .foregroundColor(.secondary)
-                .help(function.state ?? "Function state unavailable")
+                .help(function.state ?? L10n.text("Function state unavailable", locale: locale))
         }
     }
 }

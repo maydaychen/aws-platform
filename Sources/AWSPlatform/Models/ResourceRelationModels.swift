@@ -70,6 +70,14 @@ struct ResourceRelationSection: Identifiable, Equatable, Sendable {
     var requiresScan: Bool = false
     var checkedCount: Int? = nil
     var totalCount: Int? = nil
+    var resourceFailures: [ResourceRelationFailure] = []
+}
+
+/// Keep AWS names separate from app-owned messages for display localization.
+struct ResourceRelationFailure: Equatable, Sendable {
+    let resourceName: String
+    let resourceID: String
+    let message: String
 }
 
 struct ResourceRelationResult: Equatable, Sendable {

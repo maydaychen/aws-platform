@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ELBLoadBalancerListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: ELBViewModel
 
     var body: some View {
@@ -11,10 +12,10 @@ struct ELBLoadBalancerListView: View {
                 .disabled(vm.scope == nil)
             VStack(alignment: .leading, spacing: 8) {
                 ELBScopeCaption(scope: vm.scope)
-                Picker("Load balancer type", selection: $vm.kindFilter) {
-                    Text("All types").tag("All")
+                Picker(L10n.text("Load balancer type", locale: locale), selection: $vm.kindFilter) {
+                    Text(L10n.text("All types", locale: locale)).tag("All")
                     ForEach(Set(vm.loadBalancers.map(\.kind)).sorted(), id: \.self) { kind in
-                        Text(ELBDisplay.kind(kind)).tag(kind)
+                        Text(L10n.text(ELBDisplay.kind(kind), locale: locale)).tag(kind)
                     }
                 }
                 .labelsHidden().disabled(vm.scope == nil)
@@ -25,7 +26,7 @@ struct ELBLoadBalancerListView: View {
             List(vm.filteredLoadBalancers, selection: $vm.selectedLoadBalancer) { lb in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lb.name).fontWeight(.medium).lineLimit(2).help(lb.name)
-                    Text("\(ELBDisplay.kind(lb.kind)) · \(ELBDisplay.returned(lb.scheme))")
+                    Text("\(L10n.text(ELBDisplay.kind(lb.kind), locale: locale)) · \(ELBDisplay.returned(lb.scheme, locale: locale))")
                         .font(.caption).foregroundColor(.secondary).lineLimit(2)
                 }
                 .padding(.vertical, 5).tag(lb).help(lb.arn)
@@ -33,7 +34,7 @@ struct ELBLoadBalancerListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isLoadBalancersLoading && vm.loadBalancers.isEmpty {
-                    ProgressView("Loading load balancers…")
+                    ProgressView(L10n.text("Loading load balancers…", locale: locale))
                 } else if !vm.isLoadBalancersLoading && vm.filteredLoadBalancers.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "point.3.connected.trianglepath.dotted")
                 }

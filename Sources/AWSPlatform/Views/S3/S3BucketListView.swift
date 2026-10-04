@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct S3BucketListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: S3ViewModel
 
     var body: some View {
@@ -22,7 +23,7 @@ struct S3BucketListView: View {
                     HStack(spacing: 8) {
                         Text(bucket.region ?? "-")
                         if let creationDate = bucket.creationDate {
-                            Text(creationDate.formatted(date: .abbreviated, time: .omitted))
+                            Text(creationDate.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)))
                         }
                     }
                     .font(.caption)

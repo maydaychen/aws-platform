@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct AlarmDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", configuration = "Configuration", actions = "Actions", history = "History"
         var id: Self { self }
@@ -28,8 +29,8 @@ struct AlarmDetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            Picker("Section", selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in Text(tab.rawValue).tag(tab) }
+            Picker(L10n.text("Section", locale: locale), selection: $selectedTab) {
+                ForEach(Tab.allCases) { tab in Text(L10n.text(tab.rawValue, locale: locale)).tag(tab) }
             }
             .labelsHidden().pickerStyle(.segmented).padding(12)
             ScrollView {
@@ -58,12 +59,12 @@ struct AlarmDetailView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(!isCurrentSelection || vm.isTagsLoading || vm.isHistoryLoading)
-                .help("Refresh tags and the last 30 days of history")
-                .accessibilityLabel("Refresh alarm details")
+                .help(L10n.text("Refresh tags and the last 30 days of history", locale: locale))
+                .accessibilityLabel(L10n.text("Refresh alarm details", locale: locale))
             }
             HStack(spacing: 10) {
                 AlarmStateLabel(state: alarm.state)
-                Text(alarm.kind.title).foregroundColor(.secondary)
+                Text(L10n.text(alarm.kind.title, locale: locale)).foregroundColor(.secondary)
                 Spacer(minLength: 0)
             }
             .font(.caption)
@@ -74,7 +75,7 @@ struct AlarmDetailView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(alarm.arn, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy alarm ARN").accessibilityLabel("Copy alarm ARN")
+                .buttonStyle(.borderless).help(L10n.text("Copy alarm ARN", locale: locale)).accessibilityLabel(L10n.text("Copy alarm ARN", locale: locale))
             }
         }
         .padding(16)
@@ -87,15 +88,15 @@ struct AlarmDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             DetailGrid(items: [
-                ("State updated", AlarmDisplay.date(alarm.stateUpdatedAt)),
-                ("State transitioned", AlarmDisplay.date(alarm.stateTransitionedAt)),
-                ("Configuration updated", AlarmDisplay.date(alarm.configurationUpdatedAt)),
-                ("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled))
+                ("State updated", AlarmDisplay.date(alarm.stateUpdatedAt, locale: locale)),
+                ("State transitioned", AlarmDisplay.date(alarm.stateTransitionedAt, locale: locale)),
+                ("Configuration updated", AlarmDisplay.date(alarm.configurationUpdatedAt, locale: locale)),
+                ("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled, locale: locale))
             ])
             DetailSectionTitle(title: "State reason")
-            AlarmTextBlock(text: alarm.reason ?? "No state reason returned.")
+            AlarmTextBlock(text: alarm.reason ?? L10n.text("No state reason returned.", locale: locale))
             if let data = alarm.reasonData, !data.isEmpty {
-                DisclosureGroup("State reason data") { AlarmTextBlock(text: data, monospaced: true) }
+                DisclosureGroup(L10n.text("State reason data", locale: locale)) { AlarmTextBlock(text: data, monospaced: true) }
                     .font(.caption)
             }
             DetailSectionTitle(title: "Tags")
@@ -106,13 +107,13 @@ struct AlarmDetailView: View {
     @ViewBuilder
     private var tags: some View {
         if isCurrentSelection && vm.isTagsLoading {
-            ProgressView("Loading tags…").controlSize(.small)
+            ProgressView(L10n.text("Loading tags…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.tagsError {
             NoticeBanner(message: error)
         } else if isCurrentSelection && !vm.tags.isEmpty {
             DetailKeyValueRows(values: vm.tags)
         } else {
-            Text("No tags returned.").font(.callout).foregroundColor(.secondary)
+            Text(L10n.text("No tags returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
         }
     }
 
@@ -127,22 +128,22 @@ struct AlarmDetailView: View {
             }
             if !alarm.metrics.isEmpty {
                 DetailSectionTitle(title: "Metric configuration")
-                Text("Configuration only. Metric values are not queried.")
+                Text(L10n.text("Configuration only. Metric values are not queried.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                 ForEach(alarm.metrics) { metric in AlarmMetricView(metric: metric) }
             } else if alarm.kind == .metric {
-                Text("No metric configuration returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No metric configuration returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
             if alarm.configuration.isEmpty && alarm.rule == nil && alarm.metrics.isEmpty {
-                Text("No alarm configuration returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No alarm configuration returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
         }
     }
 
     private var actions: some View {
         Group {
-            DetailGrid(items: [("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled))])
-            Text("Open SNS topics in the current profile and region. Other action targets are shown as configured; no notifications are sent.")
+            DetailGrid(items: [("Actions enabled", AlarmDisplay.boolean(alarm.actionsEnabled, locale: locale))])
+            Text(L10n.text("Open SNS topics in the current profile and region. Other action targets are shown as configured; no notifications are sent.", locale: locale))
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             actionTargets("ALARM targets", targets: alarm.alarmActions)
@@ -155,7 +156,7 @@ struct AlarmDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             DetailSectionTitle(title: title)
             if targets.isEmpty {
-                Text("None configured").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("None configured", locale: locale)).font(.callout).foregroundColor(.secondary)
             } else {
                 ForEach(Array(targets.enumerated()), id: \.offset) { _, target in
                     VStack(alignment: .leading, spacing: 6) {
@@ -164,9 +165,9 @@ struct AlarmDetailView: View {
                            SNSRelatedResource(scope: scope, service: .alarms, arn: alarm.arn) != nil,
                            let resource = SNSRelatedResource(scope: scope, service: .sns, arn: target) {
                             Button { onOpenResource(resource) } label: {
-                                Label("Open SNS topic", systemImage: "arrow.up.forward.square")
+                                Label(L10n.text("Open SNS topic", locale: locale), systemImage: "arrow.up.forward.square")
                             }
-                            .help("Open this topic in the current profile and region")
+                            .help(L10n.text("Open this topic in the current profile and region", locale: locale))
                         }
                     }
                 }
@@ -176,25 +177,25 @@ struct AlarmDetailView: View {
 
     @ViewBuilder
     private var history: some View {
-        Text("Last 30 days · UTC · Most recent first")
+        Text(L10n.text("Last 30 days · UTC · Most recent first", locale: locale))
             .font(.caption).foregroundColor(.secondary)
         if isCurrentSelection && vm.isHistoryLoading {
-            ProgressView("Loading alarm history…").controlSize(.small)
+            ProgressView(L10n.text("Loading alarm history…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.historyError {
             NoticeBanner(message: error)
         } else if isCurrentSelection && !vm.history.isEmpty {
             ForEach(vm.history) { entry in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(entry.type).font(.headline)
-                    Text(AlarmDisplay.date(entry.timestamp)).font(.caption).foregroundColor(.secondary)
+                    Text(AlarmDisplay.date(entry.timestamp, locale: locale)).font(.caption).foregroundColor(.secondary)
                     Text(entry.summary).font(.callout).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                     if let contributor = entry.contributorID {
-                        Text("Contributor: \(contributor)").font(.caption).textSelection(.enabled)
+                        Text(L10n.format("Contributor: %@", contributor, locale: locale)).font(.caption).textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let data = entry.data, !data.isEmpty {
-                        DisclosureGroup("Event data") { AlarmTextBlock(text: data, monospaced: true) }
+                        DisclosureGroup(L10n.text("Event data", locale: locale)) { AlarmTextBlock(text: data, monospaced: true) }
                             .font(.caption)
                     }
                 }
@@ -203,14 +204,14 @@ struct AlarmDetailView: View {
                 .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
             }
         } else {
-            Text("No history returned for the last 30 days.").font(.callout).foregroundColor(.secondary)
+            Text(L10n.text("No history returned for the last 30 days.", locale: locale)).font(.callout).foregroundColor(.secondary)
         }
     }
 }
 
 enum AlarmDisplay {
-    static func date(_ date: Date?) -> String {
-        guard let date else { return "Unknown" }
+    static func date(_ date: Date?, locale: Locale = Locale(identifier: "en")) -> String {
+        guard let date else { return L10n.text("Unknown", locale: locale) }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -218,5 +219,7 @@ enum AlarmDisplay {
         return formatter.string(from: date)
     }
 
-    static func boolean(_ value: Bool?) -> String { value.map { $0 ? "Yes" : "No" } ?? "Unknown" }
+    static func boolean(_ value: Bool?, locale: Locale = Locale(identifier: "en")) -> String {
+        L10n.text(value.map { $0 ? "Yes" : "No" } ?? "Unknown", locale: locale)
+    }
 }

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct Route53ZoneDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", records = "Records", tags = "Tags"
         var id: Self { self }
@@ -70,15 +71,15 @@ struct Route53ZoneDetailView: View {
                 Spacer(minLength: 0)
                 if isLoading {
                     Button(action: vm.cancelDetails) { Image(systemName: "xmark.circle") }
-                        .help("Cancel loading zone details, records and tags")
-                        .accessibilityLabel("Cancel loading hosted zone details")
+                        .help(L10n.text("Cancel loading zone details, records and tags", locale: locale))
+                        .accessibilityLabel(L10n.text("Cancel loading hosted zone details", locale: locale))
                 }
                 Button(action: vm.refreshDetails) { Image(systemName: "arrow.clockwise") }
                     .disabled(!isCurrentSelection || isLoading)
-                    .help("Refresh zone details, records and tags")
-                    .accessibilityLabel("Refresh hosted zone details")
+                    .help(L10n.text("Refresh zone details, records and tags", locale: locale))
+                    .accessibilityLabel(L10n.text("Refresh hosted zone details", locale: locale))
             }
-            Label(displayedZone.isPrivate ? "Private hosted zone · Global" : "Public hosted zone · Global",
+            Label(L10n.text(displayedZone.isPrivate ? "Private hosted zone · Global" : "Public hosted zone · Global", locale: locale),
                   systemImage: displayedZone.isPrivate ? "lock" : "globe")
                 .font(.caption).foregroundColor(.secondary)
             HStack(spacing: 6) {
@@ -87,7 +88,7 @@ struct Route53ZoneDetailView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(zone.id, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy hosted zone ID").accessibilityLabel("Copy hosted zone ID")
+                .buttonStyle(.borderless).help(L10n.text("Copy hosted zone ID", locale: locale)).accessibilityLabel(L10n.text("Copy hosted zone ID", locale: locale))
             }
         }
         .padding(16)
@@ -97,45 +98,45 @@ struct Route53ZoneDetailView: View {
     private var overview: some View {
         DetailGrid(items: [
             ("Hosted zone ID", zone.id),
-            ("Visibility", displayedZone.isPrivate ? "Private" : "Public"),
-            ("Record sets", displayedZone.recordCount.map(String.init) ?? "Not returned"),
-            ("Account", vm.scope?.accountID ?? "Not returned")
+            ("Visibility", L10n.text(displayedZone.isPrivate ? "Private" : "Public", locale: locale)),
+            ("Record sets", displayedZone.recordCount.map(String.init) ?? L10n.text("Not returned", locale: locale)),
+            ("Account", vm.scope?.accountID ?? L10n.text("Not returned", locale: locale))
         ])
         if let comment = displayedZone.comment, !comment.isEmpty {
             Text(comment).font(.callout).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
         if isCurrentSelection && vm.isDetailsLoading {
-            ProgressView("Loading hosted zone details…").controlSize(.small)
+            ProgressView(L10n.text("Loading hosted zone details…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.detailsError {
             NoticeBanner(message: error)
             retryButton
         } else if let details {
             DetailSectionTitle(title: "Configuration")
-            DetailGrid(items: [("Caller reference", Route53Display.returned(details.callerReference))])
+            DetailGrid(items: [("Caller reference", Route53Display.returned(details.callerReference, locale: locale))])
             if displayedZone.isPrivate || !details.vpcs.isEmpty {
                 DetailSectionTitle(title: "VPC associations")
-                Text("Associations returned for this hosted zone. VPC settings and DNS resolution are not queried.")
+                Text(L10n.text("Associations returned for this hosted zone. VPC settings and DNS resolution are not queried.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if details.vpcs.isEmpty {
-                    Text("No VPC associations returned.").font(.callout).foregroundColor(.secondary)
+                    Text(L10n.text("No VPC associations returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
                 } else {
-                    Route53FieldRows(fields: details.vpcs.map { .init(name: $0.region, value: $0.id) })
+                    Route53FieldRows(fields: details.vpcs.map { .init(name: $0.region, value: $0.id) }, isVerbatimLabels: true)
                 }
             }
             if !displayedZone.isPrivate || !details.nameServers.isEmpty {
                 DetailSectionTitle(title: "Delegation name servers")
-                Text("Configured delegation name servers. This does not verify live DNS delegation or propagation.")
+                Text(L10n.text("Configured delegation name servers. This does not verify live DNS delegation or propagation.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if details.nameServers.isEmpty {
-                    Text("No delegation name servers returned.").font(.callout).foregroundColor(.secondary)
+                    Text(L10n.text("No delegation name servers returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
                 } else {
                     Route53ValueBlock(values: details.nameServers)
                 }
                 if let id = details.delegationSetID {
-                    DetailGrid(items: [("Delegation set ID", Route53Display.returned(id))])
+                    DetailGrid(items: [("Delegation set ID", Route53Display.returned(id, locale: locale))])
                 }
             }
             if !details.linkedService.isEmpty {
@@ -143,7 +144,7 @@ struct Route53ZoneDetailView: View {
                 Route53FieldRows(fields: details.linkedService)
             }
         } else {
-            Text("No hosted zone details returned.").font(.callout).foregroundColor(.secondary)
+            Text(L10n.text("No hosted zone details returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
         }
     }
 
@@ -151,14 +152,16 @@ struct Route53ZoneDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 ResourceSearchField(text: $vm.recordSearchText, placeholder: "Search records")
-                Picker("Record type", selection: $vm.recordTypeFilter) {
-                    ForEach(recordTypes, id: \.self) { type in Text(type == "All" ? "All types" : type).tag(type) }
+                Picker(L10n.text("Record type", locale: locale), selection: $vm.recordTypeFilter) {
+                    ForEach(recordTypes, id: \.self) { type in
+                        Text(type == "All" ? L10n.text("All types", locale: locale) : type).tag(type)
+                    }
                 }
                 .labelsHidden().frame(width: 120)
             }
             Text(vm.filteredRecords.count == vm.records.count
-                 ? "\(vm.records.count) \(vm.records.count == 1 ? "record set" : "record sets")"
-                 : "\(vm.filteredRecords.count) of \(vm.records.count) record sets")
+                 ? L10n.format(vm.records.count == 1 ? "%@ record set" : "%@ record sets", String(vm.records.count), locale: locale)
+                 : L10n.format("%@ of %@ record sets", String(vm.filteredRecords.count), String(vm.records.count), locale: locale))
                 .font(.caption).foregroundColor(.secondary)
         }
         .disabled(!isCurrentSelection)
@@ -168,7 +171,7 @@ struct Route53ZoneDetailView: View {
     @ViewBuilder
     private var records: some View {
         if isCurrentSelection && vm.isRecordsLoading {
-            ProgressView("Loading DNS records…").controlSize(.small)
+            ProgressView(L10n.text("Loading DNS records…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.recordsError {
             NoticeBanner(message: error)
             retryButton
@@ -203,24 +206,30 @@ struct Route53ZoneDetailView: View {
     @ViewBuilder
     private var tags: some View {
         if isCurrentSelection && vm.isTagsLoading {
-            ProgressView("Loading tags…").controlSize(.small)
+            ProgressView(L10n.text("Loading tags…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.tagsError {
             NoticeBanner(message: error)
             retryButton
         } else if isCurrentSelection && !vm.tags.isEmpty {
             DetailKeyValueRows(values: vm.tags)
         } else {
-            Text("No tags returned.").font(.callout).foregroundColor(.secondary)
+            Text(L10n.text("No tags returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
         }
     }
 
     private var retryButton: some View {
-        Button("Retry zone details", action: vm.refreshDetails)
+        Button(L10n.text("Retry zone details", locale: locale), action: vm.refreshDetails)
             .disabled(!isCurrentSelection || isLoading)
-            .help("Retry zone details, records and tags")
+            .help(L10n.text("Retry zone details, records and tags", locale: locale))
     }
 }
 
 enum Route53Display {
-    static func returned(_ value: String) -> String { value.isEmpty ? "(empty)" : value }
+    static func returned(_ value: String, locale: Locale) -> String {
+        value.isEmpty ? L10n.text("(empty)", locale: locale) : value
+    }
+
+    static func routingPolicy(_ value: String, locale: Locale) -> String {
+        value.components(separatedBy: ", ").map { L10n.text($0, locale: locale) }.joined(separator: ", ")
+    }
 }

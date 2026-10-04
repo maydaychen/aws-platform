@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct LambdaDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview"
         case configuration = "Configuration"
@@ -54,7 +55,7 @@ struct LambdaDetailView: View {
             ZStack {
                 tabContent
                 if selectedTab != .metrics && vm.isDetailLoading && detail == nil {
-                    ProgressView("Loading Lambda details…")
+                    ProgressView(L10n.text("Loading Lambda details…", locale: locale))
                         .padding()
                         .background(.regularMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -98,11 +99,11 @@ struct LambdaDetailView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text(detailError)
+                    Text(L10n.text(detailError, locale: locale))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Button("Retry") {
+                    Button(L10n.text("Retry", locale: locale)) {
                         vm.loadDetailForSelection()
                     }
                 }
@@ -116,7 +117,7 @@ struct LambdaDetailView: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
-            Text(detail?.state ?? function.state ?? "Unknown")
+            Text(detail?.state ?? function.state ?? L10n.text("Unknown", locale: locale))
         }
         .font(.caption)
         .padding(.horizontal, 10)
@@ -302,7 +303,7 @@ struct LambdaDetailView: View {
                             HStack {
                                 Text(qualifier(from: url.functionARN))
                                 if url.authType == "NONE" {
-                                    Label("Public", systemImage: "exclamationmark.triangle.fill")
+                                    Label(L10n.text("Public", locale: locale), systemImage: "exclamationmark.triangle.fill")
                                         .foregroundColor(.orange)
                                 }
                                 Spacer()
@@ -390,17 +391,17 @@ struct LambdaDetailView: View {
         VStack(spacing: 0) {
             HStack {
                 if function.packageType == "Image" {
-                    Text(detail?.resolvedImageURI ?? detail?.imageURI ?? "Container image")
+                    Text(detail?.resolvedImageURI ?? detail?.imageURI ?? L10n.text("Container image", locale: locale))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("Deployment package is downloaded only when requested.")
+                    Text(L10n.text("Deployment package is downloaded only when requested.", locale: locale))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Button(vm.isCodeLoading ? "Loading…" : "Load Code") {
+                Button(L10n.text(vm.isCodeLoading ? "Loading…" : "Load Code", locale: locale)) {
                     vm.loadCodeForSelection()
                 }
                 .disabled(vm.isCodeLoading)
@@ -411,7 +412,7 @@ struct LambdaDetailView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text(codeError)
+                    Text(L10n.text(codeError, locale: locale))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -453,8 +454,8 @@ struct LambdaDetailView: View {
                                 Image(systemName: revealedEnvironmentKeys.contains(key) ? "eye.slash" : "eye")
                             }
                             .buttonStyle(.borderless)
-                            .help(revealedEnvironmentKeys.contains(key) ? "Hide value" : "Reveal value")
-                            .accessibilityLabel(revealedEnvironmentKeys.contains(key) ? "Hide \(key)" : "Reveal \(key)")
+                            .help(L10n.text(revealedEnvironmentKeys.contains(key) ? "Hide value" : "Reveal value", locale: locale))
+                            .accessibilityLabel(L10n.format(revealedEnvironmentKeys.contains(key) ? "Hide %@" : "Reveal %@", key, locale: locale))
                             if revealedEnvironmentKeys.contains(key), let value = environment[key] {
                                 copyButton(value, label: "Copy environment value")
                             }
@@ -567,7 +568,7 @@ struct LambdaDetailView: View {
     }
 
     private func emptyDetail(_ text: String) -> some View {
-        Text(text)
+        Text(L10n.text(text, locale: locale))
             .font(.caption)
             .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -584,8 +585,8 @@ struct LambdaDetailView: View {
             Image(systemName: "doc.on.doc")
         }
         .buttonStyle(.borderless)
-        .help(label)
-        .accessibilityLabel(label)
+        .help(L10n.text(label, locale: locale))
+        .accessibilityLabel(L10n.text(label, locale: locale))
     }
 
     private var statusColor: Color {
@@ -601,7 +602,7 @@ struct LambdaDetailView: View {
     }
 
     private func boolean(_ value: Bool?) -> String {
-        value.map { $0 ? "Yes" : "No" } ?? "-"
+        value.map { L10n.text($0 ? "Yes" : "No", locale: locale) } ?? "-"
     }
 
     private func number(_ value: Int?) -> String {
@@ -614,7 +615,7 @@ struct LambdaDetailView: View {
 
     private func retryValue(_ value: Int?) -> String {
         guard let value else { return "-" }
-        return value == -1 ? "Infinite" : String(value)
+        return value == -1 ? L10n.text("Infinite", locale: locale) : String(value)
     }
 
     private func joined(_ values: [String]) -> String {
@@ -622,11 +623,11 @@ struct LambdaDetailView: View {
     }
 
     private func bytes(_ value: Int64?) -> String {
-        value.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "-"
+        value.map { $0.formatted(.byteCount(style: .file).locale(locale)) } ?? "-"
     }
 
     private func format(_ date: Date?) -> String {
-        date?.formatted(date: .abbreviated, time: .standard) ?? "-"
+        date?.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(locale)) ?? "-"
     }
 
     private func nonEmpty(_ value: String?) -> String? {
@@ -643,7 +644,7 @@ struct LambdaDetailView: View {
         guard !values.isEmpty else { return "-" }
         return values.keys.sorted().map { version in
             let percentage = (values[version] ?? 0) * 100
-            return "\(version): \(percentage.formatted(.number.precision(.fractionLength(0...2))))%"
+            return "\(version): \(percentage.formatted(.number.precision(.fractionLength(0...2)).locale(locale)))%"
         }
         .joined(separator: ", ")
     }

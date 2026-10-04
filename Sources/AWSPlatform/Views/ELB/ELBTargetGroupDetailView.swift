@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ELBTargetGroupDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", targets = "Targets"
         var id: Self { self }
@@ -25,7 +26,7 @@ struct ELBTargetGroupDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ELBDetailHeader(name: group.name, subtitle: "Target group · \(group.targetType)", arn: group.arn,
+            ELBDetailHeader(name: group.name, subtitle: L10n.format("Target group · %@", group.targetType, locale: locale), arn: group.arn,
                             isLoading: isLoading, isEnabled: isCurrentSelection,
                             onRefresh: refresh, onCancel: cancel)
             Divider()
@@ -49,15 +50,15 @@ struct ELBTargetGroupDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             ELBScopeCaption(scope: vm.scope)
             if let error = vm.targetGroupsError { NoticeBanner(message: error) }
-            DetailGrid(items: [("Target type", group.targetType), ("Protocol", ELBDisplay.returned(group.protocolName)),
-                               ("Default port", group.port.map(String.init) ?? (group.targetType == "lambda" ? "Not applicable" : "Not returned"))])
+            DetailGrid(items: [("Target type", group.targetType), ("Protocol", ELBDisplay.returned(group.protocolName, locale: locale)),
+                               ("Default port", group.port.map(String.init) ?? L10n.text(group.targetType == "lambda" ? "Not applicable" : "Not returned", locale: locale))])
             if !group.fields.isEmpty {
                 DetailSectionTitle(title: "Configuration and health checks")
                 ELBFieldRows(fields: group.fields)
             }
             DetailSectionTitle(title: "Associated load balancers")
             if group.loadBalancerARNs.isEmpty {
-                Text("No associated load balancers were returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No associated load balancers were returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             } else {
                 ForEach(group.loadBalancerARNs, id: \.self) { arn in
                     ELBLinkedResourceRow(arn: arn, name: ELBDisplay.resourceName(arn), service: .loadBalancers,
@@ -71,12 +72,13 @@ struct ELBTargetGroupDetailView: View {
     @ViewBuilder
     private var targets: some View {
         if isCurrentSelection && vm.isTargetsLoading {
-            ProgressView("Loading target health…").controlSize(.small)
+            ProgressView(L10n.text("Loading target health…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.targetsError {
             NoticeBanner(message: error)
-            Button("Retry target health", action: vm.refreshTargets)
+            Button(L10n.text("Retry target health", locale: locale), action: vm.refreshTargets)
         } else if isCurrentSelection && !vm.targets.isEmpty {
-            Text("\(vm.targets.count) target health \(vm.targets.count == 1 ? "entry" : "entries") · Port identifies each registration")
+            Text(L10n.format(vm.targets.count == 1 ? "%@ target health entry · Port identifies each registration"
+                            : "%@ target health entries · Port identifies each registration", String(vm.targets.count), locale: locale))
                 .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(vm.targets) { target in
@@ -100,6 +102,7 @@ struct ELBTargetGroupDetailView: View {
 }
 
 struct ELBTargetHealthRow: View {
+    @Environment(\.locale) private var locale
     let target: ELBTargetHealth
     let group: ELBTargetGroup
     let scope: MonitoringScope?
@@ -113,7 +116,8 @@ struct ELBTargetHealthRow: View {
                 Text(target.targetID).font(.callout.weight(.medium)).lineLimit(2).help(target.targetID)
                 HStack(spacing: 10) {
                     ELBHealthLabel(state: target.state)
-                    Text(target.port.map { "Port \(String($0))" } ?? (group.targetType == "lambda" ? "Lambda target" : "Port not returned"))
+                    Text(target.port.map { L10n.format("Port %@", String($0), locale: locale) }
+                         ?? L10n.text(group.targetType == "lambda" ? "Lambda target" : "Port not returned", locale: locale))
                         .font(.caption).foregroundColor(.secondary)
                 }
             }
@@ -123,6 +127,7 @@ struct ELBTargetHealthRow: View {
 }
 
 struct ELBTargetHealthDetails: View {
+    @Environment(\.locale) private var locale
     let target: ELBTargetHealth
     let group: ELBTargetGroup
     let scope: MonitoringScope?
@@ -137,22 +142,22 @@ struct ELBTargetHealthDetails: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(target.targetID).font(.caption.monospaced()).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            DetailGrid(items: [("Health state", ELBDisplay.returned(target.state)),
-                               ("Registered port", target.port.map(String.init) ?? (group.targetType == "lambda" ? "Not applicable" : "Not returned")),
-                               ("Availability zone", ELBDisplay.returned(target.availabilityZone)),
-                               ("Reason", ELBDisplay.returned(target.reason))])
+            DetailGrid(items: [("Health state", target.state == "Unknown" ? L10n.text("Unknown", locale: locale) : ELBDisplay.returned(target.state, locale: locale)),
+                               ("Registered port", target.port.map(String.init) ?? L10n.text(group.targetType == "lambda" ? "Not applicable" : "Not returned", locale: locale)),
+                               ("Availability zone", ELBDisplay.returned(target.availabilityZone, locale: locale)),
+                               ("Reason", ELBDisplay.returned(target.reason, locale: locale))])
             if let description = target.description, !description.isEmpty {
                 Text(description).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             }
             if !target.fields.isEmpty { ELBFieldRows(fields: target.fields) }
             if let reference {
                 if reference.service == .lambda, let qualifier = reference.qualifier {
-                    Text("Registered qualifier: \(qualifier). Open shows function-level details, not this specific alias or version.")
+                    Text(L10n.format("Registered qualifier: %@. Open shows function-level details, not this specific alias or version.", qualifier, locale: locale))
                         .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Button(openTitle(reference.service)) { onOpen(reference) }
+                Button(L10n.text(openTitle(reference.service), locale: locale)) { onOpen(reference) }
             } else if group.targetType == "ip" {
-                Text("IP target. No instance association is inferred.").font(.caption).foregroundColor(.secondary)
+                Text(L10n.text("IP target. No instance association is inferred.", locale: locale)).font(.caption).foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

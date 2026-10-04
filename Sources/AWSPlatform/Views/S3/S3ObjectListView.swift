@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct S3ObjectListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: S3ViewModel
     let bucketName: String
 
@@ -15,7 +16,7 @@ struct S3ObjectListView: View {
             )
             if !vm.currentPrefix.isEmpty {
                 HStack {
-                    Button("Root") {
+                    Button(L10n.text("Root", locale: locale)) {
                         vm.navigateToPrefix(bucket: bucketName, prefix: "")
                     }
                     Text(vm.currentPrefix)
@@ -41,7 +42,7 @@ struct S3ObjectListView: View {
                         .help(object.key)
                     Spacer()
                     if let size = object.size {
-                        Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                        Text(size.formatted(.byteCount(style: .file).locale(locale)))
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .fixedSize()

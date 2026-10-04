@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FavoritesListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: FavoritesViewModel
     let onOpen: (ResourceFavorite) -> Void
     @State private var searchText = ""
@@ -12,7 +13,7 @@ struct FavoritesListView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Favorites").font(.headline)
+                Text(L10n.text("Favorites", locale: locale)).font(.headline)
                 ResourceSearchField(text: $searchText, placeholder: "Search favorites")
             }
             .padding(12)
@@ -45,7 +46,7 @@ struct FavoritesListView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Open \(favorite.resourceID) in account \(favorite.accountID), profile \(favorite.profileName), region \(favorite.region)")
+                    .help(L10n.format("Open %@ in account %@, profile %@, region %@", favorite.resourceID, favorite.accountID, favorite.profileName, favorite.region, locale: locale))
 
                     Button {
                         vm.remove(favorite)
@@ -54,13 +55,13 @@ struct FavoritesListView: View {
                     }
                     .buttonStyle(.borderless)
                     .disabled(vm.storageError != nil)
-                    .help("Remove from Favorites")
-                    .accessibilityLabel("Remove \(favorite.displayName) from Favorites")
+                    .help(L10n.text("Remove from Favorites", locale: locale))
+                    .accessibilityLabel(L10n.format("Remove %@ from Favorites", favorite.displayName, locale: locale))
                 }
                 .padding(.vertical, 4)
                 .contextMenu {
-                    Button("Open") { onOpen(favorite) }
-                    Button("Remove from Favorites") { vm.remove(favorite) }
+                    Button(L10n.text("Open", locale: locale)) { onOpen(favorite) }
+                    Button(L10n.text("Remove from Favorites", locale: locale)) { vm.remove(favorite) }
                         .disabled(vm.storageError != nil)
                 }
             }

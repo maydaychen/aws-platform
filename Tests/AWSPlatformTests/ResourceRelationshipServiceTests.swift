@@ -271,6 +271,8 @@ final class ResourceRelationshipServiceTests: XCTestCase {
         XCTAssertTrue(dns.isIncomplete)
         XCTAssertTrue(dns.error?.contains("Z3") == true)
         XCTAssertFalse(dns.error?.contains("secret-endpoint") == true)
+        XCTAssertEqual(dns.resourceFailures.map(\.resourceID), ["Z3"])
+        XCTAssertEqual(dns.resourceFailures.first?.message, ResourceRelationError.failed.localizedDescription)
         XCTAssertEqual(Set(dns.nodes.compactMap(\.reference?.resourceID)), ["Z1", "Z2"])
     }
 

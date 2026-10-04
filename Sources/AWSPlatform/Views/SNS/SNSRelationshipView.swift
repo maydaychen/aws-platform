@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct SNSRelationshipView: View {
+    @Environment(\.locale) private var locale
     let topic: SNSTopic
     @ObservedObject var snsVM: SNSViewModel
     @ObservedObject var vm: SNSRelationshipViewModel
@@ -41,8 +42,8 @@ struct SNSRelationshipView: View {
                     Text("\(scope.profileName) · \(scope.accountID) · \(scope.region)")
                         .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    DisclosureGroup("About this view", isExpanded: $isAboutExpanded) {
-                        Text("Configuration links, not message delivery traces. The upstream check covers CloudWatch Metric and Composite alarm actions in this profile and region. S3 notifications, Lambda destinations and application Publish calls are not scanned. Subscriptions are reused from topic details; refresh them there. Raw endpoints stay hidden until revealed.")
+                    DisclosureGroup(L10n.text("About this view", locale: locale), isExpanded: $isAboutExpanded) {
+                        Text(L10n.text("Configuration links, not message delivery traces. The upstream check covers CloudWatch Metric and Composite alarm actions in this profile and region. S3 notifications, Lambda destinations and application Publish calls are not scanned. Subscriptions are reused from topic details; refresh them there. Raw endpoints stay hidden until revealed.", locale: locale))
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 6)
@@ -81,13 +82,13 @@ struct SNSRelationshipView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Label("调用链查看", systemImage: "point.3.connected.trianglepath.dotted")
+            Label(L10n.text("View relationships", locale: locale), systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.title2.weight(.semibold))
             Spacer()
-            Button("Refresh upstream", action: vm.refresh)
+            Button(L10n.text("Refresh upstream", locale: locale), action: vm.refresh)
                 .disabled(!hasCurrentUpstream || vm.isLoading)
-                .help("Read CloudWatch alarm configuration again. Subscription data is reused from topic details.")
-            Button("Close") { dismiss() }
+                .help(L10n.text("Read CloudWatch alarm configuration again. Subscription data is reused from topic details.", locale: locale))
+            Button(L10n.text("Close", locale: locale)) { dismiss() }
                 .keyboardShortcut(.cancelAction)
         }
         .padding(16)
@@ -101,11 +102,11 @@ struct SNSRelationshipView: View {
 
     private var upstreamColumn: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("CloudWatch alarms", systemImage: "bell.badge").font(.headline)
+            Label(L10n.text("CloudWatch alarms", locale: locale), systemImage: "bell.badge").font(.headline)
             if !hasCurrentUpstream {
                 relationshipMessage("Upstream check is not available for this selection.")
             } else if vm.isLoading {
-                ProgressView("Checking alarm actions…").controlSize(.small)
+                ProgressView(L10n.text("Checking alarm actions…", locale: locale)).controlSize(.small)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
             } else if let error = vm.error {
                 NoticeBanner(message: error)
@@ -122,21 +123,21 @@ struct SNSRelationshipView: View {
     private func sourceCard(_ source: SNSAlarmRelationship) -> some View {
         DisclosureGroup(isExpanded: expansion("alarm:" + source.alarm.arn)) {
             VStack(alignment: .leading, spacing: 8) {
-                Button("Open alarm") { open(source.target) }
+                Button(L10n.text("Open alarm", locale: locale)) { open(source.target) }
                     .disabled(!source.target.isValid(in: activeScope))
-                Text("\(source.alarm.kind.title) · \(source.triggers.joined(separator: ", "))")
+                Text("\(L10n.text(source.alarm.kind.title, locale: locale)) · \(source.triggers.joined(separator: ", "))")
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 AlarmStateLabel(state: source.alarm.state).font(.caption)
-                Text("Actions enabled: \(AlarmDisplay.boolean(source.alarm.actionsEnabled))")
+                Text(L10n.format("Actions enabled: %@", AlarmDisplay.boolean(source.alarm.actionsEnabled, locale: locale), locale: locale))
                     .font(.caption).foregroundColor(source.alarm.actionsEnabled == false ? .orange : .secondary)
                 if source.alarm.actionsEnabled == false {
-                    Text("Configured link; alarm actions are disabled.")
+                    Text(L10n.text("Configured link; alarm actions are disabled.", locale: locale))
                         .font(.caption).foregroundColor(.secondary)
                 }
                 ForEach(source.alarm.configuration.filter { $0.label.localizedCaseInsensitiveContains("suppress") }) { property in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(property.label).font(.caption).foregroundColor(.secondary)
+                        Text(L10n.text(property.label, locale: locale)).font(.caption).foregroundColor(.secondary)
                         Text(property.value).font(.caption).textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -154,13 +155,13 @@ struct SNSRelationshipView: View {
 
     private var topicColumn: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("SNS Topic", systemImage: "dot.radiowaves.left.and.right").font(.headline)
+            Label(L10n.text("SNS Topic", locale: locale), systemImage: "dot.radiowaves.left.and.right").font(.headline)
             DisclosureGroup(isExpanded: expansion("topic:" + topic.arn)) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(topic.kind.title).font(.caption).foregroundColor(.secondary)
+                    Text(L10n.text(topic.kind.title, locale: locale)).font(.caption).foregroundColor(.secondary)
                     Text(topic.arn).font(.caption.monospaced()).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Only this topic's subscriptions are shown.")
+                    Text(L10n.text("Only this topic's subscriptions are shown.", locale: locale))
                         .font(.caption).foregroundColor(.secondary)
                 }
                 .padding(.top, 10)
@@ -174,9 +175,9 @@ struct SNSRelationshipView: View {
 
     private func downstreamColumn(_ scope: SNSScope) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Subscriptions", systemImage: "arrow.triangle.branch").font(.headline)
+            Label(L10n.text("Subscriptions", locale: locale), systemImage: "arrow.triangle.branch").font(.headline)
             if snsVM.isSubscriptionsLoading {
-                ProgressView("Loading subscriptions…").controlSize(.small)
+                ProgressView(L10n.text("Loading subscriptions…", locale: locale)).controlSize(.small)
             } else if snsVM.subscriptionsError != nil {
                 NoticeBanner(message: "Subscriptions could not be loaded. Check the topic's permissions and connection, then refresh its details. Upstream results remain independent.")
             } else if snsVM.subscriptions.isEmpty {
@@ -194,31 +195,31 @@ struct SNSRelationshipView: View {
         return DisclosureGroup(isExpanded: expansion("subscription:" + subscription.id)) {
             VStack(alignment: .leading, spacing: 8) {
                 if let target {
-                    Button("Open Lambda function") { open(target) }
+                    Button(L10n.text("Open Lambda function", locale: locale)) { open(target) }
                         .disabled(!target.isValid(in: activeScope))
                     if let qualifier = target.qualifier {
-                        Text("Alias or version: \(qualifier)").font(.caption).textSelection(.enabled)
+                        Text(L10n.format("Alias or version: %@", qualifier, locale: locale)).font(.caption).textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Text(SNSRelationshipMapping.navigationNote(subscription, scope: scope, topic: topic))
+                Text(L10n.text(SNSRelationshipMapping.navigationNote(subscription, scope: scope, topic: topic), locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Divider()
-                Text(subscription.protocolName.map(SNSDisplay.returned) ?? "Unknown protocol").font(.caption)
-                Text(subscription.status).font(.caption)
+                Text(subscription.protocolName.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Unknown protocol", locale: locale)).font(.caption)
+                Text(L10n.text(subscription.status, locale: locale)).font(.caption)
                     .foregroundColor(subscription.status == "Pending confirmation" ? .orange : .secondary)
-                Text("Owner: \(subscription.owner.map(SNSDisplay.returned) ?? "Not returned")")
+                Text(L10n.format("Owner: %@", subscription.owner.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Not returned", locale: locale), locale: locale))
                     .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(subscription.arn.map(SNSDisplay.returned) ?? "Subscription ARN not returned")
+                Text(subscription.arn.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Subscription ARN not returned", locale: locale))
                     .font(.caption.monospaced()).foregroundColor(.secondary)
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 subscriptionEndpoint(subscription, scope: scope)
             }
             .padding(.top, 10)
         } label: {
-            nodeLabel(target?.resourceID ?? subscriptionTitle(subscription), nodeID: "subscription:" + subscription.id,
+            nodeLabel(target?.resourceID ?? L10n.text(subscriptionTitle(subscription), locale: locale), nodeID: "subscription:" + subscription.id,
                       symbol: subscription.protocolName == "lambda" ? "function" : "arrow.up.right",
                       accent: .blue)
         }
@@ -230,29 +231,29 @@ struct SNSRelationshipView: View {
         if let endpoint = subscription.endpoint {
             let revealed = endpointVisibility.isRevealed(subscription, scope: scope, topicARN: topic.arn)
             HStack(spacing: 8) {
-                Label(revealed ? "Endpoint" : "Endpoint hidden", systemImage: revealed ? "eye" : "eye.slash")
+                Label(L10n.text(revealed ? "Endpoint" : "Endpoint hidden", locale: locale), systemImage: revealed ? "eye" : "eye.slash")
                     .font(.caption).foregroundColor(.secondary)
                 Spacer(minLength: 0)
-                Button(revealed ? "Hide" : "Reveal") {
+                Button(L10n.text(revealed ? "Hide" : "Reveal", locale: locale)) {
                     endpointVisibility.toggle(subscription, scope: activeScope, topicARN: topic.arn)
                 }
             }
             if revealed {
-                Text(SNSDisplay.returned(endpoint)).font(.caption.monospaced()).textSelection(.enabled)
+                Text(SNSDisplay.returned(endpoint, locale: locale)).font(.caption.monospaced()).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Copy endpoint") {
+                Button(L10n.text("Copy endpoint", locale: locale)) {
                     guard endpointVisibility.isRevealed(subscription, scope: activeScope, topicARN: topic.arn) else { return }
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(endpoint, forType: .string)
                 }
             }
         } else {
-            Text("Endpoint not returned").font(.caption).foregroundColor(.secondary)
+            Text(L10n.text("Endpoint not returned", locale: locale)).font(.caption).foregroundColor(.secondary)
         }
     }
 
     private func relationshipMessage(_ message: String) -> some View {
-        Text(message).font(.callout).foregroundColor(.secondary)
+        Text(L10n.text(message, locale: locale)).font(.callout).foregroundColor(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .relationshipCard()
     }
@@ -309,8 +310,8 @@ struct SNSRelationshipView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityValue(expandedNodeIDs.contains(nodeID) ? "Expanded" : "Collapsed")
-        .accessibilityHint("Show or hide node details")
+        .accessibilityValue(L10n.text(expandedNodeIDs.contains(nodeID) ? "Expanded" : "Collapsed", locale: locale))
+        .accessibilityHint(L10n.text("Show or hide node details", locale: locale))
     }
 
     private func resetExpandedDetails() {

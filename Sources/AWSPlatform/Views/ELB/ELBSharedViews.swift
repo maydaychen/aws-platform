@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 enum ELBDisplay {
-    static func returned(_ value: String?) -> String {
-        guard let value, !value.isEmpty else { return "Not returned" }
+    static func returned(_ value: String?, locale: Locale) -> String {
+        guard let value, !value.isEmpty else { return L10n.text("Not returned", locale: locale) }
         return value
     }
 
@@ -12,7 +12,7 @@ enum ELBDisplay {
         case "application": return "Application (ALB)"
         case "network": return "Network (NLB)"
         case "gateway": return "Gateway (GWLB)"
-        default: return returned(value)
+        default: return value.isEmpty ? "Not returned" : value
         }
     }
 
@@ -23,7 +23,7 @@ enum ELBDisplay {
         case "fixed-response": return "Fixed response"
         case "authenticate-oidc": return "Authenticate with OIDC"
         case "authenticate-cognito": return "Authenticate with Cognito"
-        default: return returned(value)
+        default: return value.isEmpty ? "Not returned" : value
         }
     }
 
@@ -34,14 +34,18 @@ enum ELBDisplay {
 }
 
 struct ELBFieldRows: View {
+    @Environment(\.locale) private var locale
     let fields: [ELBField]
+    var isVerbatimLabels = false
+    var isMessageValues = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(fields.indices, id: \.self) { index in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(fields[index].name).font(.caption).foregroundColor(.secondary)
-                    Text(ELBDisplay.returned(fields[index].value)).font(.callout).textSelection(.enabled)
+                    Text(verbatim: isVerbatimLabels ? fields[index].name : L10n.text(fields[index].name, locale: locale))
+                        .font(.caption).foregroundColor(.secondary)
+                    Text(verbatim: displayedValue(fields[index])).font(.callout).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 10)
@@ -51,9 +55,31 @@ struct ELBFieldRows: View {
         .padding(.horizontal, 12)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
     }
+
+    private func displayedValue(_ field: ELBField) -> String {
+        if isMessageValues { return L10n.text(field.value, locale: locale) }
+        if !isVerbatimLabels {
+            switch field.name {
+            case "Stickiness enabled", "Ignore client certificate expiry", "Health checks enabled":
+                return L10n.text(field.value, locale: locale)
+            case "Owner", "Protocol", "Ports / ICMP type and code":
+                return L10n.text(field.value, locale: locale)
+            case "State" where field.value == "Unknown":
+                return L10n.text("Unknown", locale: locale)
+            case "Routing policy":
+                return Route53Display.routingPolicy(field.value, locale: locale)
+            default:
+                if field.name.hasPrefix("Certificate ") && field.name.hasSuffix(" default") {
+                    return L10n.text(field.value, locale: locale)
+                }
+            }
+        }
+        return ELBDisplay.returned(field.value, locale: locale)
+    }
 }
 
 struct ELBDetailHeader: View {
+    @Environment(\.locale) private var locale
     let name: String
     let subtitle: String
     let arn: String
@@ -70,11 +96,11 @@ struct ELBDetailHeader: View {
                 Spacer(minLength: 0)
                 if isLoading {
                     Button(action: onCancel) { Image(systemName: "xmark.circle") }
-                        .help("Cancel detail requests").accessibilityLabel("Cancel detail requests")
+                        .help(L10n.text("Cancel detail requests", locale: locale)).accessibilityLabel(L10n.text("Cancel detail requests", locale: locale))
                 }
                 Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
                     .disabled(!isEnabled || isLoading)
-                    .help("Refresh details").accessibilityLabel("Refresh details")
+                    .help(L10n.text("Refresh details", locale: locale)).accessibilityLabel(L10n.text("Refresh details", locale: locale))
             }
             Text(subtitle).font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +111,7 @@ struct ELBDetailHeader: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(arn, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy ARN").accessibilityLabel("Copy ARN")
+                .buttonStyle(.borderless).help(L10n.text("Copy ARN", locale: locale)).accessibilityLabel(L10n.text("Copy ARN", locale: locale))
             }
         }
         .padding(16)
@@ -105,6 +131,7 @@ struct ELBScopeCaption: View {
 }
 
 struct ELBLinkedResourceRow: View {
+    @Environment(\.locale) private var locale
     let arn: String
     let name: String
     let service: AWSService
@@ -121,14 +148,15 @@ struct ELBLinkedResourceRow: View {
             }
             Spacer(minLength: 0)
             if let scope, let reference = ELBResourceReference(scope: scope, service: service, resourceID: arn, name: name) {
-                Button("Open") { onOpen(reference) }
-                    .help("Open \(name) in the current profile and region")
+                Button(L10n.text("Open", locale: locale)) { onOpen(reference) }
+                    .help(L10n.format("Open %@ in the current profile and region", name, locale: locale))
             }
         }
     }
 }
 
 struct ELBActionView: View {
+    @Environment(\.locale) private var locale
     let action: ELBAction
     let scope: MonitoringScope?
     let onOpen: (ELBResourceReference) -> Void
@@ -136,9 +164,10 @@ struct ELBActionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(ELBDisplay.action(action.type)).font(.headline)
+                Text(L10n.text(ELBDisplay.action(action.type), locale: locale)).font(.headline)
                 Spacer(minLength: 0)
-                Text(action.order.map { "Order \(String($0))" } ?? "Order not returned")
+                Text(action.order.map { L10n.format("Order %@", String($0), locale: locale) }
+                     ?? L10n.text("Order not returned", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
             }
             if !action.fields.isEmpty { ELBFieldRows(fields: action.fields) }
@@ -148,13 +177,13 @@ struct ELBActionView: View {
                     ELBLinkedResourceRow(arn: forward.targetGroupARN, name: ELBDisplay.resourceName(forward.targetGroupARN),
                                          service: .targetGroups, scope: scope, onOpen: onOpen)
                     if let weight = forward.weight {
-                        Text("Configured weight: \(String(weight))").font(.caption).foregroundColor(.secondary)
+                        Text(L10n.format("Configured weight: %@", String(weight), locale: locale)).font(.caption).foregroundColor(.secondary)
                     }
                 }
                 if index != action.forwards.indices.last { Divider() }
             }
             if action.fields.isEmpty && action.forwards.isEmpty {
-                Text("No additional action configuration returned.").font(.caption).foregroundColor(.secondary)
+                Text(L10n.text("No additional action configuration returned.", locale: locale)).font(.caption).foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(12)
@@ -163,10 +192,11 @@ struct ELBActionView: View {
 }
 
 struct ELBHealthLabel: View {
+    @Environment(\.locale) private var locale
     let state: String
 
     var body: some View {
-        Label(ELBDisplay.returned(state), systemImage: icon)
+        Label(state == "Unknown" ? L10n.text("Unknown", locale: locale) : ELBDisplay.returned(state, locale: locale), systemImage: icon)
             .font(.caption).foregroundColor(color).lineLimit(1).help(state)
     }
 

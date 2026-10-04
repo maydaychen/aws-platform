@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct SNSSubscriptionsView: View {
+    @Environment(\.locale) private var locale
     let topic: SNSTopic
     @ObservedObject var vm: SNSViewModel
     @State private var endpointVisibility: SNSEndpointRevealState
@@ -16,20 +17,20 @@ struct SNSSubscriptionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Endpoints stay hidden until revealed. Subscriber owners can be different accounts; only this topic is queried.")
+            Text(L10n.text("Endpoints stay hidden until revealed. Subscriber owners can be different accounts; only this topic is queried.", locale: locale))
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if isCurrentSelection && vm.isSubscriptionsLoading {
-                ProgressView("Loading subscriptions…").controlSize(.small)
+                ProgressView(L10n.text("Loading subscriptions…", locale: locale)).controlSize(.small)
             } else if isCurrentSelection, let error = vm.subscriptionsError {
                 NoticeBanner(message: error)
             } else if isCurrentSelection && !vm.subscriptions.isEmpty {
-                Text("\(vm.subscriptions.count) subscriptions").font(.caption).foregroundColor(.secondary)
+                Text(L10n.format("%@ subscriptions", String(vm.subscriptions.count), locale: locale)).font(.caption).foregroundColor(.secondary)
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(vm.subscriptions) { subscription in subscriptionRow(subscription) }
                 }
             } else {
-                Text("No subscriptions returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No subscriptions returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
         }
         .onChange(of: topic.arn) { _ in endpointVisibility.clear() }
@@ -40,14 +41,14 @@ struct SNSSubscriptionsView: View {
     private func subscriptionRow(_ subscription: SNSSubscription) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(subscription.protocolName.map(SNSDisplay.returned) ?? "Unknown protocol")
+                Text(subscription.protocolName.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Unknown protocol", locale: locale))
                     .font(.headline)
                 Spacer(minLength: 0)
-                Text(subscription.status).font(.caption).foregroundColor(statusColor(subscription.status))
+                Text(L10n.text(subscription.status, locale: locale)).font(.caption).foregroundColor(statusColor(subscription.status))
             }
-            Text("Owner: \(subscription.owner.map(SNSDisplay.returned) ?? "Not returned")")
+            Text(L10n.format("Owner: %@", subscription.owner.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Not returned", locale: locale), locale: locale))
                 .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
-            Text(subscription.arn.map(SNSDisplay.returned) ?? "Subscription ARN not returned")
+            Text(subscription.arn.map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Subscription ARN not returned", locale: locale))
                 .font(.caption.monospaced()).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             Divider()
@@ -63,9 +64,9 @@ struct SNSSubscriptionsView: View {
             let isRevealed = endpointVisibility.isRevealed(subscription, scope: vm.scope, topicARN: topic.arn)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("Endpoint").font(.caption).foregroundColor(.secondary)
+                    Text(L10n.text("Endpoint", locale: locale)).font(.caption).foregroundColor(.secondary)
                     Spacer(minLength: 0)
-                    Button(isRevealed ? "Hide" : "Reveal") {
+                    Button(L10n.text(isRevealed ? "Hide" : "Reveal", locale: locale)) {
                         endpointVisibility.toggle(subscription, scope: vm.scope, topicARN: topic.arn)
                     }
                     .disabled(vm.scope == nil)
@@ -74,18 +75,18 @@ struct SNSSubscriptionsView: View {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(endpoint, forType: .string)
                         } label: { Image(systemName: "doc.on.doc") }
-                        .help("Copy visible endpoint").accessibilityLabel("Copy visible endpoint")
+                        .help(L10n.text("Copy visible endpoint", locale: locale)).accessibilityLabel(L10n.text("Copy visible endpoint", locale: locale))
                     }
                 }
                 if isRevealed {
-                    Text(SNSDisplay.returned(endpoint)).font(.callout).textSelection(.enabled)
+                    Text(SNSDisplay.returned(endpoint, locale: locale)).font(.callout).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Label("Hidden", systemImage: "eye.slash").font(.callout).foregroundColor(.secondary)
+                    Label(L10n.text("Hidden", locale: locale), systemImage: "eye.slash").font(.callout).foregroundColor(.secondary)
                 }
             }
         } else {
-            Text("Endpoint not returned").font(.caption).foregroundColor(.secondary)
+            Text(L10n.text("Endpoint not returned", locale: locale)).font(.caption).foregroundColor(.secondary)
         }
     }
 

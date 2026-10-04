@@ -99,6 +99,15 @@ build_architecture() {
         bundle_count=$((bundle_count + 1))
     done
     [ "$bundle_count" -gt 0 ] || fail "Missing SwiftPM resource bundles for $architecture."
+    local localized_resources="$stage_dir/$architecture/resources/${app_name}_${app_name}.bundle"
+    if [ -d "$localized_resources/Contents/Resources" ]; then
+        localized_resources="$localized_resources/Contents/Resources"
+    fi
+    for language in en zh-Hans; do
+        [ -s "$localized_resources/$language.lproj/Localizable.strings" ] || fail "Missing $language localization for $architecture."
+        plutil -lint "$localized_resources/$language.lproj/Localizable.strings" >/dev/null
+    done
+    [ -s "$localized_resources/MessageArguments.json" ] || fail "Missing localized message metadata for $architecture."
 }
 
 build_architecture arm64
@@ -119,6 +128,11 @@ cat > "$app_path/Contents/Info.plist" <<'PLIST'
 <dict>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hans</string>
+    </array>
     <key>CFBundleExecutable</key>
     <string>AWSPlatform</string>
     <key>CFBundleIdentifier</key>

@@ -2,6 +2,7 @@ import SwiftUI
 
 @MainActor
 struct ContentView: View {
+    @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var favoritesVM: FavoritesViewModel
     @EnvironmentObject private var recentsVM: RecentResourcesViewModel
@@ -134,7 +135,7 @@ struct ContentView: View {
                 HStack {
                     NoticeBanner(message: message)
                     if elbNavigation.error != nil || relatedNavigation.error != nil || favoriteNavigation.error != nil {
-                        Button("Dismiss") {
+                        Button(L10n.text("Dismiss", locale: locale)) {
                             relatedNavigation.cancel()
                             favoriteNavigation.cancel()
                             elbNavigation.cancel()
@@ -434,7 +435,7 @@ struct ContentView: View {
         } else if let target = favoriteNavigation.target {
             VStack(spacing: 12) {
                 ProgressView()
-                Text("Opening \(target.displayName)…")
+                Text(L10n.format("Opening %@…", target.displayName, locale: locale))
                 Text("\(target.profileName) · \(target.region)")
                     .font(.caption).foregroundColor(.secondary)
             }
@@ -442,7 +443,7 @@ struct ContentView: View {
         } else if let target = elbNavigation.target {
             VStack(spacing: 12) {
                 ProgressView()
-                Text("Opening \(target.name)…")
+                Text(L10n.format("Opening %@…", target.name, locale: locale))
                 Text("\(target.scope.profile.name) · \(target.scope.region)")
                     .font(.caption).foregroundColor(.secondary)
             }
@@ -455,16 +456,16 @@ struct ContentView: View {
                             .font(.caption).foregroundColor(.secondary)
                         Spacer()
                         if let reference = currentRelationReference {
-                            Button("View relationships") { showResourceRelationships(reference) }
+                            Button(L10n.text("View relationships", locale: locale)) { showResourceRelationships(reference) }
                         }
                         Button {
                             favoritesVM.toggle(favorite)
                         } label: {
-                            Label(favoritesVM.contains(favorite) ? "Remove Favorite" : "Add Favorite",
+                            Label(L10n.text(favoritesVM.contains(favorite) ? "Remove Favorite" : "Add Favorite", locale: locale),
                                   systemImage: favoritesVM.contains(favorite) ? "star.fill" : "star")
                         }
                         .disabled(favoritesVM.storageError != nil)
-                        .help("Save this resource with its current account, profile, and region")
+                        .help(L10n.text("Save this resource with its current account, profile, and region", locale: locale))
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -678,7 +679,7 @@ struct ContentView: View {
             } else if let bucketName = s3BrowsingBucket {
                 VStack(spacing: 0) {
                     HStack {
-                        Button("Back to Buckets") {
+                        Button(L10n.text("Back to Buckets", locale: locale)) {
                             s3VM.leaveObjectBrowser()
                             s3BrowsingBucket = nil
                         }

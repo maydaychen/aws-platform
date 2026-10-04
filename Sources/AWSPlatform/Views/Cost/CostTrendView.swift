@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CostTrendView: View {
     let report: CostReport
+    @Environment(\.locale) private var locale
     @State private var showDailyAmounts = false
 
     var body: some View {
@@ -10,8 +11,8 @@ struct CostTrendView: View {
             Chart(report.daily) { day in
                 if let date = CostDates.date(day.date) {
                     BarMark(
-                        x: .value("Day", date, unit: .day),
-                        y: .value(report.currency ?? "Amount", NSDecimalNumber(decimal: day.amount).doubleValue)
+                        x: .value(L10n.text("Day", locale: locale), date, unit: .day),
+                        y: .value(report.currency ?? L10n.text("Amount", locale: locale), NSDecimalNumber(decimal: day.amount).doubleValue)
                     )
                     .foregroundStyle(day.amount < 0 ? Color.orange : Color.accentColor)
                     .accessibilityLabel(day.date)
@@ -28,7 +29,7 @@ struct CostTrendView: View {
             .chartYAxis { AxisMarks(position: .leading) }
             .environment(\.timeZone, CostDates.calendar.timeZone)
             .frame(height: 210)
-            DisclosureGroup("Daily amounts", isExpanded: $showDailyAmounts) {
+            DisclosureGroup(L10n.text("Daily amounts", locale: locale), isExpanded: $showDailyAmounts) {
                 LazyVStack(spacing: 8) {
                     ForEach(report.daily) { day in
                         HStack {

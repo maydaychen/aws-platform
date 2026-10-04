@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EC2TargetGroupsView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: EC2TargetGroupsViewModel
     let scope: MonitoringScope?
     let instanceID: String
@@ -15,11 +16,11 @@ struct EC2TargetGroupsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 controls
                 ELBScopeCaption(scope: scope)
-                Text("Manual scan only. Lists target groups in this account and region, then requests target health for each instance-type group. Pagination and retries can add requests. IP and Lambda groups are excluded.")
+                Text(L10n.text("Manual scan only. Lists target groups in this account and region, then requests target health for each instance-type group. Pagination and retries can add requests. IP and Lambda groups are excluded.", locale: locale))
                     .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 if canLoad, let error = vm.error { NoticeBanner(message: error) }
                 if canLoad && vm.isLoading {
-                    ProgressView("Checking instance-type target groups…").controlSize(.small)
+                    ProgressView(L10n.text("Checking instance-type target groups…", locale: locale)).controlSize(.small)
                 }
                 if canLoad, let result = vm.result {
                     resultContent(result)
@@ -39,12 +40,12 @@ struct EC2TargetGroupsView: View {
 
     private var controls: some View {
         HStack(spacing: 10) {
-            Text("Target group membership").font(.headline)
+            Text(L10n.text("Target group membership", locale: locale)).font(.headline)
             Spacer(minLength: 0)
             if vm.isLoading {
-                Button("Cancel", action: vm.cancel)
+                Button(L10n.text("Cancel", locale: locale), action: vm.cancel)
             }
-            Button(vm.result == nil ? "Scan target groups" : "Scan again") {
+            Button(L10n.text(vm.result == nil ? "Scan target groups" : "Scan again", locale: locale)) {
                 if vm.result == nil { vm.load() }
                 else { vm.refresh() }
             }
@@ -54,20 +55,20 @@ struct EC2TargetGroupsView: View {
 
     @ViewBuilder
     private func resultContent(_ result: ELBMembershipResult) -> some View {
-        Text("Successfully checked \(result.checkedGroupCount) of \(result.totalGroupCount) instance-type target groups")
+        Text(L10n.format("Successfully checked %@ of %@ instance-type target groups", String(result.checkedGroupCount), String(result.totalGroupCount), locale: locale))
             .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
         if !result.isComplete {
             NoticeBanner(message: "Scan incomplete. The matches below cover successfully checked groups only; additional registrations may exist.")
         }
         if !result.failures.isEmpty {
-            DisclosureGroup("Failed groups (\(result.failures.count))") {
-                ELBFieldRows(fields: result.failures).padding(.top, 8)
+            DisclosureGroup(L10n.format("Failed groups (%@)", String(result.failures.count), locale: locale)) {
+                ELBFieldRows(fields: result.failures, isVerbatimLabels: true, isMessageValues: true).padding(.top, 8)
             }
             .font(.callout)
         }
         if result.matches.isEmpty {
-            Text(result.isComplete ? "No registrations were found for this instance."
-                 : "No registrations were found among the successfully checked groups.")
+            Text(L10n.text(result.isComplete ? "No registrations were found for this instance."
+                 : "No registrations were found among the successfully checked groups.", locale: locale))
                 .font(.callout).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
         } else {
             ForEach(result.matches) { membership in
@@ -77,7 +78,8 @@ struct EC2TargetGroupsView: View {
                     ForEach(membership.targets) { target in
                         VStack(alignment: .leading, spacing: 5) {
                             HStack(spacing: 10) {
-                                Text(target.port.map { "Registered port \(String($0))" } ?? "Registered port not returned").font(.callout)
+                                Text(target.port.map { L10n.format("Registered port %@", String($0), locale: locale) }
+                                     ?? L10n.text("Registered port not returned", locale: locale)).font(.callout)
                                 Spacer(minLength: 0)
                                 ELBHealthLabel(state: target.state)
                             }

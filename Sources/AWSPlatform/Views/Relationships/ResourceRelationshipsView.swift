@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ResourceRelationshipsView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: ResourceRelationshipsViewModel
     let onOpen: (ResourceRelationReference) -> Void
     let onClose: () -> Void
@@ -19,7 +20,7 @@ struct ResourceRelationshipsView: View {
                     }
                     if let error = vm.error { NoticeBanner(message: error) }
                     if vm.isLoading {
-                        ProgressView(vm.includesReverse ? "Scanning configured reverse relationships…" : "Loading direct relationships…")
+                        ProgressView(L10n.text(vm.includesReverse ? "Scanning configured reverse relationships…" : "Loading direct relationships…", locale: locale))
                             .frame(maxWidth: .infinity, minHeight: 140)
                     } else if let result = vm.result {
                         if result.sections.isEmpty {
@@ -46,16 +47,16 @@ struct ResourceRelationshipsView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Button(action: vm.back) { Label("Back", systemImage: "chevron.left") }
+            Button(action: vm.back) { Label(L10n.text("Back", locale: locale), systemImage: "chevron.left") }
                 .disabled(!vm.canGoBack)
-                .help("Restore the previously loaded view without making new requests")
-            Text("Resource relationships").font(.headline)
+                .help(L10n.text("Restore the previously loaded view without making new requests", locale: locale))
+            Text(L10n.text("Resource relationships", locale: locale)).font(.headline)
             Spacer(minLength: 0)
-            if vm.isLoading { Button("Cancel", action: vm.cancel) }
+            if vm.isLoading { Button(L10n.text("Cancel", locale: locale), action: vm.cancel) }
             Button(action: vm.refresh) { Image(systemName: "arrow.clockwise") }
                 .disabled(vm.reference == nil || vm.isLoading)
-                .help("Refresh this resource's relationships").accessibilityLabel("Refresh relationships")
-            Button("Close", action: onClose).keyboardShortcut(.cancelAction)
+                .help(L10n.text("Refresh this resource's relationships", locale: locale)).accessibilityLabel(L10n.text("Refresh relationships", locale: locale))
+            Button(L10n.text("Close", locale: locale), action: onClose).keyboardShortcut(.cancelAction)
         }
         .padding(16)
     }
@@ -65,16 +66,16 @@ struct ResourceRelationshipsView: View {
             Image(systemName: reference.service.icon).font(.title2).foregroundColor(.secondary)
             Text(reference.name).font(.title2.weight(.semibold)).multilineTextAlignment(.center)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            Text("\(reference.service.rawValue) · \(reference.isGlobal ? "Global resource" : reference.scope.region)")
+            Text("\(reference.service.rawValue) · \(reference.isGlobal ? L10n.text("Global resource", locale: locale) : reference.scope.region)")
                 .font(.caption).foregroundColor(.secondary)
             Text("\(reference.scope.profile.name) · \(reference.scope.accountID)")
                 .font(.caption.monospacedDigit()).foregroundColor(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Configured relationships only. No DNS resolution or traffic tracing.")
+            Text(L10n.text("Configured relationships only. No DNS resolution or traffic tracing.", locale: locale))
                 .font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
-            Text("Back restores a saved view. Use Refresh to request updated relationships.")
+            Text(L10n.text("Back restores a saved view. Use Refresh to request updated relationships.", locale: locale))
                 .font(.caption).foregroundColor(.secondary).multilineTextAlignment(.center)
-            Button("Open resource") { onOpen(reference) }.disabled(vm.isLoading || !reference.isValid)
+            Button(L10n.text("Open resource", locale: locale)) { onOpen(reference) }.disabled(vm.isLoading || !reference.isValid)
         }
         .frame(maxWidth: .infinity).padding(18)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
@@ -83,12 +84,12 @@ struct ResourceRelationshipsView: View {
     private func regionControls(_ reference: ResourceRelationReference) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Text("Load balancer query region").font(.callout)
-                TextField("AWS region", text: $queryRegion).textFieldStyle(.roundedBorder).frame(maxWidth: 210)
+                Text(L10n.text("Load balancer query region", locale: locale)).font(.callout)
+                TextField(L10n.text("AWS region", locale: locale), text: $queryRegion).textFieldStyle(.roundedBorder).frame(maxWidth: 210)
                     .onSubmit { vm.queryRegion(queryRegion) }
-                Button("Query region") { vm.queryRegion(queryRegion) }.disabled(vm.isLoading)
+                Button(L10n.text("Query region", locale: locale)) { vm.queryRegion(queryRegion) }.disabled(vm.isLoading)
             }
-            Text("DNS is global. Matching checks only \(reference.scope.region) in this profile; no other regions are scanned automatically.")
+            Text(L10n.format("DNS is global. Matching checks only %@ in this profile; no other regions are scanned automatically.", reference.scope.region, locale: locale))
                 .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .disabled(vm.isLoading)
@@ -96,10 +97,10 @@ struct ResourceRelationshipsView: View {
 
     private var reverseControls: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(reverseDescription).font(.caption).foregroundColor(.secondary)
+            Text(L10n.text(reverseDescription, locale: locale)).font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button(vm.includesReverse ? "Scan again" : "Scan reverse links", action: vm.scanReverse)
+            Button(L10n.text(vm.includesReverse ? "Scan again" : "Scan reverse links", locale: locale), action: vm.scanReverse)
                 .disabled(vm.isLoading)
         }
     }
@@ -117,20 +118,31 @@ struct ResourceRelationshipsView: View {
         VStack(alignment: .leading, spacing: 10) {
             DetailSectionTitle(title: section.title)
             if let note = section.note {
-                Text(note).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(L10n.text(note, locale: locale)).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let checked = section.checkedCount, let total = section.totalCount {
-                Text("Successfully checked \(String(checked)) of \(String(total))")
+                Text(L10n.format("Successfully checked %@ of %@", String(checked), String(total), locale: locale))
                     .font(.caption).foregroundColor(.secondary)
             }
-            if let error = section.error { NoticeBanner(message: error) }
+            if !section.resourceFailures.isEmpty {
+                ForEach(section.resourceFailures.indices, id: \.self) { index in
+                    let failure = section.resourceFailures[index]
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(verbatim: "\(failure.resourceName) (\(failure.resourceID))")
+                            .font(.caption).textSelection(.enabled)
+                        NoticeBanner(message: failure.message)
+                    }
+                }
+            } else if let error = section.error {
+                NoticeBanner(message: error)
+            }
             if section.isIncomplete {
                 NoticeBanner(message: "Incomplete results. Additional relationships may exist in sources that could not be checked.")
             }
             if section.nodes.isEmpty {
-                Text(section.requiresScan ? "Use Scan reverse links to load this section."
+                Text(L10n.text(section.requiresScan ? "Use Scan reverse links to load this section."
                      : section.error != nil || section.isIncomplete ? "No confirmed relationships are available from the completed checks."
-                     : "No related resources were returned.")
+                     : "No related resources were returned.", locale: locale))
                     .font(.callout).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
                 LazyVGrid(columns: [.init(.adaptive(minimum: 300), alignment: .top)], alignment: .leading, spacing: 12) {

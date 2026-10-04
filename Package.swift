@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "AWSPlatform",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/soto-project/soto.git", from: "7.0.0"),
@@ -24,7 +25,8 @@ let package = Package(
                 .product(name: "SotoHealth", package: "soto"),
                 .product(name: "SotoRoute53", package: "soto"),
                 .product(name: "SotoElasticLoadBalancingV2", package: "soto"),
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "AWSPlatformTests",

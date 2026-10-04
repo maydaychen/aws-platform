@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct EC2DetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview"
         case network = "Network"
@@ -53,7 +54,7 @@ struct EC2DetailView: View {
             ZStack {
                 tabContent
                 if selectedTab != .metrics && selectedTab != .targetGroups && vm.isDetailLoading && detail == nil {
-                    ProgressView("Loading EC2 details…")
+                    ProgressView(L10n.text("Loading EC2 details…", locale: locale))
                         .padding()
                         .background(.regularMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -92,11 +93,11 @@ struct EC2DetailView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text(detailError)
+                    Text(L10n.text(detailError, locale: locale))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Button("Retry") {
+                    Button(L10n.text("Retry", locale: locale)) {
                         vm.loadDetailForSelection()
                     }
                 }
@@ -116,7 +117,7 @@ struct EC2DetailView: View {
             if health?.needsAttention == true {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
-                    .help(health?.summary ?? "Needs attention")
+                    .help(L10n.text(health?.summary ?? "Needs attention", locale: locale))
             }
         }
         .font(.caption)
@@ -367,10 +368,10 @@ struct EC2DetailView: View {
         rules: [EC2SecurityRuleModel]
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(L10n.text(title, locale: locale))
                 .font(.headline)
             if rules.isEmpty {
-                Text("None")
+                Text(L10n.text("None", locale: locale))
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -402,7 +403,7 @@ struct EC2DetailView: View {
     }
 
     private func emptyDetail(_ text: String) -> some View {
-        Text(text)
+        Text(L10n.text(text, locale: locale))
             .font(.caption)
             .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -419,8 +420,8 @@ struct EC2DetailView: View {
             Image(systemName: "doc.on.doc")
         }
         .buttonStyle(.borderless)
-        .help(label)
-        .accessibilityLabel(label)
+        .help(L10n.text(label, locale: locale))
+        .accessibilityLabel(L10n.text(label, locale: locale))
     }
 
     private var stateColor: Color {
@@ -437,7 +438,7 @@ struct EC2DetailView: View {
     }
 
     private func boolean(_ value: Bool?) -> String {
-        value.map { $0 ? "Yes" : "No" } ?? "-"
+        value.map { L10n.text($0 ? "Yes" : "No", locale: locale) } ?? "-"
     }
 
     private func number(_ value: Int?) -> String {
@@ -454,6 +455,6 @@ struct EC2DetailView: View {
     }
 
     private func format(_ date: Date?) -> String {
-        date?.formatted(date: .abbreviated, time: .standard) ?? "-"
+        date?.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(locale)) ?? "-"
     }
 }

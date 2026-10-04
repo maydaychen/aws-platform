@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LambdaCodeView: View {
+    @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
     let function: LambdaFunctionModel
 
@@ -40,9 +41,9 @@ struct LambdaCodeView: View {
 
     private var containerImageView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Container Image")
+            Text(L10n.text("Container Image", locale: locale))
                 .font(.headline)
-            Text("This function is packaged as a container image.")
+            Text(L10n.text("This function is packaged as a container image.", locale: locale))
                 .foregroundColor(.secondary)
             if let imageUri = function.imageUri {
                 Text(imageUri)

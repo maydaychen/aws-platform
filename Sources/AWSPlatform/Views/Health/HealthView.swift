@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HealthView: View {
     @ObservedObject var vm: HealthViewModel
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -10,7 +11,7 @@ struct HealthView: View {
                     Text(scope.profileName).font(.headline)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(scope.accountID) · Current account only · All regions")
+                    Text(L10n.format("%@ · Current account only · All regions", scope.accountID, locale: locale))
                         .font(.caption.monospacedDigit()).foregroundColor(.secondary)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)

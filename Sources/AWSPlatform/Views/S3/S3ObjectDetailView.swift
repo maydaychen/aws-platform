@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct S3ObjectDetailView: View {
+    @Environment(\.locale) private var locale
     let object: S3ObjectModel
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(object.isPrefix ? "FOLDER" : "S3 OBJECT", systemImage: object.isPrefix ? "folder" : "doc")
+                    Label(L10n.text(object.isPrefix ? "FOLDER" : "S3 OBJECT", locale: locale), systemImage: object.isPrefix ? "folder" : "doc")
                         .font(.caption).foregroundColor(.secondary)
                     Text(object.key)
                         .font(.title3.weight(.semibold))
@@ -16,9 +17,9 @@ struct S3ObjectDetailView: View {
                 }
 
                 DetailGrid(items: [
-                    ("Type", object.isPrefix ? "Prefix" : "Object"),
-                    ("Size", object.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "-"),
-                    ("Last Modified", object.lastModified?.formatted() ?? "-"),
+                    ("Type", L10n.text(object.isPrefix ? "Prefix" : "Object", locale: locale)),
+                    ("Size", object.size.map { $0.formatted(.byteCount(style: .file).locale(locale)) } ?? "-"),
+                    ("Last Modified", object.lastModified?.formatted(Date.FormatStyle().locale(locale)) ?? "-"),
                     ("Storage Class", object.storageClass ?? "-")
                 ])
             }

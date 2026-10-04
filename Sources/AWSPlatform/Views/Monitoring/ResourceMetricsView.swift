@@ -2,6 +2,7 @@ import Charts
 import SwiftUI
 
 struct ResourceMetricsView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: ResourceMetricsViewModel
     let scope: MonitoringScope?
     let target: ResourceMetricTarget?
@@ -12,11 +13,11 @@ struct ResourceMetricsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     controls
-                    Text("Manual requests only. CloudWatch API usage may incur charges; no automatic polling.")
+                    Text(L10n.text("Manual requests only. CloudWatch API usage may incur charges; no automatic polling.", locale: locale))
                         .font(.caption).foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     if isLambda {
-                        Text("Function-level metrics · All versions and aliases")
+                        Text(L10n.text("Function-level metrics · All versions and aliases", locale: locale))
                             .font(.caption).foregroundColor(.secondary)
                     }
                     if canLoad, let error = vm.error {
@@ -30,7 +31,7 @@ struct ResourceMetricsView: View {
                             }
                         }
                     } else if canLoad && vm.isLoading {
-                        ProgressView("Loading metrics…")
+                        ProgressView(L10n.text("Loading metrics…", locale: locale))
                             .frame(maxWidth: .infinity, minHeight: 180)
                     } else {
                         EmptyStateView(text: canLoad
@@ -62,18 +63,18 @@ struct ResourceMetricsView: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text("5-minute metrics").font(.headline)
+                Text(L10n.text("5-minute metrics", locale: locale)).font(.headline)
                 Spacer(minLength: 0)
                 if canLoad && vm.isLoading {
                     ProgressView().controlSize(.small)
-                    Button("Cancel", action: vm.cancelLoading)
+                    Button(L10n.text("Cancel", locale: locale), action: vm.cancelLoading)
                 }
-                Button(vm.snapshot == nil ? "Load metrics" : "Refresh", action: vm.refresh)
+                Button(L10n.text(vm.snapshot == nil ? "Load metrics" : "Refresh", locale: locale), action: vm.refresh)
                     .disabled(!canLoad || vm.isLoading)
             }
-            Picker("Time range", selection: $vm.timeRange) {
+            Picker(L10n.text("Time range", locale: locale), selection: $vm.timeRange) {
                 ForEach(MonitoringTimeRange.allCases, id: \.self) { range in
-                    Text(range.title).tag(range)
+                    Text(L10n.text(range.title, locale: locale)).tag(range)
                 }
             }
             .pickerStyle(.segmented)
@@ -83,10 +84,10 @@ struct ResourceMetricsView: View {
 
     private func snapshotHeader(_ snapshot: ResourceMetricsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("\(MonitoringDisplay.dateTime(snapshot.start)) through \(MonitoringDisplay.dateTime(snapshot.end))")
+            Text(L10n.format("%@ through %@", MonitoringDisplay.dateTime(snapshot.start), MonitoringDisplay.dateTime(snapshot.end), locale: locale))
                 .font(.caption).foregroundColor(.secondary).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Fetched \(MonitoringDisplay.dateTime(snapshot.fetchedAt)) · \(snapshot.period)-second aggregation")
+            Text(L10n.format("Fetched %@ · %@-second aggregation", MonitoringDisplay.dateTime(snapshot.fetchedAt), String(snapshot.period), locale: locale))
                 .font(.caption).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if !snapshot.isComplete {
@@ -99,6 +100,7 @@ struct ResourceMetricsView: View {
 }
 
 private struct ResourceMetricChart: View {
+    @Environment(\.locale) private var locale
     let series: ResourceMetricSeries
     let snapshot: ResourceMetricsSnapshot
     @State private var showsValues = false
@@ -106,30 +108,30 @@ private struct ResourceMetricChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(series.title).font(.headline).fixedSize(horizontal: false, vertical: true)
-                Text("\(series.statistic) · \(series.unit) · every \(snapshot.period / 60) minutes")
+                Text(L10n.text(series.title, locale: locale)).font(.headline).fixedSize(horizontal: false, vertical: true)
+                Text(L10n.format("%@ · %@ · every %@ minutes", series.statistic, series.unit, String(snapshot.period / 60), locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !series.status.isComplete {
-                Label(series.status.title, systemImage: "exclamationmark.triangle.fill")
+                Label(L10n.text(series.status.title, locale: locale), systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundColor(.orange)
             }
             if let message = series.message {
-                Text(message).font(.caption).foregroundColor(.secondary)
+                Text(L10n.text(message, locale: locale)).font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if series.points.isEmpty {
-                Text("No datapoints returned. Missing data is not zero.")
+                Text(L10n.text("No datapoints returned. Missing data is not zero.", locale: locale))
                     .font(.callout).foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 150, alignment: .center)
                     .multilineTextAlignment(.center)
             } else {
                 Chart(chartPoints) { point in
-                    LineMark(x: .value("Time", point.timestamp), y: .value(series.unit, point.value),
-                             series: .value("Segment", point.segment))
+                    LineMark(x: .value(L10n.text("Time", locale: locale), point.timestamp), y: .value(series.unit, point.value),
+                             series: .value(L10n.text("Segment", locale: locale), point.segment))
                         .lineStyle(StrokeStyle(lineWidth: 1.6))
-                    PointMark(x: .value("Time", point.timestamp), y: .value(series.unit, point.value))
+                    PointMark(x: .value(L10n.text("Time", locale: locale), point.timestamp), y: .value(series.unit, point.value))
                         .symbolSize(10)
                         .accessibilityLabel(MonitoringDisplay.dateTime(point.timestamp))
                         .accessibilityValue("\(MonitoringDisplay.number(point.value)) \(series.unit)")
@@ -155,7 +157,7 @@ private struct ResourceMetricChart: View {
                 }
                 .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
                 .frame(height: 160)
-                DisclosureGroup("\(series.points.count) returned samples", isExpanded: $showsValues) {
+                DisclosureGroup(L10n.format("%@ returned samples", String(series.points.count), locale: locale), isExpanded: $showsValues) {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(series.points) { point in
                             VStack(alignment: .leading, spacing: 3) {

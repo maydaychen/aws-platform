@@ -325,7 +325,10 @@ struct AWSResourceRelationshipService: Sendable {
                     "\($0.zone.name) (\($0.zone.id)): \($0.error ?? ResourceRelationError.failed.localizedDescription)"
                 }.joined(separator: "\n"), note: "Only direct Alias and CNAME configuration references are matched.",
                                                isIncomplete: !failures.isEmpty, checkedCount: scans.count - failures.count,
-                                               totalCount: zones.count)
+                                               totalCount: zones.count, resourceFailures: failures.map {
+                    ResourceRelationFailure(resourceName: $0.zone.name, resourceID: $0.zone.id,
+                                            message: $0.error ?? ResourceRelationError.failed.localizedDescription)
+                })
             }
         }
     }

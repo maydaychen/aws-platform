@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct Route53ZoneListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: Route53ViewModel
 
     var body: some View {
@@ -11,15 +12,15 @@ struct Route53ZoneListView: View {
                 .disabled(vm.scope == nil)
             VStack(alignment: .leading, spacing: 8) {
                 if let scope = vm.scope {
-                    Text("\(scope.accountID) · Global")
+                    Text(L10n.format("%@ · Global", scope.accountID, locale: locale))
                         .font(.caption.monospacedDigit()).foregroundColor(.secondary)
                         .textSelection(.enabled)
-                        .help("Hosted zones in the current profile's account. Independent of the resource region.")
+                        .help(L10n.text("Hosted zones in the current profile's account. Independent of the resource region.", locale: locale))
                 }
-                Picker("Zone visibility", selection: $vm.privateFilter) {
-                    Text("All zones").tag(Optional<Bool>.none)
-                    Text("Public").tag(Optional(false))
-                    Text("Private").tag(Optional(true))
+                Picker(L10n.text("Zone visibility", locale: locale), selection: $vm.privateFilter) {
+                    Text(L10n.text("All zones", locale: locale)).tag(Optional<Bool>.none)
+                    Text(L10n.text("Public", locale: locale)).tag(Optional(false))
+                    Text(L10n.text("Private", locale: locale)).tag(Optional(true))
                 }
                 .labelsHidden().pickerStyle(.segmented)
                 .disabled(vm.scope == nil)
@@ -31,9 +32,10 @@ struct Route53ZoneListView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(zone.name).fontWeight(.medium).lineLimit(2).help(zone.name)
                     HStack(spacing: 8) {
-                        Label(zone.isPrivate ? "Private" : "Public", systemImage: zone.isPrivate ? "lock" : "globe")
+                        Label(L10n.text(zone.isPrivate ? "Private" : "Public", locale: locale), systemImage: zone.isPrivate ? "lock" : "globe")
                         Spacer(minLength: 0)
-                        Text(zone.recordCount.map { "\($0) records" } ?? "Count not returned")
+                        Text(zone.recordCount.map { L10n.format("%@ records", String($0), locale: locale) }
+                             ?? L10n.text("Count not returned", locale: locale))
                             .lineLimit(1)
                     }
                     .font(.caption).foregroundColor(.secondary)
@@ -44,15 +46,15 @@ struct Route53ZoneListView: View {
             .listStyle(.inset)
             .overlay {
                 if vm.isLoading && vm.zones.isEmpty {
-                    ProgressView("Loading hosted zones…")
+                    ProgressView(L10n.text("Loading hosted zones…", locale: locale))
                 } else if !vm.isLoading && vm.filteredZones.isEmpty {
                     EmptyStateView(text: emptyMessage, icon: "network")
                 }
             }
             HStack {
                 Text(vm.filteredZones.count == vm.zones.count
-                     ? "\(vm.zones.count) \(vm.zones.count == 1 ? "hosted zone" : "hosted zones")"
-                     : "\(vm.filteredZones.count) of \(vm.zones.count) hosted zones")
+                     ? L10n.format(vm.zones.count == 1 ? "%@ hosted zone" : "%@ hosted zones", String(vm.zones.count), locale: locale)
+                     : L10n.format("%@ of %@ hosted zones", String(vm.filteredZones.count), String(vm.zones.count), locale: locale))
                 Spacer(minLength: 0)
             }
             .font(.caption).foregroundColor(.secondary)

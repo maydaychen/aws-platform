@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RecentResourcesListView: View {
+    @Environment(\.locale) private var locale
     @ObservedObject var vm: RecentResourcesViewModel
     let scope: RecentResourceScope?
     let onOpen: (ResourceFavorite) -> Void
@@ -48,35 +49,35 @@ struct RecentResourcesListView: View {
             isClearConfirmationPresented = false
             pendingClearScope = nil
         }
-        .alert("Clear recent resources?", isPresented: $isClearConfirmationPresented,
+        .alert(L10n.text("Clear recent resources?", locale: locale), isPresented: $isClearConfirmationPresented,
                presenting: pendingClearScope) { confirmedScope in
-            Button("Clear history", role: .destructive) {
+            Button(L10n.text("Clear history", locale: locale), role: .destructive) {
                 guard confirmedScope == currentScope else { return }
                 vm.clear(scope: confirmedScope)
                 pendingClearScope = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(L10n.text("Cancel", locale: locale), role: .cancel) {
                 pendingClearScope = nil
             }
         } message: { confirmedScope in
-            Text("Remove recent history for profile \(confirmedScope.profileName) in account \(confirmedScope.accountID)? AWS resources and favorites will remain unchanged.")
+            Text(L10n.format("Remove recent history for profile %@ in account %@? AWS resources and favorites will remain unchanged.", confirmedScope.profileName, confirmedScope.accountID, locale: locale))
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Recent").font(.headline)
+                Text(L10n.text("Recent", locale: locale)).font(.headline)
                 Spacer(minLength: 8)
-                Button("Clear history…") {
+                Button(L10n.text("Clear history…", locale: locale)) {
                     guard let currentScope else { return }
                     pendingClearScope = currentScope
                     isClearConfirmationPresented = true
                 }
                 .buttonStyle(.borderless)
                 .disabled(scopedEntries.isEmpty || vm.storageError != nil)
-                .help("Clear recent history for the current profile and account")
-                .accessibilityLabel("Clear recent resources for the current profile")
+                .help(L10n.text("Clear recent history for the current profile and account", locale: locale))
+                .accessibilityLabel(L10n.text("Clear recent resources for the current profile", locale: locale))
             }
             if let currentScope {
                 VStack(alignment: .leading, spacing: 3) {
@@ -84,7 +85,7 @@ struct RecentResourcesListView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .help(currentScope.profileName)
-                    Text("Account \(currentScope.accountID)")
+                    Text(L10n.format("Account %@", currentScope.accountID, locale: locale))
                         .monospacedDigit()
                         .lineLimit(1)
                 }
@@ -115,11 +116,11 @@ struct RecentResourcesListView: View {
                                 .lineLimit(1)
                             Spacer(minLength: 0)
                             Text(verbatim: entry.lastVisitedAt.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)
-                                .locale(Locale(identifier: "en_US"))))
+                                .locale(locale)))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: true, vertical: false)
-                                .help("Last visited \(entry.lastVisitedAt.ISO8601Format())")
+                                .help(L10n.format("Last visited %@", entry.lastVisitedAt.ISO8601Format(), locale: locale))
                         }
                         Text("\(resource.service.rawValue) · \(resource.region)")
                             .font(.caption)
@@ -131,7 +132,7 @@ struct RecentResourcesListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Open \(resource.resourceID) in account \(resource.accountID), profile \(resource.profileName), region \(resource.region)")
+            .help(L10n.format("Open %@ in account %@, profile %@, region %@", resource.resourceID, resource.accountID, resource.profileName, resource.region, locale: locale))
 
             Button {
                 vm.remove(entry, scope: currentScope)
@@ -141,13 +142,13 @@ struct RecentResourcesListView: View {
             }
             .buttonStyle(.borderless)
             .disabled(vm.storageError != nil)
-            .help("Remove from Recent")
-            .accessibilityLabel("Remove \(resource.displayName) from Recent")
+            .help(L10n.text("Remove from Recent", locale: locale))
+            .accessibilityLabel(L10n.format("Remove %@ from Recent", resource.displayName, locale: locale))
         }
         .padding(.vertical, 4)
         .contextMenu {
-            Button("Open") { open(entry) }
-            Button("Remove from Recent") { vm.remove(entry, scope: currentScope) }
+            Button(L10n.text("Open", locale: locale)) { open(entry) }
+            Button(L10n.text("Remove from Recent", locale: locale)) { vm.remove(entry, scope: currentScope) }
                 .disabled(vm.storageError != nil)
         }
     }

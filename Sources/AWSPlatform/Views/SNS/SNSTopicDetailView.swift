@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct SNSTopicDetailView: View {
+    @Environment(\.locale) private var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview", configuration = "Configuration", subscriptions = "Subscriptions"
         var id: Self { self }
@@ -26,8 +27,8 @@ struct SNSTopicDetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            Picker("Section", selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in Text(tab.rawValue).tag(tab) }
+            Picker(L10n.text("Section", locale: locale), selection: $selectedTab) {
+                ForEach(Tab.allCases) { tab in Text(L10n.text(tab.rawValue, locale: locale)).tag(tab) }
             }
             .labelsHidden().pickerStyle(.segmented).padding(12)
             ScrollView {
@@ -55,18 +56,18 @@ struct SNSTopicDetailView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(!isCurrentSelection || vm.isAttributesLoading || vm.isTagsLoading || vm.isSubscriptionsLoading)
-                .help("Refresh topic attributes, tags and subscriptions")
-                .accessibilityLabel("Refresh topic details")
+                .help(L10n.text("Refresh topic attributes, tags and subscriptions", locale: locale))
+                .accessibilityLabel(L10n.text("Refresh topic details", locale: locale))
             }
             HStack(spacing: 8) {
-                Text("\(topic.kind.title) topic · Read only").font(.caption).foregroundColor(.secondary)
+                Text(L10n.format("%@ topic · Read only", L10n.text(topic.kind.title, locale: locale), locale: locale)).font(.caption).foregroundColor(.secondary)
                 Spacer(minLength: 0)
                 if let onViewRelationships {
                     Button(action: onViewRelationships) {
-                        Label("调用链查看", systemImage: "point.3.connected.trianglepath.dotted")
+                        Label(L10n.text("View relationships", locale: locale), systemImage: "point.3.connected.trianglepath.dotted")
                     }
                     .disabled(!isCurrentSelection || vm.scope == nil)
-                    .help("Inspect CloudWatch alarm actions and this topic's subscriptions")
+                    .help(L10n.text("Inspect CloudWatch alarm actions and this topic's subscriptions", locale: locale))
                 }
             }
             HStack(alignment: .top, spacing: 6) {
@@ -76,7 +77,7 @@ struct SNSTopicDetailView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(topic.arn, forType: .string)
                 } label: { Image(systemName: "doc.on.doc") }
-                .buttonStyle(.borderless).help("Copy topic ARN").accessibilityLabel("Copy topic ARN")
+                .buttonStyle(.borderless).help(L10n.text("Copy topic ARN", locale: locale)).accessibilityLabel(L10n.text("Copy topic ARN", locale: locale))
             }
         }
         .padding(16)
@@ -94,13 +95,13 @@ struct SNSTopicDetailView: View {
             ])
             DetailSectionTitle(title: "Tags")
             if isCurrentSelection && vm.isTagsLoading {
-                ProgressView("Loading tags…").controlSize(.small)
+                ProgressView(L10n.text("Loading tags…", locale: locale)).controlSize(.small)
             } else if isCurrentSelection, let error = vm.tagsError {
                 NoticeBanner(message: error)
             } else if isCurrentSelection && !vm.tags.isEmpty {
                 DetailKeyValueRows(values: vm.tags)
             } else {
-                Text("No tags returned.").font(.callout).foregroundColor(.secondary)
+                Text(L10n.text("No tags returned.", locale: locale)).font(.callout).foregroundColor(.secondary)
             }
         }
     }
@@ -118,8 +119,8 @@ struct SNSTopicDetailView: View {
             ])
             ForEach(Self.policyKeys, id: \.self) { key in
                 if let value = attributes[key] {
-                    DisclosureGroup(key) {
-                        SNSTextBlock(text: SNSDisplay.returned(value), monospaced: true)
+                    DisclosureGroup(L10n.text(key, locale: locale)) {
+                        SNSTextBlock(text: SNSDisplay.returned(value, locale: locale), monospaced: true)
                             .padding(.top, 8)
                     }
                     .font(.callout)
@@ -135,15 +136,15 @@ struct SNSTopicDetailView: View {
     @ViewBuilder
     private var attributeStatus: some View {
         if isCurrentSelection && vm.isAttributesLoading {
-            ProgressView("Loading attributes…").controlSize(.small)
+            ProgressView(L10n.text("Loading attributes…", locale: locale)).controlSize(.small)
         } else if isCurrentSelection, let error = vm.attributesError {
             NoticeBanner(message: error)
         }
     }
 
     private func attribute(_ key: String) -> String {
-        if isCurrentSelection && vm.isAttributesLoading { return "Loading…" }
-        return attributes[key].map(SNSDisplay.returned) ?? "Not returned"
+        if isCurrentSelection && vm.isAttributesLoading { return L10n.text("Loading…", locale: locale) }
+        return attributes[key].map { SNSDisplay.returned($0, locale: locale) } ?? L10n.text("Not returned", locale: locale)
     }
 
     private static let policyKeys = ["Policy", "DeliveryPolicy", "EffectiveDeliveryPolicy", "ArchivePolicy"]
@@ -152,12 +153,14 @@ struct SNSTopicDetailView: View {
             "TopicArn", "DisplayName", "Owner", "SubscriptionsConfirmed", "SubscriptionsPending", "SubscriptionsDeleted",
             "KmsMasterKeyId", "FifoTopic", "ContentBasedDeduplication", "FifoThroughputScope", "TracingConfig", "SignatureVersion"
         ])
-        return attributes.filter { !shownKeys.contains($0.key) }.mapValues(SNSDisplay.returned)
+        return attributes.filter { !shownKeys.contains($0.key) }.mapValues { SNSDisplay.returned($0, locale: locale) }
     }
 }
 
 enum SNSDisplay {
-    static func returned(_ value: String) -> String { value.isEmpty ? "(empty)" : value }
+    static func returned(_ value: String, locale: Locale = Locale(identifier: "en")) -> String {
+        value.isEmpty ? L10n.text("(empty)", locale: locale) : value
+    }
 }
 
 struct SNSTextBlock: View {

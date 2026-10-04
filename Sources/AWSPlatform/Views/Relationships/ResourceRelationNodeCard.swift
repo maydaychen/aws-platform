@@ -18,6 +18,7 @@ struct ResourceRelationNodeCard: View {
 }
 
 struct ResourceRelationNodeDetails: View {
+    @Environment(\.locale) private var locale
     let node: ResourceRelationNode
     let onExplore: (ResourceRelationReference) -> Void
     let onOpen: (ResourceRelationReference) -> Void
@@ -25,20 +26,20 @@ struct ResourceRelationNodeDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(node.name).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            Text(node.relation).font(.caption).foregroundColor(.secondary)
+            Text(L10n.text(node.relation, locale: locale)).font(.caption).foregroundColor(.secondary)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             if let note = node.note {
-                Text(note).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(L10n.text(note, locale: locale)).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if !node.fields.isEmpty { ELBFieldRows(fields: node.fields) }
             if let reference = node.reference, reference.isValid {
                 if reference.service == .lambda, reference.resourceID.split(separator: ":").count == 8 {
-                    Text("Open shows function-level details. The registered alias or version is retained above as configuration.")
+                    Text(L10n.text("Open shows function-level details. The registered alias or version is retained above as configuration.", locale: locale))
                         .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 10) {
-                    if reference.canExplore { Button("Explore") { onExplore(reference) } }
-                    Button("Open") { onOpen(reference) }
+                    if reference.canExplore { Button(L10n.text("Explore", locale: locale)) { onExplore(reference) } }
+                    Button(L10n.text("Open", locale: locale)) { onOpen(reference) }
                 }
             }
         }

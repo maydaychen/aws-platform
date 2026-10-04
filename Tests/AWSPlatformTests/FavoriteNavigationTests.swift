@@ -3,6 +3,70 @@ import XCTest
 
 @MainActor
 final class FavoriteNavigationTests: XCTestCase {
+    func testRecentResourceCannotSelectProfileAndRejectsChangedAccount() {
+        let resource = FavoritesViewModelTests.makeFavorite()
+        let navigation = FavoriteNavigation()
+        for selected in [nil, "other"] as [String?] {
+            XCTAssertFalse(navigation.begin(resource, profiles: profiles, selectedProfileName: selected, source: .recent))
+            XCTAssertNil(navigation.target)
+            XCTAssertTrue(navigation.error?.contains("recent resource") == true)
+            XCTAssertTrue(navigation.error?.contains("No profile was selected automatically") == true)
+        }
+        XCTAssertFalse(navigation.begin(resource, profiles: [], selectedProfileName: "work", source: .recent))
+        XCTAssertTrue(navigation.error?.contains("still saved") == true)
+        XCTAssertTrue(navigation.begin(resource, profiles: profiles, selectedProfileName: "work", source: .recent))
+        XCTAssertFalse(navigation.verifyAccount("222222222222"))
+        XCTAssertNil(navigation.target)
+        XCTAssertTrue(navigation.error?.contains("recent resource belongs to") == true)
+    }
+
+    func testRecentResourceFailuresKeepRecordAndIdentifyCorrectEntryPoint() {
+        let resource = FavoritesViewModelTests.makeFavorite(region: "eu-west-1")
+        let navigation = FavoriteNavigation()
+        for loadError in [nil, "Access denied"] as [String?] {
+            XCTAssertTrue(navigation.begin(resource, profiles: profiles, selectedProfileName: "work", source: .recent))
+            XCTAssertTrue(navigation.verifyAccount(resource.accountID))
+            XCTAssertTrue(navigation.matches(profileName: "work", region: "eu-west-1"))
+            navigation.finish(found: false, loadError: loadError)
+            XCTAssertNil(navigation.target)
+            XCTAssertTrue(navigation.error?.contains("recent resource is still saved") == true)
+            XCTAssertFalse(navigation.error?.contains("favorite") == true)
+        }
+        _ = navigation.begin(resource, profiles: profiles, selectedProfileName: "work", source: .recent)
+        navigation.failConnection()
+        XCTAssertTrue(navigation.error?.contains("from Recent") == true)
+        _ = navigation.begin(resource, profiles: profiles, selectedProfileName: "work")
+        navigation.failConnection()
+        XCTAssertTrue(navigation.error?.contains("from Favorites") == true)
+    }
+
+    func testRecentResourceNavigationResolvesExactTargetWithoutSavingFavorite() async throws {
+        let suite = "RecentNavigationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let favorites = FavoritesViewModel(defaults: defaults)
+        let recents = RecentResourcesViewModel(defaults: defaults)
+        let topic = SNSTopic(arn: "arn:aws:sns:us-east-1:111111111111:alerts", name: "alerts")
+        let resource = FavoritesViewModelTests.makeFavorite(service: .sns, resourceID: topic.arn)
+        recents.recordVisit(resource, scope: RecentResourceScope(profileName: "work", accountID: resource.accountID))
+        let sns = makeSNSVM(rows: [topic])
+        sns.configure(scope: SNSScope(profile: profiles[0], identity: AWSIdentity(
+            account: resource.accountID, arn: "arn:aws:iam::111111111111:user/test", userID: "test"
+        ), region: resource.region))
+        await sns.loadTopics()
+        let navigation = FavoriteNavigation()
+        XCTAssertTrue(navigation.begin(resource, profiles: profiles, selectedProfileName: "work", source: .recent))
+        XCTAssertTrue(navigation.verifyAccount(resource.accountID))
+        navigation.resolve(ec2: EC2ViewModel(), lambda: LambdaViewModel(), s3: S3ViewModel(), alarms: makeAlarmVM(), sns: sns)
+        XCTAssertEqual(sns.selectedTopic, topic)
+        XCTAssertNil(navigation.target)
+        XCTAssertNil(navigation.error)
+        XCTAssertEqual(recents.entries.count, 1)
+        XCTAssertTrue(favorites.favorites.isEmpty)
+        XCTAssertNil(defaults.object(forKey: FavoritesViewModel.storageKey))
+        await sns.waitForDetails()
+    }
+
     private func makeSNSVM(rows: [SNSTopic] = []) -> SNSViewModel {
         SNSViewModel(listLoader: { _ in rows }, attributeLoader: { _, _ in [:] },
                      tagLoader: { _, _ in [:] }, subscriptionLoader: { _, _ in [] })

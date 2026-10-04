@@ -17,6 +17,7 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
 - **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, and SNS Topics locally, search favorites, and restore their saved Region within the current Profile
+- **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
 
 The app does not create, modify, or delete resources, or invoke Lambda functions.
@@ -93,6 +94,20 @@ Click `Add Favorite` at the top of a resource's details to save it, or `Remove F
 Favorites appear only after you manually select a Profile. When opening a favorite, the app requires the current Profile to match the saved one, then restores the saved Region, verifies the account, and locates the resource. Opening a favorite never selects another Profile automatically. A missing or mismatched Profile, an account mismatch, a deleted resource, or an access failure produces a message without removing the favorite. S3 favorites store the browsing Region at the time they were saved; the existing loading flow resolves the bucket's actual location separately.
 
 Favorites are stored locally in UserDefaults, restored after restart, and shared by windows within the same app process. Only the Profile name, account ID, Region, service, resource ID, and display name are saved. Credentials, resource details, and environment variables are not stored, and favorites are not synced to the cloud. The same resource is saved separately for different Profiles, accounts, or browsing Regions.
+
+### Recent Resources
+
+Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, and SNS Topics. Entries are identified by service, resource ID, and saved Region. Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections and S3 objects are not recorded.
+
+Search by name, resource ID, service, Profile, account, or Region. Click a row to restore its saved Region, reverify the account, and locate the resource using the same navigation as favorites. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
+
+History persists locally in UserDefaults and is shared across app windows, while each window filters by its own verified Profile/account. No history is displayed without one. Only resource location metadata, display names, and visit times are saved; credentials, resource contents, and logs are excluded. Recording, searching, and deleting history do not call AWS; reopening a resource performs the normal read queries. Unreadable stored history is preserved and editing is disabled with a message.
+
+The following component previews use mock recent resources:
+
+![Recent resources in light mode](docs/ui-recents-light.png)
+
+![Recent resources in dark mode](docs/ui-recents-dark.png)
 
 ### Cost Dashboard
 
@@ -242,6 +257,7 @@ Sources/AWSPlatform/
 │   ├── HealthModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
+│   ├── RecentResource.swift
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   └── S3Bucket.swift
@@ -264,6 +280,7 @@ Sources/AWSPlatform/
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
+│   ├── RecentResourcesViewModel.swift
 │   ├── LambdaViewModel.swift
 │   ├── ProfileViewModel.swift
 │   └── S3ViewModel.swift
@@ -276,6 +293,7 @@ Sources/AWSPlatform/
     ├── Lambda/
     ├── S3/
     ├── FavoritesListView.swift
+    ├── RecentResourcesListView.swift
     ├── ProfileBarView.swift
     ├── ServiceSidebarView.swift
     └── SharedViews.swift

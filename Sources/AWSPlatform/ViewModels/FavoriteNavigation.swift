@@ -4,21 +4,30 @@ import Foundation
 /// A window's pending destination is separate from the app-wide saved list.
 @MainActor
 final class FavoriteNavigation: ObservableObject {
+    enum Source {
+        case favorite, recent
+
+        var noun: String { self == .favorite ? "favorite" : "recent resource" }
+        var listName: String { self == .favorite ? "Favorites" : "Recent" }
+    }
+
     @Published private(set) var target: ResourceFavorite?
     @Published private(set) var error: String?
+    private var source: Source = .favorite
 
-    func begin(_ favorite: ResourceFavorite, profiles: [AWSProfile], selectedProfileName: String?) -> Bool {
+    func begin(_ favorite: ResourceFavorite, profiles: [AWSProfile], selectedProfileName: String?, source: Source = .favorite) -> Bool {
         cancel()
+        self.source = source
         guard favorite.isValid else {
-            error = "This favorite has an invalid destination."
+            error = "This \(source.noun) has an invalid destination."
             return false
         }
         guard profiles.contains(where: { $0.name == favorite.profileName }) else {
-            error = "Profile \(favorite.profileName) is unavailable. Restore its AWS configuration and retry. The favorite is still saved."
+            error = "Profile \(favorite.profileName) is unavailable. Restore its AWS configuration and retry. The \(source.noun) is still saved."
             return false
         }
         guard selectedProfileName == favorite.profileName else {
-            error = "Select profile \(favorite.profileName) in its session first, then open this favorite. No profile was selected automatically."
+            error = "Select profile \(favorite.profileName) in its session first, then open this \(source.noun). No profile was selected automatically."
             return false
         }
         target = favorite
@@ -33,7 +42,7 @@ final class FavoriteNavigation: ObservableObject {
     func verifyAccount(_ accountID: String) -> Bool {
         guard let target else { return false }
         guard target.accountID == accountID else {
-            fail("Profile \(target.profileName) now resolves to account \(accountID), but this favorite belongs to \(target.accountID). It was not opened.")
+            fail("Profile \(target.profileName) now resolves to account \(accountID), but this \(source.noun) belongs to \(target.accountID). It was not opened.")
             return false
         }
         return true
@@ -42,9 +51,9 @@ final class FavoriteNavigation: ObservableObject {
     func finish(found: Bool, loadError: String?) {
         guard let target else { return }
         if let loadError {
-            fail("Unable to open \(target.displayName): \(loadError) The favorite is still saved.")
+            fail("Unable to open \(target.displayName): \(loadError) The \(source.noun) is still saved.")
         } else if !found {
-            fail("\(target.displayName) was not found in the saved profile and region. It may have been removed or be inaccessible. The favorite is still saved.")
+            fail("\(target.displayName) was not found in the saved profile and region. It may have been removed or be inaccessible. The \(source.noun) is still saved.")
         } else {
             cancel()
         }
@@ -87,6 +96,10 @@ final class FavoriteNavigation: ObservableObject {
             sns.selectedTopic = sns.topics.first { $0.arn == target.resourceID }
             finish(found: sns.selectedTopic != nil, loadError: sns.error)
         }
+    }
+
+    func failConnection() {
+        fail("The \(source.noun) could not be opened. Resolve the connection error, then open it again from \(source.listName).")
     }
 
     func fail(_ message: String) {

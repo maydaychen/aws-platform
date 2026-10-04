@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var favoritesVM: FavoritesViewModel
+    @EnvironmentObject private var recentsVM: RecentResourcesViewModel
     @StateObject private var favoriteNavigation = FavoriteNavigation()
     @StateObject private var relatedNavigation = SNSRelatedResourceNavigation()
     @StateObject private var profileVM: ProfileViewModel
@@ -66,6 +67,7 @@ struct ContentView: View {
     }
 
     private var showingFavorites: Bool { destination == .favorites }
+    private var showingRecents: Bool { destination == .recents }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,7 +101,7 @@ struct ContentView: View {
                 } else {
                     middlePane
                         .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
-                        .disabled(!showingFavorites && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil))
+                        .disabled(!showingFavorites && !showingRecents && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil))
                     resourceDetail
                         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                         .contentTransition(reduceMotion ? .identity : .opacity)
@@ -113,6 +115,11 @@ struct ContentView: View {
                                 onOpenResource: openRelatedResource)
         }
         .onChange(of: snsVM.selectedTopic?.arn) { _ in closeRelationships() }
+        .onChange(of: currentRecentResource?.id) { expectedID in
+            // Recheck live state: background selections and stale view updates are not visits.
+            guard let resource = currentRecentResource, resource.id == expectedID else { return }
+            recentsVM.recordVisit(resource, scope: currentRecentScope)
+        }
         .onAppear {
             profileVM.loadProfiles()
             selectedService = AWSService(rawValue: selectedServiceID) ?? .ec2
@@ -254,6 +261,10 @@ struct ContentView: View {
             FavoritesListView(vm: favoritesVM, onOpen: openFavorite)
         } else if !profileVM.isProfileReady {
             EmptyStateView(text: "Connect the selected profile to load resources.", icon: "cloud")
+        } else if showingRecents {
+            RecentResourcesListView(vm: recentsVM, scope: currentRecentScope) {
+                openSavedResource($0, source: .recent)
+            }
         } else {
             serviceList
         }
@@ -287,6 +298,9 @@ struct ContentView: View {
         } else if showingFavorites {
             EmptyStateView(text: "Select a favorite from the current profile to open its saved region and resource.", icon: "star")
                 .padding()
+        } else if showingRecents {
+            EmptyStateView(text: "Select a recent resource to reopen it in its saved region.", icon: "clock.arrow.circlepath")
+                .padding()
         } else if !profileVM.isProfileReady {
             EmptyStateView(text: "Waiting for the selected profile to connect.", icon: "cloud")
                 .padding()
@@ -300,7 +314,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(spacing: 0) {
-                if let favorite = currentFavorite {
+                if let favorite = currentResource {
                     HStack {
                         Label(selectedService.rawValue, systemImage: selectedService.icon)
                             .font(.caption).foregroundColor(.secondary)
@@ -323,7 +337,7 @@ struct ContentView: View {
         }
     }
 
-    private var currentFavorite: ResourceFavorite? {
+    private var currentResource: ResourceFavorite? {
         guard case .valid(let identity) = profileVM.profileStatus,
               let profileName = profileVM.selectedProfileID else { return nil }
         let resource: (id: String, name: String)
@@ -351,12 +365,28 @@ struct ContentView: View {
         return favorite.isValid ? favorite : nil
     }
 
+    private var currentRecentScope: RecentResourceScope? {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return nil }
+        return RecentResourceScope(profileName: profile.name, accountID: identity.account)
+    }
+
+    private var currentRecentResource: ResourceFavorite? {
+        guard destination == .resources, currentRecentScope != nil,
+              favoriteNavigation.target == nil, relatedNavigation.target == nil else { return nil }
+        return currentResource
+    }
+
     private func openFavorite(_ favorite: ResourceFavorite) {
+        openSavedResource(favorite, source: .favorite)
+    }
+
+    private func openSavedResource(_ favorite: ResourceFavorite, source: FavoriteNavigation.Source) {
         closeRelationships()
         relatedNavigation.cancel()
         profileVM.loadProfiles()
         guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
-                                       selectedProfileName: profileVM.selectedProfile?.name) else { return }
+                                       selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
         profileVM.selectedRegion = favorite.region
         selectedService = favorite.service
         destination = .resources
@@ -521,7 +551,7 @@ struct ContentView: View {
             guard !Task.isCancelled else { return }
             guard isValid else {
                 if favoriteNavigation.target != nil {
-                    favoriteNavigation.fail("Favorite could not be opened. Resolve the connection error, then open it again from Favorites.")
+                    favoriteNavigation.failConnection()
                 }
                 return
             }

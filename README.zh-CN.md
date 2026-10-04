@@ -17,6 +17,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm 和 SNS Topic，搜索并在当前 Profile 内恢复收藏时的 Region
+- **最近访问** - 查看并重新打开当前 Profile／账号最近浏览的资源，支持本地历史、搜索和按范围删除
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
@@ -93,6 +94,20 @@ open Package.swift
 先手动选择 Profile，收藏列表才会显示。打开收藏时，应用要求当前 Profile 与收藏一致，再恢复保存的 Region、校验账号并定位资源；不会通过收藏自动选择其他 Profile。Profile 不一致或缺失、账号不匹配、资源已删除或访问失败时会显示提示，收藏仍会保留。S3 收藏保存的是收藏时的浏览 Region，Bucket 实际位置由现有加载流程另行解析。
 
 收藏通过本机 UserDefaults 保存，重启后恢复，同一应用进程的多个窗口共享收藏列表。保存内容仅包含 Profile 名称、账号 ID、Region、服务、资源 ID 和显示名称；不保存凭据、资源详情或环境变量，不进行云端同步。相同资源在不同 Profile、账号或浏览 Region 下分别保存。
+
+### 最近访问
+
+选择并验证 Profile 后，打开侧栏 `Recent`（`Cmd+Shift+R`），按最近访问时间查看该 Profile 当前账号在各浏览 Region 的资源历史。每个 Profile／账号最多保留 50 条 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch 告警和 SNS Topic 记录，按服务、资源 ID 和保存的 Region 去重；再次访问会置顶并更新名称、访问时间。只有实际显示详情的资源才记入历史，包括服务页当前可见的默认首项；后台加载但未展示的选择和 S3 对象不记录。
+
+支持按名称、资源 ID、服务、Profile、账号或 Region 搜索。点击条目沿用收藏导航，恢复保存的 Region、重新核验账号并定位资源，不自动选择其他 Profile，也不增加收藏。资源不存在、账号变化或权限不足会提示并保留记录；可删除单条，或确认 `Clear history` 后仅清空当前 Profile／账号的历史。
+
+历史保存在本机 UserDefaults，重启后恢复，应用各窗口共享存储，各自按已验证的 Profile／账号筛选；没有已验证的选择时不显示历史。仅保存资源定位信息、名称与访问时间，不保存凭据、资源正文或日志。记录、搜索、删除历史不调用 AWS，重新打开资源会执行正常读取请求。存储不可读时保留原始数据，提示并禁用编辑。
+
+以下为使用模拟资源历史渲染的组件示例：
+
+![浅色最近访问](docs/ui-recents-light.png)
+
+![深色最近访问](docs/ui-recents-dark.png)
 
 ### 费用面板
 
@@ -242,6 +257,7 @@ Sources/AWSPlatform/
 │   ├── HealthModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
+│   ├── RecentResource.swift
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   └── S3Bucket.swift
@@ -264,6 +280,7 @@ Sources/AWSPlatform/
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
+│   ├── RecentResourcesViewModel.swift
 │   ├── LambdaViewModel.swift
 │   ├── ProfileViewModel.swift
 │   └── S3ViewModel.swift
@@ -276,6 +293,7 @@ Sources/AWSPlatform/
     ├── Lambda/
     ├── S3/
     ├── FavoritesListView.swift
+    ├── RecentResourcesListView.swift
     ├── ProfileBarView.swift
     ├── ServiceSidebarView.swift
     └── SharedViews.swift

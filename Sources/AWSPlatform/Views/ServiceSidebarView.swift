@@ -23,6 +23,17 @@ struct ServiceSidebarView: View {
             .buttonStyle(.plain)
             .keyboardShortcut("f", modifiers: [.command, .shift])
             Button {
+                destination = .recents
+            } label: {
+                Label("Recent", systemImage: "clock.arrow.circlepath")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(destination == .recents ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            Button {
                 destination = .costs
             } label: {
                 Label("Costs", systemImage: "chart.bar.xaxis")

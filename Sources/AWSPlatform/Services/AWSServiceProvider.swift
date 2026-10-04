@@ -10,6 +10,7 @@ import SotoCloudWatchLogs
 import SotoSNS
 import SotoHealth
 import SotoRoute53
+import SotoElasticLoadBalancingV2
 
 actor AWSServiceProvider {
     private var awsClient: AWSClient?
@@ -137,6 +138,12 @@ actor AWSServiceProvider {
         }
         return Health(client: awsClient, partition: partition, endpoint: endpoint.url)
             .with(region: .init(rawValue: endpoint.region))
+    }
+
+    func elbClient(scope: MonitoringScope) throws -> ElasticLoadBalancingV2 {
+        guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
+              currentRegion == scope.region, let awsClient else { throw ELBError.invalidScope }
+        return ElasticLoadBalancingV2(client: awsClient, region: .init(rawValue: scope.region))
     }
 
     func route53Client(scope: Route53Scope) throws -> Route53 {

@@ -23,6 +23,7 @@ let package = Package(
                 .product(name: "SotoSNS", package: "soto"),
                 .product(name: "SotoHealth", package: "soto"),
                 .product(name: "SotoRoute53", package: "soto"),
+                .product(name: "SotoElasticLoadBalancingV2", package: "soto"),
             ]
         ),
         .testTarget(

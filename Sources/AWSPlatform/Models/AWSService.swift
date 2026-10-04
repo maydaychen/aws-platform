@@ -7,6 +7,8 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     case alarms = "CloudWatch"
     case sns = "SNS"
     case route53 = "Route 53"
+    case loadBalancers = "Load Balancers"
+    case targetGroups = "Target Groups"
 
     var id: String { rawValue }
 
@@ -18,6 +20,8 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         case .alarms: return "bell.badge"
         case .sns: return "dot.radiowaves.left.and.right"
         case .route53: return "network"
+        case .loadBalancers: return "point.3.connected.trianglepath.dotted"
+        case .targetGroups: return "scope"
         }
     }
 }

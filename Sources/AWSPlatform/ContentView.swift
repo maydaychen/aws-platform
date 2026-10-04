@@ -7,12 +7,15 @@ struct ContentView: View {
     @EnvironmentObject private var recentsVM: RecentResourcesViewModel
     @StateObject private var favoriteNavigation = FavoriteNavigation()
     @StateObject private var relatedNavigation = SNSRelatedResourceNavigation()
+    @StateObject private var elbNavigation = ELBResourceNavigation()
     @StateObject private var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
     @StateObject private var healthVM: HealthViewModel
     @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var snsVM: SNSViewModel
     @StateObject private var route53VM: Route53ViewModel
+    @StateObject private var elbVM: ELBViewModel
+    @StateObject private var membershipsVM: EC2TargetGroupsViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
     @StateObject private var metricsVM: ResourceMetricsViewModel
     @StateObject private var logsVM: LambdaLogsViewModel
@@ -72,6 +75,17 @@ struct ContentView: View {
             recordLoader: { try await route53.loadRecords(scope: $0, zone: $1) },
             tagLoader: { try await route53.loadTags(scope: $0, zone: $1) }
         ))
+        let elb = AWSELBService(provider: profiles.provider)
+        _elbVM = StateObject(wrappedValue: ELBViewModel(
+            loadBalancerLoader: { try await elb.loadLoadBalancers(scope: $0) },
+            targetGroupLoader: { try await elb.loadTargetGroups(scope: $0) },
+            listenerLoader: { try await elb.loadListeners(scope: $0, loadBalancer: $1) },
+            ruleLoader: { try await elb.loadRules(scope: $0, listener: $1) },
+            healthLoader: { try await elb.loadTargetHealth(scope: $0, group: $1) }
+        ))
+        _membershipsVM = StateObject(wrappedValue: EC2TargetGroupsViewModel(loader: {
+            try await elb.loadInstanceMembership(scope: $0, instanceID: $1)
+        }))
     }
 
     private var showingFavorites: Bool { destination == .favorites }
@@ -86,13 +100,14 @@ struct ContentView: View {
                showsResourceRegion: destination != .costs && destination != .health
                     && !(destination == .resources && selectedService == .route53),
                globalScopeMessage: destination == .costs ? "Cost regions are selected below" : "Global service · Current account")
-            if let message = relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
+            if let message = elbNavigation.error ?? relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
-                    if relatedNavigation.error != nil || favoriteNavigation.error != nil {
+                    if elbNavigation.error != nil || relatedNavigation.error != nil || favoriteNavigation.error != nil {
                         Button("Dismiss") {
                             relatedNavigation.cancel()
                             favoriteNavigation.cancel()
+                            elbNavigation.cancel()
                         }
                     }
                 }
@@ -111,7 +126,7 @@ struct ContentView: View {
                 } else {
                     middlePane
                         .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
-                        .disabled(!showingFavorites && !showingRecents && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil))
+                        .disabled(!showingFavorites && !showingRecents && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil || elbNavigation.target != nil))
                     resourceDetail
                         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                         .contentTransition(reduceMotion ? .identity : .opacity)
@@ -159,6 +174,8 @@ struct ContentView: View {
         .onChange(of: selectedService) { _ in
             resetMonitoring()
             closeRelationships()
+            if selectedService != .ec2 { membershipsVM.reset() }
+            if let target = elbNavigation.target, target.service != selectedService { elbNavigation.cancel() }
             if let target = relatedNavigation.target, target.service != selectedService {
                 relatedNavigation.cancel()
             }
@@ -171,12 +188,15 @@ struct ContentView: View {
             loadVisibleAlarms()
             loadVisibleSNS()
             loadVisibleRoute53()
+            loadVisibleELB()
         }
         .onChange(of: destination) { selection in
             resetMonitoring()
             if selection != .resources {
                 closeRelationships()
                 relatedNavigation.cancel()
+                elbNavigation.cancel()
+                membershipsVM.reset()
             }
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
@@ -184,11 +204,14 @@ struct ContentView: View {
             loadVisibleAlarms()
             loadVisibleSNS()
             loadVisibleRoute53()
+            loadVisibleELB()
         }
         .onDisappear {
             resetMonitoring()
             closeRelationships()
             relatedNavigation.cancel()
+            elbNavigation.cancel()
+            membershipsVM.reset()
             loginTask?.cancel()
             reconfigureTask?.cancel()
             costVM.reset()
@@ -196,6 +219,7 @@ struct ContentView: View {
             alarmsVM.reset()
             snsVM.reset()
             route53VM.reset()
+            elbVM.reset()
             Task { await profileVM.shutdown() }
         }
     }
@@ -250,7 +274,7 @@ struct ContentView: View {
     private func loadVisibleAlarms() {
         guard destination == .resources, selectedService == .alarms,
               profileVM.isProfileReady, favoriteNavigation.target == nil,
-              relatedNavigation.target == nil else { return }
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
         alarmsVM.loadIfNeeded()
     }
 
@@ -264,7 +288,7 @@ struct ContentView: View {
     private func loadVisibleSNS() {
         guard destination == .resources, selectedService == .sns,
               profileVM.isProfileReady, favoriteNavigation.target == nil,
-              relatedNavigation.target == nil else { return }
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
         snsVM.loadIfNeeded()
     }
 
@@ -278,8 +302,22 @@ struct ContentView: View {
     private func loadVisibleRoute53() {
         guard destination == .resources, selectedService == .route53,
               profileVM.isProfileReady, favoriteNavigation.target == nil,
-              relatedNavigation.target == nil else { return }
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
         route53VM.loadIfNeeded()
+    }
+
+    private func configureELB() {
+        guard let scope = currentMonitoringScope else { return }
+        elbVM.configure(scope: scope)
+        loadVisibleELB()
+    }
+
+    private func loadVisibleELB() {
+        guard destination == .resources, profileVM.isProfileReady,
+              favoriteNavigation.target == nil, relatedNavigation.target == nil,
+              elbNavigation.target == nil else { return }
+        if selectedService == .loadBalancers { elbVM.loadLoadBalancersIfNeeded() }
+        if selectedService == .targetGroups { elbVM.loadTargetGroupsIfNeeded() }
     }
 
     @ViewBuilder
@@ -318,6 +356,10 @@ struct ContentView: View {
             SNSTopicListView(vm: snsVM)
         case .route53:
             Route53ZoneListView(vm: route53VM)
+        case .loadBalancers:
+            ELBLoadBalancerListView(vm: elbVM)
+        case .targetGroups:
+            ELBTargetGroupListView(vm: elbVM)
         }
     }
 
@@ -340,6 +382,14 @@ struct ContentView: View {
                 ProgressView()
                 Text("Opening \(target.displayName)…")
                 Text("\(target.profileName) · \(target.region)")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let target = elbNavigation.target {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Opening \(target.name)…")
+                Text("\(target.scope.profile.name) · \(target.scope.region)")
                     .font(.caption).foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -392,6 +442,12 @@ struct ContentView: View {
             guard let zone = route53VM.selectedZone, let profile = profileVM.selectedProfile,
                   route53VM.scope == Route53Scope(profile: profile, identity: identity) else { return nil }
             resource = (zone.id, zone.name)
+        case .loadBalancers:
+            guard elbVM.scope == currentMonitoringScope, let lb = elbVM.selectedLoadBalancer else { return nil }
+            resource = (lb.arn, lb.name)
+        case .targetGroups:
+            guard elbVM.scope == currentMonitoringScope, let group = elbVM.selectedTargetGroup else { return nil }
+            resource = (group.arn, group.name)
         }
         let favorite = ResourceFavorite(
             profileName: profileName, accountID: identity.account,
@@ -409,7 +465,7 @@ struct ContentView: View {
 
     private var currentRecentResource: ResourceFavorite? {
         guard destination == .resources, currentRecentScope != nil,
-              favoriteNavigation.target == nil, relatedNavigation.target == nil else { return nil }
+              favoriteNavigation.target == nil, relatedNavigation.target == nil, elbNavigation.target == nil else { return nil }
         return currentResource
     }
 
@@ -420,6 +476,7 @@ struct ContentView: View {
     private func openSavedResource(_ favorite: ResourceFavorite, source: FavoriteNavigation.Source) {
         closeRelationships()
         relatedNavigation.cancel()
+        elbNavigation.cancel()
         profileVM.loadProfiles()
         guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
                                        selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
@@ -456,11 +513,23 @@ struct ContentView: View {
     }
 
     private func openRelatedResource(_ resource: SNSRelatedResource) {
+        elbNavigation.cancel()
         guard relatedNavigation.open(resource, currentScope: currentRelationshipScope,
                                      latestScope: { currentRelationshipScope },
                                      alarms: alarmsVM, lambda: lambdaVM, sns: snsVM) else { return }
         closeRelationships()
         favoriteNavigation.cancel()
+        selectedService = resource.service
+        destination = .resources
+    }
+
+    private func openELBResource(_ resource: ELBResourceReference) {
+        closeRelationships()
+        relatedNavigation.cancel()
+        favoriteNavigation.cancel()
+        guard elbNavigation.open(resource, currentScope: currentMonitoringScope,
+                                 latestScope: { currentMonitoringScope }, elb: elbVM,
+                                 ec2: ec2VM, lambda: lambdaVM) else { return }
         selectedService = resource.service
         destination = .resources
     }
@@ -479,6 +548,8 @@ struct ContentView: View {
         case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
         case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
         case .route53: return "route53/" + (route53VM.selectedZone?.id ?? "")
+        case .loadBalancers: return "loadbalancer/" + (elbVM.selectedLoadBalancer?.arn ?? "")
+        case .targetGroups: return "targetgroup/" + (elbVM.selectedTargetGroup?.arn ?? "")
         }
     }
 
@@ -488,7 +559,8 @@ struct ContentView: View {
         case .ec2:
             if let instance = ec2VM.selectedInstance {
                 EC2DetailView(instance: instance, vm: ec2VM,
-                              monitoringScope: currentMonitoringScope, metricsVM: metricsVM)
+                              monitoringScope: currentMonitoringScope, metricsVM: metricsVM,
+                              membershipsVM: membershipsVM, onOpenELB: openELBResource)
             } else {
                 EmptyStateView(text: "Select an EC2 instance", icon: "server.rack")
             }
@@ -552,6 +624,18 @@ struct ContentView: View {
             } else {
                 EmptyStateView(text: "Select a Route 53 hosted zone", icon: "network")
             }
+        case .loadBalancers:
+            if let lb = elbVM.selectedLoadBalancer {
+                ELBLoadBalancerDetailView(loadBalancer: lb, vm: elbVM, onOpen: openELBResource)
+            } else {
+                EmptyStateView(text: "Select a load balancer", icon: "point.3.connected.trianglepath.dotted")
+            }
+        case .targetGroups:
+            if let group = elbVM.selectedTargetGroup {
+                ELBTargetGroupDetailView(group: group, vm: elbVM, onOpen: openELBResource)
+            } else {
+                EmptyStateView(text: "Select a target group", icon: "scope")
+            }
         }
     }
 
@@ -572,6 +656,8 @@ struct ContentView: View {
         resetMonitoring()
         closeRelationships()
         relatedNavigation.cancel()
+        elbNavigation.cancel()
+        membershipsVM.reset()
         reconfigureTask?.cancel()
         s3BrowsingBucket = nil
         ec2VM.reset()
@@ -579,6 +665,7 @@ struct ContentView: View {
         s3VM.reset()
         alarmsVM.reset()
         snsVM.reset()
+        elbVM.reset()
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
@@ -617,6 +704,7 @@ struct ContentView: View {
             s3VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .s3)
             configureAlarms()
             configureSNS()
+            configureELB()
             guard let target else { return }
             switch target.service {
             case .ec2: await ec2VM.loadInstances()
@@ -625,9 +713,11 @@ struct ContentView: View {
             case .alarms: await alarmsVM.loadAlarms()
             case .sns: await snsVM.loadTopics()
             case .route53: await route53VM.loadZones()
+            case .loadBalancers: await elbVM.loadLoadBalancers()
+            case .targetGroups: await elbVM.loadTargetGroups()
             }
             guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
-            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM, route53: route53VM)
+            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM, route53: route53VM, elb: elbVM)
         }
     }
 }

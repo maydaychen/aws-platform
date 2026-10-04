@@ -13,11 +13,12 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
+- **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
-- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, and Route 53 Hosted Zones locally; reopen them within the current Profile, restoring the saved Region for regional resources
+- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, and Target Groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
 
@@ -100,7 +101,7 @@ Route 53 Hosted Zones use a fixed `global` scope and the canonical Zone ID. Open
 
 ### Recent Resources
 
-Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, and Route 53 Hosted Zones. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, and individual DNS records are not recorded.
+Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, and Target Groups. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, individual DNS records, listeners, and rules are not recorded.
 
 Search by name, resource ID, service, Profile, account, or Region. Click a row to reverify the account and locate the resource using the same navigation as favorites. Regional resources restore their saved Region; Route 53 keeps your resource Region unchanged. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
 
@@ -111,6 +112,28 @@ The following component previews use mock recent resources:
 ![Recent resources in light mode](docs/ui-recents-light.png)
 
 ![Recent resources in dark mode](docs/ui-recents-dark.png)
+
+### Load Balancers and Target Groups
+
+Select and verify a Profile and Region, then open `Load Balancers` or `Target Groups` in the sidebar. These ELBv2 pages cover Application, Network, and Gateway Load Balancers for that account and Region. Lists support local search and type filters; select a resource explicitly to read its details. No Profile means no queries. Load balancers and Target Groups can be saved in favorites and recent history by ARN and Region.
+
+A load balancer shows its DNS name, scheme, state, network configuration, listeners, and associated Target Groups. Listeners show protocol, port, TLS configuration, and default actions. Selecting an ALB listener loads its rules, including priority, conditions, transformations, and ordered actions. Forward actions expose every weighted Target Group; redirects, fixed responses, and authentication actions remain distinct. Authentication secrets and extra authentication parameters are excluded from the app's models. These links describe configuration, not observed traffic.
+
+Target Groups show their protocol, target type, health-check configuration, and associated load balancers. Registered targets include their port, availability zone, health state, reason, and description when returned. `Open` follows an exact resource in the same Profile, account, and Region: an instance target opens EC2, a Lambda target opens the function, and an ALB target opens the load balancer. IP targets are displayed without guessing an EC2 association. A Lambda alias/version remains visible in the target ARN; the link opens function-level details rather than a qualified invocation view. Missing resources and failed requests show an error without selecting a substitute.
+
+In EC2 details, the `Target Groups` tab offers an explicit membership query. It lists Target Groups in the current Region, reads health for instance-type groups with up to four concurrent requests, and matches the exact registered instance ID, preserving multiple registered ports. It excludes `Target.NotRegistered` results. Results show successful checks and per-group failures; an incomplete scan is not treated as proof that the instance has no memberships. This scan runs only when requested and does not alter the main Target Group list or favorites.
+
+Lists and dependent data load on demand, paginate completely, and support manual refresh and cancellation without polling. Failed list refreshes mark retained data as potentially stale; listeners, rules, and target health have separate failure states. Profile, account, or Region changes clear old state and invalidate in-flight results. Opening a related resource stays in the current scope, and never selects another Profile automatically.
+
+The role needs `elasticloadbalancing:DescribeLoadBalancers`, `elasticloadbalancing:DescribeTargetGroups`, `elasticloadbalancing:DescribeListeners`, `elasticloadbalancing:DescribeRules`, and `elasticloadbalancing:DescribeTargetHealth` with `Resource: "*"`. See the [ELBv2 IAM reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_elbv2.html), [listener actions](https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_Action.html), and [target health](https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_TargetHealth.html). The app performs read operations only.
+
+Component previews use simulated data:
+
+![ALB listeners and routing rules in light mode](docs/ui-elb-listeners-light.png)
+
+![Target Group health states in dark mode](docs/ui-elb-targets-dark.png)
+
+![EC2 Target Group query with partial results](docs/ui-elb-membership-light.png)
 
 ### Route 53
 
@@ -277,6 +300,7 @@ Sources/AWSPlatform/
 │   ├── CostModels.swift
 │   ├── HealthModels.swift
 │   ├── Route53Models.swift
+│   ├── ELBModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── RecentResource.swift
@@ -290,6 +314,7 @@ Sources/AWSPlatform/
 │   ├── AWSCostService.swift       # Cost Explorer queries and complete pagination
 │   ├── AWSHealthService.swift    # Account-specific Health events, details, and affected resources
 │   ├── AWSRoute53Service.swift   # Hosted Zones, DNS records, metadata, and tags
+│   ├── AWSELBService.swift       # Load balancers, Target Groups, routing, and target health
 │   ├── AWSCLICredentialProvider.swift # SSO credential bridge for custom configuration paths
 │   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
 ├── Utilities/                   # Utilities
@@ -301,6 +326,9 @@ Sources/AWSPlatform/
 │   ├── CostViewModel.swift
 │   ├── HealthViewModel.swift
 │   ├── Route53ViewModel.swift
+│   ├── ELBViewModel.swift
+│   ├── EC2TargetGroupsViewModel.swift
+│   ├── ELBResourceNavigation.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
@@ -314,6 +342,7 @@ Sources/AWSPlatform/
     ├── Cost/
     ├── Health/
     ├── Route53/
+    ├── ELB/
     ├── EC2/
     ├── Lambda/
     ├── S3/

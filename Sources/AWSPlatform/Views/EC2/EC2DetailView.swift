@@ -9,6 +9,7 @@ struct EC2DetailView: View {
         case security = "Security"
         case status = "Status"
         case metrics = "Metrics"
+        case targetGroups = "Target Groups"
 
         var id: String { rawValue }
     }
@@ -17,14 +18,19 @@ struct EC2DetailView: View {
     @ObservedObject var vm: EC2ViewModel
     let monitoringScope: MonitoringScope?
     let metricsVM: ResourceMetricsViewModel?
+    let membershipsVM: EC2TargetGroupsViewModel?
+    let onOpenELB: (ELBResourceReference) -> Void
     @State private var selectedTab: Tab = .overview
 
     init(instance: EC2InstanceModel, vm: EC2ViewModel, tab: Tab = .overview,
-         monitoringScope: MonitoringScope? = nil, metricsVM: ResourceMetricsViewModel? = nil) {
+         monitoringScope: MonitoringScope? = nil, metricsVM: ResourceMetricsViewModel? = nil,
+         membershipsVM: EC2TargetGroupsViewModel? = nil, onOpenELB: @escaping (ELBResourceReference) -> Void = { _ in }) {
         self.instance = instance
         self.vm = vm
         self.monitoringScope = monitoringScope
         self.metricsVM = metricsVM
+        self.membershipsVM = membershipsVM
+        self.onOpenELB = onOpenELB
         _selectedTab = State(initialValue: tab)
     }
 
@@ -37,7 +43,7 @@ struct EC2DetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            DetailTabPicker(tabs: Tab.allCases.filter { $0 != .metrics || metricsVM != nil }, selection: $selectedTab)
+            DetailTabPicker(tabs: Tab.allCases.filter { ($0 != .metrics || metricsVM != nil) && ($0 != .targetGroups || membershipsVM != nil) }, selection: $selectedTab)
             .padding()
 
             if let detail, !detail.warnings.isEmpty {
@@ -46,7 +52,7 @@ struct EC2DetailView: View {
 
             ZStack {
                 tabContent
-                if selectedTab != .metrics && vm.isDetailLoading && detail == nil {
+                if selectedTab != .metrics && selectedTab != .targetGroups && vm.isDetailLoading && detail == nil {
                     ProgressView("Loading EC2 details…")
                         .padding()
                         .background(.regularMaterial)
@@ -136,6 +142,10 @@ struct EC2DetailView: View {
         case .metrics:
             if let metricsVM {
                 ResourceMetricsView(vm: metricsVM, scope: monitoringScope, target: .ec2(instance.instanceId))
+            }
+        case .targetGroups:
+            if let membershipsVM {
+                EC2TargetGroupsView(vm: membershipsVM, scope: monitoringScope, instanceID: instance.instanceId, onOpen: onOpenELB)
             }
         }
     }

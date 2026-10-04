@@ -137,7 +137,7 @@ final class EC2ViewModel: ObservableObject {
         healthFilter = .all
     }
 
-    func loadInstances() async {
+    func loadInstances(selectFirstIfNeeded: Bool = true) async {
         guard !Task.isCancelled, let instanceLoader else { return }
         listGeneration += 1
         let generation = listGeneration
@@ -202,7 +202,7 @@ final class EC2ViewModel: ObservableObject {
             instanceHealth = loadedHealth
             selectedInstance = selectedID.flatMap { id in
                 loadedInstances.first { $0.instanceId == id }
-            } ?? loadedInstances.first
+            } ?? (selectFirstIfNeeded ? loadedInstances.first : nil)
             if selectedID == selectedInstance?.instanceId {
                 loadDetailForSelection()
             }

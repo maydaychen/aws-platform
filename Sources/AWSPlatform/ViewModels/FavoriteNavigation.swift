@@ -61,7 +61,7 @@ final class FavoriteNavigation: ObservableObject {
     }
 
     func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel,
-                 route53: Route53ViewModel? = nil) {
+                 route53: Route53ViewModel? = nil, elb: ELBViewModel? = nil) {
         guard let target else { return }
         switch target.service {
         case .ec2:
@@ -107,6 +107,26 @@ final class FavoriteNavigation: ObservableObject {
             }
             route53.selectedZone = route53.zones.first { $0.id == target.resourceID }
             finish(found: route53.selectedZone != nil, loadError: nil)
+        case .loadBalancers:
+            elb?.searchText = ""
+            elb?.kindFilter = "All"
+            guard let elb, elb.loadBalancersError == nil, !elb.isLoadBalancersStale else {
+                elb?.selectedLoadBalancer = nil
+                finish(found: false, loadError: elb?.loadBalancersError)
+                return
+            }
+            elb.selectedLoadBalancer = elb.loadBalancers.first { $0.arn == target.resourceID }
+            finish(found: elb.selectedLoadBalancer != nil, loadError: nil)
+        case .targetGroups:
+            elb?.groupSearchText = ""
+            elb?.targetTypeFilter = "All"
+            guard let elb, elb.targetGroupsError == nil, !elb.isTargetGroupsStale else {
+                elb?.selectedTargetGroup = nil
+                finish(found: false, loadError: elb?.targetGroupsError)
+                return
+            }
+            elb.selectedTargetGroup = elb.targetGroups.first { $0.arn == target.resourceID }
+            finish(found: elb.selectedTargetGroup != nil, loadError: nil)
         }
     }
 

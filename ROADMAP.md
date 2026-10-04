@@ -6,10 +6,11 @@
 
 源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；当前未发布应用二进制 Release。
 
-Health、最近访问、Route 53、ELBv2、安全组与统一资源关联功能仅完成本地源码交付，尚未推送，也未包含在已有的 `0.1.0 (1)` 正式分发包中。
+Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码已推送至 GitHub `main`；尚未包含在已有的 `0.1.0 (1)` 正式分发包中。
 
 ## 最近完成
 
+- 2026-10-04 14:54：按用户授权将 Health、最近访问、Route 53、ELBv2 与统一资源关联的 5 个功能提交推送至 GitHub `main`，功能提交为 `59626f8`；同步源码交付状态。原私有远端及既有未提交 `AGENTS.md` 改动保持不变；未重新打包或发布二进制 Release。
 - 2026-10-04 11:33：新增独立 Security Groups 页面，支持所属账号／VPC／标签／入出站规则、搜索筛选、收藏与最近访问；统一关联弹框连接 Route 53 记录、LB、Target Group、EC2 与安全组，名称优先、展开详情、单层 Explore、缓存 Back 及精确 Open。DNS 只匹配显式 Region 的直接 Alias／CNAME，Alias 同时核对 canonical zone；反向扫描需手动触发，最多 4 个 Zone 并发并保留部分失败。区域资源跳转重新核验当前 Profile 身份，全局记录保留资源 Region，按完整复合 ID 置顶展开。中英文 README、读取权限及三张模拟截图已同步。
 - 2026-10-04 09:55：新增当前 Profile／账号／Region 的 ALB／NLB／GWLB、Target Groups 和目标健康状态只读浏览；监听器默认动作、ALB 规则／条件／变换／加权转发可展开查看，同范围精确打开目标组及 EC2／Lambda／ALB。EC2 新增手动反查目标组页签，最多 4 个并发，保留多个注册端口及部分失败；IP 不推断实例，Lambda qualifier 保留并说明函数级跳转。完整分页、独立错误、取消／迟到隔离、ARN 收藏／最近访问接入，服务侧栏可滚动；中英文 README、五项权限说明及三张模拟组件截图已同步。
 - 2026-10-04 09:17：新增 Route 53 公有／私有 Hosted Zones 只读浏览，按当前已验证 Profile／账号全局加载，不随资源 Region 重查。提供 Overview／Records／Tags、搜索与公私／记录类型筛选、Alias／TTL／完整路由配置、委派 NS 与 VPC 关联；列表和记录完整分页，详情／记录／标签独立失败、手动刷新／取消及迟到结果隔离。Hosted Zone 以 canonical ID 和 `global` 接入收藏／最近访问，打开保留资源 Region 并重新验证账号；修复刷新失败后误选缓存 Zone 的导航路径。中英文 README、权限说明与两张模拟组件截图已同步。
@@ -29,10 +30,10 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联功能�
 - 2026-10-03 11:16：实现按当前 Profile 经 STS 验证账号查询的 Cost Explorer 面板；所有汇总、日明细及费用区域请求强制 LINKED_ACCOUNT，不自动汇总组织成员。提供本月／上月汇总、日趋势、服务明细、UTC 完整日与独立费用 Region 筛选、8 组内存缓存、手动刷新和取消。完整分页、Decimal 金额／币种校验、错误脱敏与迟到结果隔离；资源 Region 切换保留 AWSClient，不触发费用重复加载。README 和四张模拟组件示例已同步。
 - 2026-10-03 10:13：将前期推荐但尚未实现的功能及 Cost 分期候选合并到待办，区分已有能力与新增范围；仅记录后续计划，未启动功能开发。
 - 2026-10-03 10:09：将后续 AWS 查询统一以显式选择的 Profile 为单位的长期约束写入 `AGENTS.md` 的 `AWS Query Scope`；涵盖 Session 登录边界、未选不查询、禁止自动跨 Profile 聚合，以及切换时的请求与缓存隔离。仅更新项目规范，未修改运行代码。
-- 2026-10-03 10:02：SSO 登录与账号选择分离：独立选择 session 并调用 `aws sso login --sso-session`，登录成功、启动、重新登录和切换 session 都不自动选择 Profile。Profile 列表按 session 过滤，空选项不验证身份、不查询或显示资源；普通／旧式 Profile 保留在 `Other profiles`。收藏只在手动选中匹配 Profile 后定位。保留取消、5 分钟超时、错误分类及自定义路径，登录子进程隔离环境 Profile；修复即时登录失败提示被延迟界面更新清除的问题。README 和三张模拟组件截图已同步。
 
 ## 最近验证
 
+- 2026-10-04 14:54：推送范围 `3d51d19..59626f8` 的 Gitleaks 扫描未发现秘密，`git diff --check` 通过；GitHub `main` 实时回读与功能提交 `59626f8` 一致。业务源码及测试与此前已验证提交一致，本轮仅推送并同步进度文档，未重复运行 Swift 测试或访问真实 AWS。
 - 2026-10-04 11:33：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，604 项正式测试与 1 项临时渲染测试成功，无编译警告；新增 87 项覆盖安全组完整分页／结构化规则／附加网卡、关系匹配／4 并发及部分失败、Profile／身份／Region 隔离、精确导航、取消与迟到结果。修正同 owner 搜索测试预期；渲染发现 DNS 长卡片自动滚动不稳定，最终采用精确记录置顶展开并移除失败滚动代码，36 项相关正式测试与临时渲染再次通过。42 张模拟组件截图覆盖深浅色、窄宽布局、错误／部分结果及长列表精确记录；已抽查关键图。独立源码与证据复核、Gitleaks、双语 README 引用和 `git diff --check` 通过；临时入口已移除。未调用真实 AWS；真实权限、账号、完整窗口交互、macOS 13 与 Intel 待验收。
 - 2026-10-04 09:55：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，517 项正式测试与 1 项临时渲染测试全部成功，无编译警告。本次新增 86 项正式测试覆盖 ELB 分页／字段映射／认证白名单／范围与父资源校验、4 并发反查及部分失败、取消与共享请求竞态、精确导航和收藏／历史隔离。109 张离线截图覆盖深浅色、280／420 列表、480／900 详情、176 宽侧栏及错误／空／加载／部分结果；抽查发现并修正端口千位分组后，86 项相关测试与临时渲染重新通过，实例 ID 换行边界同时加固。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用和 `git diff --check` 通过；临时测试入口已移除。未调用真实 AWS；真实 IAM／分页、完整窗口交互、macOS 13 与 Intel 运行待验收。
 - 2026-10-04 09:17：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，431 项正式测试及 1 项临时渲染测试全部通过，无编译警告。新增 52 项正式测试覆盖三元记录游标／空页／重复与缺失游标／页数保护、Alias 与路由字段、私有 Zone 可选 NS、权限错误脱敏、取消／迟到响应、全局分区端点及 Profile／账号隔离、收藏／历史精确导航与缓存列表失败回归。47 张离线截图覆盖 280／420 列表与 480／900 详情、深浅色、三页签、展开记录、长值、空／错误／加载态；补充实际列表宽度后重新严格渲染通过，临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用及 `git diff --check` 通过。未调用真实 AWS；完整窗口交互、真实 IAM／分页、macOS 13 与 Intel 运行仍待验收。
@@ -52,7 +53,6 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联功能�
 - 2026-10-03 11:16：最终源码通过 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，142 项正式单测和 2 项临时渲染测试共 144 项全部通过，`git diff --check` 通过。新增 38 项正式测试覆盖账号／区域过滤、日期边界、分页／取消／异常金额与币种、错误脱敏、缓存与 Profile／身份／配置隔离、跨 UTC 日月刷新及资源 Region 客户端复用。生成 36 张 Cost 状态／报表截图及 6 张资源／空 Profile 截图，抽查深浅色、960／1280 宽度、长文本、负数退款、无数据、月初、错误、加载及自定义日期；独立审查核对核心代码和关键截图。临时测试入口已移除。未执行真实 AWS 登录／费用 API，账单对照、实际窗口操作和 macOS 13 运行时仍待验收；渲染日志的 Charts anchor 警告见工程待办。
 - 2026-10-03 10:13：核对待办与此前功能建议、当前已完成清单及 Profile 查询约束的一致性，检查 Markdown 结构和 `git diff --check` 通过；仅文档变更，未运行 Swift 测试或 AWS 查询。
 - 2026-10-03 10:09：检查 `AGENTS.md` 新增规则的 Markdown 结构、关键约束及与现有 Session／Profile 流程的一致性，`git diff --check` 通过；本次仅文档变更，未重复运行 Swift 测试。
-- 2026-10-03 10:02：最终正式测试集 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 构建成功，104 项测试全部通过，`git diff --check` 通过。覆盖独立 session 解析／登录、空 Profile 不调用身份校验、显式选择、取消及过期结果、配置重载、收藏不自动选 Profile、登录环境隔离及即时失败提示。另有 2 项临时渲染测试通过，生成 8 种流程状态在 960／1280 宽度与深浅色下的 32 张截图及 2 张资源示例；已抽查关键空态、等待、选中、切换状态和资源示例，临时测试入口已移除。独立检查核对关键代码、测试日志及组件截图；未执行真实 AWS 登录或请求，浏览器授权完整链路、实际窗口交互与 macOS 13 运行时仍待验收。
 
 ## 已完成
 

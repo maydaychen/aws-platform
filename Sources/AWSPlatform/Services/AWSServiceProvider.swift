@@ -9,6 +9,7 @@ import SotoCloudWatch
 import SotoCloudWatchLogs
 import SotoSNS
 import SotoHealth
+import SotoRoute53
 
 actor AWSServiceProvider {
     private var awsClient: AWSClient?
@@ -136,6 +137,23 @@ actor AWSServiceProvider {
         }
         return Health(client: awsClient, partition: partition, endpoint: endpoint.url)
             .with(region: .init(rawValue: endpoint.region))
+    }
+
+    func route53Client(scope: Route53Scope) throws -> Route53 {
+        let partitionName = try scope.partition()
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
+        ])
+        guard currentProfile == scope.profile, currentPaths == paths, let awsClient else {
+            throw Route53Error.invalidScope
+        }
+        let partition: AWSPartition
+        switch partitionName {
+        case "aws-cn": partition = .awscn
+        case "aws-us-gov": partition = .awsusgov
+        default: partition = .aws
+        }
+        return Route53(client: awsClient, partition: partition)
     }
 
     func cloudWatchClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) throws -> CloudWatch {

@@ -68,7 +68,7 @@ struct FavoritesListView: View {
             .overlay {
                 if filtered.isEmpty {
                     EmptyStateView(text: vm.favorites.isEmpty
-                        ? "Star an EC2 instance, Lambda function, or S3 bucket to save it here."
+                        ? "Star a resource in its details to save it here."
                         : "No matching favorites", icon: "star")
                     .padding()
                     .allowsHitTesting(false)

@@ -36,7 +36,7 @@ final class FavoriteNavigation: ObservableObject {
 
     func matches(profileName: String?, region: String) -> Bool {
         guard let target else { return true }
-        return target.profileName == profileName && target.region == region
+        return target.profileName == profileName && (target.service == .route53 || target.region == region)
     }
 
     func verifyAccount(_ accountID: String) -> Bool {
@@ -53,13 +53,15 @@ final class FavoriteNavigation: ObservableObject {
         if let loadError {
             fail("Unable to open \(target.displayName): \(loadError) The \(source.noun) is still saved.")
         } else if !found {
-            fail("\(target.displayName) was not found in the saved profile and region. It may have been removed or be inaccessible. The \(source.noun) is still saved.")
+            let location = target.service == .route53 ? "profile" : "profile and region"
+            fail("\(target.displayName) was not found in the saved \(location). It may have been removed or be inaccessible. The \(source.noun) is still saved.")
         } else {
             cancel()
         }
     }
 
-    func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel) {
+    func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel,
+                 route53: Route53ViewModel? = nil) {
         guard let target else { return }
         switch target.service {
         case .ec2:
@@ -95,6 +97,16 @@ final class FavoriteNavigation: ObservableObject {
             sns.kindFilter = nil
             sns.selectedTopic = sns.topics.first { $0.arn == target.resourceID }
             finish(found: sns.selectedTopic != nil, loadError: sns.error)
+        case .route53:
+            route53?.searchText = ""
+            route53?.privateFilter = nil
+            guard let route53, route53.error == nil else {
+                route53?.selectedZone = nil
+                finish(found: false, loadError: route53?.error)
+                return
+            }
+            route53.selectedZone = route53.zones.first { $0.id == target.resourceID }
+            finish(found: route53.selectedZone != nil, loadError: nil)
         }
     }
 

@@ -12,11 +12,12 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **S3 buckets** - Browse bucket security settings, objects, and folders
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
+- **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
-- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, and SNS Topics locally, search favorites, and restore their saved Region within the current Profile
+- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, and Route 53 Hosted Zones locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
 
@@ -95,11 +96,13 @@ Favorites appear only after you manually select a Profile. When opening a favori
 
 Favorites are stored locally in UserDefaults, restored after restart, and shared by windows within the same app process. Only the Profile name, account ID, Region, service, resource ID, and display name are saved. Credentials, resource details, and environment variables are not stored, and favorites are not synced to the cloud. The same resource is saved separately for different Profiles, accounts, or browsing Regions.
 
+Route 53 Hosted Zones use a fixed `global` scope and the canonical Zone ID. Opening one leaves the resource Region unchanged and still reverifies the current Profile's account.
+
 ### Recent Resources
 
-Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, and SNS Topics. Entries are identified by service, resource ID, and saved Region. Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections and S3 objects are not recorded.
+Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, and Route 53 Hosted Zones. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, and individual DNS records are not recorded.
 
-Search by name, resource ID, service, Profile, account, or Region. Click a row to restore its saved Region, reverify the account, and locate the resource using the same navigation as favorites. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
+Search by name, resource ID, service, Profile, account, or Region. Click a row to reverify the account and locate the resource using the same navigation as favorites. Regional resources restore their saved Region; Route 53 keeps your resource Region unchanged. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
 
 History persists locally in UserDefaults and is shared across app windows, while each window filters by its own verified Profile/account. No history is displayed without one. Only resource location metadata, display names, and visit times are saved; credentials, resource contents, and logs are excluded. Recording, searching, and deleting history do not call AWS; reopening a resource performs the normal read queries. Unreadable stored history is preserved and editing is disabled with a message.
 
@@ -108,6 +111,24 @@ The following component previews use mock recent resources:
 ![Recent resources in light mode](docs/ui-recents-light.png)
 
 ![Recent resources in dark mode](docs/ui-recents-dark.png)
+
+### Route 53
+
+After selecting and verifying a Profile, open `Route 53` in the sidebar to browse that account's public and private Hosted Zones. Route 53 is global within the Profile's AWS partition: this page hides the resource Region selector, and changing resource Regions elsewhere does not reload its data. The commercial, China, and GovCloud partitions use their corresponding SDK endpoints. No Profile means no queries or displayed resources.
+
+Search by zone name or ID, filter by public/private, and select a zone to open `Overview`, `Records`, and `Tags`. Overview shows the Zone ID, comment, record count, caller reference, delegation name servers for public zones, and returned VPC associations for private zones. Name servers and VPC associations describe AWS configuration, not a live DNS test or an inventory of VPC resources. Tags, metadata, and records load independently; a failure in one does not hide the others.
+
+Records support local search and type filtering. Expand a record to read its original values, TTL, Alias target and target health evaluation, routing identifier, and applicable weighted, latency, failover, geolocation, geoproximity, multivalue, or IP-based routing settings. Health check and traffic policy identifiers are displayed without querying those resources. Alias records can omit TTL. Values, including TXT quoting and escapes, are preserved. This is the latest API configuration and can include pending DNS changes; it does not verify propagation.
+
+Lists load on first entry, with complete pagination and no scheduled polling. Use `Refresh` to reload and `Cancel` to stop waiting. A failed zone-list refresh labels retained data as stale; incomplete record pagination is not displayed as a complete result. Profile/session changes, signing in again, and connection retries clear the old state and invalidate in-flight requests. Hosted Zones support favorites and recent history using `global` plus the Zone ID, without changing your selected resource Region. Individual records are not saved as separate favorites or history entries.
+
+The role needs `route53:ListHostedZones` on `Resource: "*"`, plus `route53:GetHostedZone`, `route53:ListResourceRecordSets`, and `route53:ListTagsForResource` for the permitted Hosted Zone resources. See the [Route 53 IAM reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_route53.html), [record-set API](https://docs.aws.amazon.com/Route53/latest/APIReference/API_ListResourceRecordSets.html), and [service endpoints](https://docs.aws.amazon.com/general/latest/gr/r53.html). The app does not edit DNS records, register domains, or run Resolver queries.
+
+The following component previews use mock Route 53 data:
+
+![Route 53 Hosted Zone overview in light mode](docs/ui-route53-light.png)
+
+![Route 53 DNS records in dark mode](docs/ui-route53-dark.png)
 
 ### Cost Dashboard
 
@@ -255,6 +276,7 @@ Sources/AWSPlatform/
 │   ├── SNSTopic.swift
 │   ├── CostModels.swift
 │   ├── HealthModels.swift
+│   ├── Route53Models.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── RecentResource.swift
@@ -267,6 +289,7 @@ Sources/AWSPlatform/
 │   ├── AWSSNSService.swift       # SNS Topics, configuration, tags, and subscriptions
 │   ├── AWSCostService.swift       # Cost Explorer queries and complete pagination
 │   ├── AWSHealthService.swift    # Account-specific Health events, details, and affected resources
+│   ├── AWSRoute53Service.swift   # Hosted Zones, DNS records, metadata, and tags
 │   ├── AWSCLICredentialProvider.swift # SSO credential bridge for custom configuration paths
 │   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
 ├── Utilities/                   # Utilities
@@ -277,6 +300,7 @@ Sources/AWSPlatform/
 │   ├── SNSViewModel.swift
 │   ├── CostViewModel.swift
 │   ├── HealthViewModel.swift
+│   ├── Route53ViewModel.swift
 │   ├── EC2ViewModel.swift
 │   ├── FavoriteNavigation.swift
 │   ├── FavoritesViewModel.swift
@@ -289,6 +313,7 @@ Sources/AWSPlatform/
     ├── SNS/
     ├── Cost/
     ├── Health/
+    ├── Route53/
     ├── EC2/
     ├── Lambda/
     ├── S3/

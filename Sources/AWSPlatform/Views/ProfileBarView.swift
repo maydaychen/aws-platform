@@ -6,6 +6,7 @@ struct ProfileBarView: View {
     var onLogin: () -> Void = {}
     var onCancelLogin: () -> Void = {}
     var showsResourceRegion = true
+    var globalScopeMessage = "Global service · Current account"
     @State private var isCustomRegionPresented = false
     @State private var customRegion = ""
     @State private var regionError: String?
@@ -56,7 +57,7 @@ struct ProfileBarView: View {
                 if showsResourceRegion {
                     resourceRegionControls
                 } else {
-                    Label("Cost regions are selected below", systemImage: "globe")
+                    Label(globalScopeMessage, systemImage: "globe")
                         .font(.caption).foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)

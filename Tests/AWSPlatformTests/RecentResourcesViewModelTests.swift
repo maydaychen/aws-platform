@@ -10,7 +10,10 @@ final class RecentResourcesViewModelTests: XCTestCase {
             defaults.set(favoritesData, forKey: FavoritesViewModel.storageKey)
             let visitedAt = Date(timeIntervalSinceReferenceDate: 100)
             let vm = RecentResourcesViewModel(defaults: defaults, now: { visitedAt })
-            let resources = AWSService.allCases.map { makeResource(service: $0) }
+            let resources = AWSService.allCases.map {
+                makeResource(region: $0 == .route53 ? "global" : "us-east-1", service: $0,
+                             resourceID: $0 == .route53 ? "ZEXAMPLE" : "i-example")
+            }
             XCTAssertTrue(vm.entries.isEmpty)
 
             resources.forEach { vm.recordVisit($0, scope: scope()) }

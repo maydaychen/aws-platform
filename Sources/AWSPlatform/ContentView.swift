@@ -12,6 +12,7 @@ struct ContentView: View {
     @StateObject private var healthVM: HealthViewModel
     @StateObject private var alarmsVM: AlarmViewModel
     @StateObject private var snsVM: SNSViewModel
+    @StateObject private var route53VM: Route53ViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
     @StateObject private var metricsVM: ResourceMetricsViewModel
     @StateObject private var logsVM: LambdaLogsViewModel
@@ -64,6 +65,13 @@ struct ContentView: View {
             tagLoader: { try await sns.loadTags(scope: $0, topic: $1) },
             subscriptionLoader: { try await sns.loadSubscriptions(scope: $0, topic: $1) }
         ))
+        let route53 = AWSRoute53Service(provider: profiles.provider)
+        _route53VM = StateObject(wrappedValue: Route53ViewModel(
+            listLoader: { try await route53.loadZones(scope: $0) },
+            detailLoader: { try await route53.loadDetails(scope: $0, zone: $1) },
+            recordLoader: { try await route53.loadRecords(scope: $0, zone: $1) },
+            tagLoader: { try await route53.loadTags(scope: $0, zone: $1) }
+        ))
     }
 
     private var showingFavorites: Bool { destination == .favorites }
@@ -75,7 +83,9 @@ struct ContentView: View {
                 profileVM.loadProfiles()
                 reconfigureServices(forceRefresh: true)
             }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
-               showsResourceRegion: destination != .costs && destination != .health)
+               showsResourceRegion: destination != .costs && destination != .health
+                    && !(destination == .resources && selectedService == .route53),
+               globalScopeMessage: destination == .costs ? "Cost regions are selected below" : "Global service · Current account")
             if let message = relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
                 HStack {
                     NoticeBanner(message: message)
@@ -106,7 +116,7 @@ struct ContentView: View {
                         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                         .contentTransition(reduceMotion ? .identity : .opacity)
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
-                        .id([profileVM.selectedProfileID ?? "", profileVM.selectedRegion])
+                        .id([profileVM.selectedProfileID ?? "", selectedService == .route53 ? "global" : profileVM.selectedRegion])
                 }
             }
         }
@@ -128,6 +138,7 @@ struct ContentView: View {
         .onChange(of: profileVM.selectedProfileID) { _ in
             costVM.reset()
             healthVM.reset()
+            route53VM.reset()
             cancelFavoriteIfScopeChanged()
             if profileVM.isSigningIn { clearResources() }
             else { reconfigureServices() }
@@ -135,6 +146,7 @@ struct ContentView: View {
         .onChange(of: profileVM.profileSource) { _ in
             costVM.reset()
             healthVM.reset()
+            route53VM.reset()
             loginTask?.cancel()
             favoriteNavigation.cancel()
             reconfigureServices()
@@ -158,6 +170,7 @@ struct ContentView: View {
             selectedServiceID = selectedService.rawValue
             loadVisibleAlarms()
             loadVisibleSNS()
+            loadVisibleRoute53()
         }
         .onChange(of: destination) { selection in
             resetMonitoring()
@@ -170,6 +183,7 @@ struct ContentView: View {
             if selection == .health { configureHealth() }
             loadVisibleAlarms()
             loadVisibleSNS()
+            loadVisibleRoute53()
         }
         .onDisappear {
             resetMonitoring()
@@ -181,6 +195,7 @@ struct ContentView: View {
             healthVM.reset()
             alarmsVM.reset()
             snsVM.reset()
+            route53VM.reset()
             Task { await profileVM.shutdown() }
         }
     }
@@ -253,6 +268,20 @@ struct ContentView: View {
         snsVM.loadIfNeeded()
     }
 
+    private func configureRoute53() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        route53VM.configure(scope: Route53Scope(profile: profile, identity: identity))
+        loadVisibleRoute53()
+    }
+
+    private func loadVisibleRoute53() {
+        guard destination == .resources, selectedService == .route53,
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil else { return }
+        route53VM.loadIfNeeded()
+    }
+
     @ViewBuilder
     private var middlePane: some View {
         if profileVM.selectedProfile == nil {
@@ -287,6 +316,8 @@ struct ContentView: View {
             AlarmListView(vm: alarmsVM)
         case .sns:
             SNSTopicListView(vm: snsVM)
+        case .route53:
+            Route53ZoneListView(vm: route53VM)
         }
     }
 
@@ -357,9 +388,14 @@ struct ContentView: View {
         case .sns:
             guard let topic = snsVM.selectedTopic else { return nil }
             resource = (topic.arn, topic.name)
+        case .route53:
+            guard let zone = route53VM.selectedZone, let profile = profileVM.selectedProfile,
+                  route53VM.scope == Route53Scope(profile: profile, identity: identity) else { return nil }
+            resource = (zone.id, zone.name)
         }
         let favorite = ResourceFavorite(
-            profileName: profileName, accountID: identity.account, region: profileVM.selectedRegion,
+            profileName: profileName, accountID: identity.account,
+            region: selectedService == .route53 ? "global" : profileVM.selectedRegion,
             service: selectedService, resourceID: resource.id, displayName: resource.name
         )
         return favorite.isValid ? favorite : nil
@@ -387,7 +423,11 @@ struct ContentView: View {
         profileVM.loadProfiles()
         guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
                                        selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
-        profileVM.selectedRegion = favorite.region
+        if favorite.service == .route53 {
+            route53VM.selectedZone = nil
+        } else {
+            profileVM.selectedRegion = favorite.region
+        }
         selectedService = favorite.service
         destination = .resources
         reconfigureServices()
@@ -438,6 +478,7 @@ struct ContentView: View {
         case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
         case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
         case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
+        case .route53: return "route53/" + (route53VM.selectedZone?.id ?? "")
         }
     }
 
@@ -505,6 +546,12 @@ struct ContentView: View {
             } else {
                 EmptyStateView(text: "Select an SNS topic", icon: "dot.radiowaves.left.and.right")
             }
+        case .route53:
+            if let zone = route53VM.selectedZone {
+                Route53ZoneDetailView(zone: zone, vm: route53VM)
+            } else {
+                EmptyStateView(text: "Select a Route 53 hosted zone", icon: "network")
+            }
         }
     }
 
@@ -512,6 +559,7 @@ struct ContentView: View {
         guard profileVM.canSignIn, loginTask == nil else { return }
         costVM.reset()
         healthVM.reset()
+        route53VM.reset()
         clearResources()
         favoriteNavigation.cancel()
         loginTask = Task {
@@ -537,6 +585,7 @@ struct ContentView: View {
         if forceRefresh {
             costVM.reset()
             healthVM.reset()
+            route53VM.reset()
         }
         clearResources()
         profileVM.beginConfiguration()
@@ -557,6 +606,7 @@ struct ContentView: View {
             }
             configureCosts()
             configureHealth()
+            configureRoute53()
             let target = favoriteNavigation.target
             if target != nil {
                 guard case .valid(let identity) = profileVM.profileStatus,
@@ -574,9 +624,10 @@ struct ContentView: View {
             case .s3: await s3VM.loadBuckets()
             case .alarms: await alarmsVM.loadAlarms()
             case .sns: await snsVM.loadTopics()
+            case .route53: await route53VM.loadZones()
             }
             guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
-            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM)
+            favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM, route53: route53VM)
         }
     }
 }

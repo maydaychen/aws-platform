@@ -14,11 +14,13 @@ A native macOS app for read-only browsing of AWS resources and costs, built with
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
+- **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
+- **Resource relationships** - Explore Route 53 records, load balancers, Target Groups, EC2 instances, and security groups one hop at a time, with explicit reverse queries and precise resource navigation
 - **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
-- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, and Target Groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
+- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
 
@@ -101,7 +103,7 @@ Route 53 Hosted Zones use a fixed `global` scope and the canonical Zone ID. Open
 
 ### Recent Resources
 
-Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, and Target Groups. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, individual DNS records, listeners, and rules are not recorded.
+Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, individual DNS records, listeners, and rules are not recorded.
 
 Search by name, resource ID, service, Profile, account, or Region. Click a row to reverify the account and locate the resource using the same navigation as favorites. Regional resources restore their saved Region; Route 53 keeps your resource Region unchanged. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
 
@@ -112,6 +114,28 @@ The following component previews use mock recent resources:
 ![Recent resources in light mode](docs/ui-recents-light.png)
 
 ![Recent resources in dark mode](docs/ui-recents-dark.png)
+
+### Security Groups and Resource Relationships
+
+Open `Security Groups` to search by group ID, name, VPC, owner, tags, or rule content and filter by VPC. Select a group to read its metadata, tags, and inbound/outbound rules, including protocols, ports or ICMP type/code, CIDRs, Prefix Lists, and security-group references. The list uses complete pagination, supports refresh/cancel, and labels retained data after a failed refresh. Groups are queried through the current Profile and Region; a visible shared group's owner is shown separately. Groups support favorites and recent history.
+
+Use `View relationships` in an EC2, LB, Target Group, security group, or Hosted Zone detail. Alias and CNAME record rows also provide a record-specific entry. The sheet starts with names and labeled direct relationships; expand a card for its fields, choose `Explore` to follow the next hop, or `Open` to navigate to the exact resource. `Back` restores a previously loaded snapshot; `Refresh` reads it again. Closing the sheet or changing the outer Profile, Region, or resource clears its state. SNS retains its existing relationship viewer.
+
+The view connects LB associations to Target Groups, target registrations to EC2/Lambda/ALB, and EC2/LB bindings to security groups. Security-group references are permission rules, not proof of connectivity. IP targets are not guessed to be EC2. Lambda qualifiers stay visible, while `Open` displays function-level details. Only confirmed same-account security-group references are navigable; shared or unknown owners remain informational.
+
+For Route 53, choose the LB query Region explicitly. A direct Alias match requires both the LB DNS name and its canonical Hosted Zone ID; a CNAME match requires an exact direct DNS target. Matching handles case, a trailing dot, and the ALB `dualstack.` variant without guessing from a suffix or resolving DNS chains. Weighted/failover records keep their routing identifiers. An unmatched target is shown as unmatched in that query scope, not as a nonexistent resource. Opening a matched regional resource changes the workspace Region explicitly and revalidates the current Profile's identity; opening a global Route 53 record preserves the workspace Region and places the exact record at the top of Records, expanded, with other records below.
+
+Reverse queries run only when requested: EC2 scans instance-type Target Groups, a security group finds attached EC2 instances (including secondary network interfaces) and LBs, and an LB scans Hosted Zones for direct DNS references. Zone scans use at most four concurrent record queries and report successful/total checks plus failed zones; incomplete results are never presented as a complete absence of relationships. No other Profile or every-Region inventory is queried automatically. These are configuration relationships, not observed traffic or DNS propagation checks.
+
+Security groups and instance relationships require `ec2:DescribeSecurityGroups` and `ec2:DescribeInstances` with `Resource: "*"`; ELBv2 and Route 53 relations reuse the read permissions documented below. See the [EC2 IAM reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html), [security-group rules](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html), and [Route 53 Alias targets](https://docs.aws.amazon.com/Route53/latest/APIReference/API_AliasTarget.html). No security-group rules or DNS records are changed.
+
+Component previews use simulated data:
+
+![Security group configuration in light mode](docs/ui-security-group-light.png)
+
+![Load balancer resource relationships in light mode](docs/ui-relations-light.png)
+
+![Route 53 relationship query in an explicit Region](docs/ui-relations-dns-dark.png)
 
 ### Load Balancers and Target Groups
 
@@ -301,6 +325,8 @@ Sources/AWSPlatform/
 │   ├── HealthModels.swift
 │   ├── Route53Models.swift
 │   ├── ELBModels.swift
+│   ├── SecurityGroupModels.swift
+│   ├── ResourceRelationModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── RecentResource.swift
@@ -315,10 +341,13 @@ Sources/AWSPlatform/
 │   ├── AWSHealthService.swift    # Account-specific Health events, details, and affected resources
 │   ├── AWSRoute53Service.swift   # Hosted Zones, DNS records, metadata, and tags
 │   ├── AWSELBService.swift       # Load balancers, Target Groups, routing, and target health
+│   ├── AWSSecurityGroupService.swift
+│   ├── AWSResourceRelationshipService.swift
 │   ├── AWSCLICredentialProvider.swift # SSO credential bridge for custom configuration paths
 │   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
 ├── Utilities/                   # Utilities
 │   ├── ConfigReader.swift
+│   ├── Route53LoadBalancerMatcher.swift
 │   └── UserFacingError.swift
 ├── ViewModels/                  # View models
 │   ├── AlarmViewModel.swift
@@ -327,6 +356,8 @@ Sources/AWSPlatform/
 │   ├── HealthViewModel.swift
 │   ├── Route53ViewModel.swift
 │   ├── ELBViewModel.swift
+│   ├── SecurityGroupsViewModel.swift
+│   ├── ResourceRelationshipsViewModel.swift
 │   ├── EC2TargetGroupsViewModel.swift
 │   ├── ELBResourceNavigation.swift
 │   ├── EC2ViewModel.swift
@@ -343,6 +374,8 @@ Sources/AWSPlatform/
     ├── Health/
     ├── Route53/
     ├── ELB/
+    ├── SecurityGroups/
+    ├── Relationships/
     ├── EC2/
     ├── Lambda/
     ├── S3/

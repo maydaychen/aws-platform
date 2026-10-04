@@ -14,6 +14,7 @@ final class Route53ViewModel: ObservableObject {
     @Published private(set) var isListStale = false
     @Published private(set) var details: Route53ZoneDetails?
     @Published private(set) var records: [Route53Record] = []
+    @Published private(set) var focusedRecordID: Route53Record.ID?
     @Published private(set) var tags: [String: String] = [:]
     @Published private(set) var isDetailsLoading = false
     @Published private(set) var isRecordsLoading = false
@@ -114,6 +115,19 @@ final class Route53ViewModel: ObservableObject {
         await tag?.value
     }
 
+    @discardableResult
+    func focusRecord(_ id: Route53Record.ID) -> Bool {
+        focusedRecordID = nil
+        guard let scope, (try? scope.partition()) != nil,
+              let selectedZone, zones.contains(selectedZone),
+              !isRecordsLoading, recordsError == nil,
+              records.filter({ $0.id == id }).count == 1 else { return false }
+        recordSearchText = ""
+        recordTypeFilter = "All"
+        focusedRecordID = id
+        return true
+    }
+
     func cancelLoading() {
         guard isLoading else { return }
         listGeneration += 1
@@ -125,6 +139,7 @@ final class Route53ViewModel: ObservableObject {
     }
 
     func cancelDetails() {
+        focusedRecordID = nil
         detailGeneration += 1
         detailTask?.cancel()
         recordTask?.cancel()
@@ -232,6 +247,7 @@ final class Route53ViewModel: ObservableObject {
     }
 
     private func clearDetails() {
+        focusedRecordID = nil
         detailGeneration += 1
         detailTask?.cancel()
         recordTask?.cancel()

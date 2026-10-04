@@ -9,6 +9,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     case route53 = "Route 53"
     case loadBalancers = "Load Balancers"
     case targetGroups = "Target Groups"
+    case securityGroups = "Security Groups"
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         case .route53: return "network"
         case .loadBalancers: return "point.3.connected.trianglepath.dotted"
         case .targetGroups: return "scope"
+        case .securityGroups: return "shield.lefthalf.filled"
         }
     }
 }

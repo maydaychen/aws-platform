@@ -10,6 +10,8 @@ struct ELBLoadBalancer: Identifiable, Hashable, Sendable {
     let name: String
     let kind: String
     var dnsName: String? = nil
+    var canonicalHostedZoneID: String? = nil
+    var securityGroupIDs: [String] = []
     var scheme: String? = nil
     var state: String? = nil
     var fields: [ELBField] = []

@@ -2,21 +2,36 @@ import SwiftUI
 
 struct Route53RecordRow: View {
     let record: Route53Record
+    private let externalExpansion: Binding<Bool>?
+    let onShowRelationships: (() -> Void)?
+    @State private var internalExpansion = false
+
+    init(record: Route53Record, isExpanded: Binding<Bool>? = nil, onShowRelationships: (() -> Void)? = nil) {
+        self.record = record
+        externalExpansion = isExpanded
+        self.onShowRelationships = onShowRelationships
+    }
 
     var body: some View {
-        DisclosureGroup {
-            Route53RecordDetails(record: record).padding(.top, 10)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(record.name).font(.callout.weight(.medium)).lineLimit(2).help(record.name)
-                    Spacer(minLength: 0)
-                    Text(record.type).font(.caption.weight(.semibold)).foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            DisclosureGroup(isExpanded: externalExpansion ?? $internalExpansion) {
+                Route53RecordDetails(record: record).padding(.top, 10)
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(record.name).font(.callout.weight(.medium)).lineLimit(2).help(record.name)
+                        Spacer(minLength: 0)
+                        Text(record.type).font(.caption.weight(.semibold)).foregroundColor(.secondary)
+                    }
+                    Text(summary).font(.caption).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(summary).font(.caption).foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            if (record.alias != nil || record.type == "CNAME"), let onShowRelationships {
+                Button("View relationships", action: onShowRelationships)
+                    .help("Inspect configured targets for this exact record set")
+            }
         }
         .padding(12)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))

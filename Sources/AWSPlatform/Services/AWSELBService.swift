@@ -27,6 +27,15 @@ struct AWSELBService: Sendable {
         injected = nil
     }
 
+    init(client: ElasticLoadBalancingV2) {
+        provider = nil
+        injected = Operations(loadBalancers: { try await client.describeLoadBalancers($0) },
+                              targetGroups: { try await client.describeTargetGroups($0) },
+                              listeners: { try await client.describeListeners($0) },
+                              rules: { try await client.describeRules($0) },
+                              health: { try await client.describeTargetHealth($0) })
+    }
+
     init(loadBalancerLoader: @escaping LoadBalancerLoader, targetGroupLoader: @escaping TargetGroupLoader,
          listenerLoader: @escaping ListenerLoader, ruleLoader: @escaping RuleLoader, healthLoader: @escaping HealthLoader) {
         provider = nil
@@ -230,7 +239,8 @@ struct AWSELBService: Sendable {
                                        ("\(prefix) private IPv4", address.privateIPv4Address), ("\(prefix) allocation", address.allocationId)])
             }
         }
-        return ELBLoadBalancer(arn: arn, name: name, kind: type.rawValue, dnsName: raw.dnsName, scheme: raw.scheme?.rawValue,
+        return ELBLoadBalancer(arn: arn, name: name, kind: type.rawValue, dnsName: raw.dnsName,
+                               canonicalHostedZoneID: raw.canonicalHostedZoneId, securityGroupIDs: raw.securityGroups ?? [], scheme: raw.scheme?.rawValue,
                                state: raw.state?.code?.rawValue, fields: fields)
     }
 

@@ -23,6 +23,8 @@ final class AWSELBServiceTests: XCTestCase {
         XCTAssertEqual(values.map(\.kind), ["application", "gateway", "network"])
         let lb = try XCTUnwrap(values.first { $0.name == "app" })
         XCTAssertEqual(lb.dnsName, "app.example.test")
+        XCTAssertEqual(lb.canonicalHostedZoneID, "ZEXAMPLE")
+        XCTAssertEqual(lb.securityGroupIDs, ["sg-example"])
         XCTAssertEqual(lb.scheme, "internet-facing")
         XCTAssertEqual(lb.state, "active")
         let fields = dictionary(lb.fields)

@@ -9,11 +9,16 @@ struct Route53ZoneDetailView: View {
 
     let zone: Route53HostedZone
     @ObservedObject var vm: Route53ViewModel
+    let onShowRelationships: ((Route53Record) -> Void)?
     @State private var selectedTab: Tab
+    @State private var expandedRecordIDs: Set<Route53Record.ID> = []
+    @State private var focusRevision = 0
 
-    init(zone: Route53HostedZone, vm: Route53ViewModel, tab: Tab = .overview) {
+    init(zone: Route53HostedZone, vm: Route53ViewModel, tab: Tab = .overview,
+         onShowRelationships: ((Route53Record) -> Void)? = nil) {
         self.zone = zone
         self.vm = vm
+        self.onShowRelationships = onShowRelationships
         _selectedTab = State(initialValue: tab)
     }
 
@@ -43,9 +48,18 @@ struct Route53ZoneDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16).padding(.bottom, 16)
             }
+            .id(focusRevision)
         }
-        .onChange(of: zone.id) { _ in selectedTab = .overview }
-        .onChange(of: vm.scope) { _ in selectedTab = .overview }
+        .onReceive(vm.$focusedRecordID) { id in
+            guard isCurrentSelection, let id, vm.records.contains(where: { $0.id == id }) else { return }
+            selectedTab = .records
+            expandedRecordIDs.insert(id)
+            vm.recordSearchText = ""
+            vm.recordTypeFilter = "All"
+            focusRevision += 1
+        }
+        .onChange(of: zone.id) { _ in selectedTab = .overview; expandedRecordIDs = [] }
+        .onChange(of: vm.scope) { _ in selectedTab = .overview; expandedRecordIDs = [] }
     }
 
     private var header: some View {
@@ -159,13 +173,31 @@ struct Route53ZoneDetailView: View {
             NoticeBanner(message: error)
             retryButton
         } else if isCurrentSelection && !vm.filteredRecords.isEmpty {
+            let focused = vm.filteredRecords.first { $0.id == vm.focusedRecordID }
+            if let focused {
+                DetailSectionTitle(title: "Related record")
+                recordRow(focused)
+                if vm.filteredRecords.count > 1 { DetailSectionTitle(title: "Other records") }
+            }
             LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(vm.filteredRecords) { record in Route53RecordRow(record: record) }
+                ForEach(vm.filteredRecords.filter { $0.id != focused?.id }) { record in
+                    recordRow(record)
+                }
             }
         } else {
             EmptyStateView(text: vm.records.isEmpty ? "No DNS records returned." : "No matching records. Try another search or type.", icon: "list.bullet.rectangle")
                 .frame(minHeight: 180)
         }
+    }
+
+    private func recordRow(_ record: Route53Record) -> some View {
+        Route53RecordRow(record: record, isExpanded: Binding(
+            get: { expandedRecordIDs.contains(record.id) },
+            set: { expanded in
+                if expanded { expandedRecordIDs.insert(record.id) }
+                else { expandedRecordIDs.remove(record.id) }
+            }
+        ), onShowRelationships: onShowRelationships.map { callback in { callback(record) } })
     }
 
     @ViewBuilder

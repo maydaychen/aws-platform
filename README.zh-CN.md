@@ -14,11 +14,13 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
+- **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
+- **资源关联** - 逐层查看 Route 53 记录、负载均衡、目标组、EC2 和安全组的配置关系，支持手动反查及精确跳转
 - **AWS Health 事件** - 查看当前 Profile 账号跨区域的专属事件，支持搜索、筛选、事件说明和受影响资源
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
-- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器和 Target Group，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
+- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
 - **最近访问** - 查看并重新打开当前 Profile／账号最近浏览的资源，支持本地历史、搜索和按范围删除
 - **原生桌面布局** - 紧凑服务导航、带计数的资源列表、自适应详情网格，以及跟随系统的深浅色界面
 
@@ -101,7 +103,7 @@ Route 53 Hosted Zone 使用固定的 `global` 范围和规范化 Zone ID；重�
 
 ### 最近访问
 
-选择并验证 Profile 后，打开侧栏 `Recent`（`Cmd+Shift+R`），按最近访问时间查看该 Profile 当前账号在各浏览 Region 的资源历史。每个 Profile／账号最多保留 50 条 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch 告警、SNS Topic、Route 53 Hosted Zone、负载均衡器和 Target Group 记录，按服务、资源 ID 和保存的 Region（Route 53 为 `global`）去重；再次访问会置顶并更新名称、访问时间。只有实际显示详情的资源才记入历史，包括服务页当前可见的默认首项；后台加载但未展示的选择、S3 对象、单条 DNS 记录、监听器和规则不记录。
+选择并验证 Profile 后，打开侧栏 `Recent`（`Cmd+Shift+R`），按最近访问时间查看该 Profile 当前账号在各浏览 Region 的资源历史。每个 Profile／账号最多保留 50 条 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch 告警、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组记录，按服务、资源 ID 和保存的 Region（Route 53 为 `global`）去重；再次访问会置顶并更新名称、访问时间。只有实际显示详情的资源才记入历史，包括服务页当前可见的默认首项；后台加载但未展示的选择、S3 对象、单条 DNS 记录、监听器和规则不记录。
 
 支持按名称、资源 ID、服务、Profile、账号或 Region 搜索。点击条目沿用收藏导航，重新核验账号并定位资源；区域型资源恢复保存的 Region，Route 53 保留当前资源 Region。不自动选择其他 Profile，也不增加收藏。资源不存在、账号变化或权限不足会提示并保留记录；可删除单条，或确认 `Clear history` 后仅清空当前 Profile／账号的历史。
 
@@ -112,6 +114,28 @@ Route 53 Hosted Zone 使用固定的 `global` 范围和规范化 Zone ID；重�
 ![浅色最近访问](docs/ui-recents-light.png)
 
 ![深色最近访问](docs/ui-recents-dark.png)
+
+### 安全组与资源关联
+
+打开 `Security Groups`，按安全组 ID、名称、VPC、所属账号、标签或规则内容搜索，并按 VPC 筛选。选中后查看元数据、标签和入站／出站规则，包含协议、端口或 ICMP 类型／代码、CIDR、Prefix List 和安全组引用。列表完整分页，支持刷新／取消，刷新失败时标记保留数据可能过期。查询使用当前 Profile 和 Region，可见共享组的所属账号单独展示；支持收藏及最近访问。
+
+在 EC2、LB、Target Group、安全组或 Hosted Zone 详情点击 `View relationships`；Alias 和 CNAME 记录行也提供单条记录入口。弹框先展示名称和直接关联类型，展开后查看字段，点击 `Explore` 再查下一层，点击 `Open` 打开精确资源。`Back` 恢复之前加载的快照，`Refresh` 重新读取；关闭弹框或切换外层 Profile、Region、资源时清空状态。SNS 保留原有调用链视图。
+
+关系包含 LB 关联目标组、目标组注册的 EC2／Lambda／ALB，以及 EC2／LB 绑定的安全组。安全组之间的引用表示权限规则，不证明网络连通；IP 目标不推断为 EC2。Lambda qualifier 保留展示，`Open` 打开函数级详情。仅能确认属于当前账号的安全组引用可跳转，共享或所属账号未知的目标只展示信息。
+
+Route 53 关联需明确选择 LB 查询 Region。直接 Alias 同时匹配 LB DNS 名和 canonical Hosted Zone ID，CNAME 只匹配直接 DNS 目标；处理大小写、末尾点及 ALB 的 `dualstack.` 形式，不凭域名后缀猜测，也不解析多跳 DNS。加权／故障转移记录保留各自路由标识。未匹配表示当前查询范围未关联，不代表目标不存在。打开匹配的区域资源会明确切换资源 Region 并重新核验当前 Profile 身份；打开全局 Route 53 记录则保留资源 Region，将精确记录置顶展开，其余记录保留在下方。
+
+反向查询仅在点击后执行：EC2 扫描实例型目标组，安全组查询使用它的 EC2（包含附加网卡）和 LB，LB 扫描 Hosted Zones 中直接指向它的 DNS 记录。Zone 记录扫描最多 4 个并发，展示成功／总检查数及失败 Zone，不把部分结果当作“完全没有关联”。不自动查询其他 Profile 或遍历所有 Region。这些都是配置关系，不代表实际流量或 DNS 传播结果。
+
+安全组与实例关系需要 `ec2:DescribeSecurityGroups`、`ec2:DescribeInstances` 和 `Resource: "*"`；ELBv2 与 Route 53 关系复用下文对应读取权限。参考 [EC2 IAM 文档](https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html) 、[安全组规则](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html) 和 [Route 53 Alias 目标](https://docs.aws.amazon.com/Route53/latest/APIReference/API_AliasTarget.html) 。应用不修改安全组规则或 DNS 记录。
+
+以下组件预览使用模拟数据：
+
+![浅色安全组配置](docs/ui-security-group-light.png)
+
+![浅色负载均衡资源关联](docs/ui-relations-light.png)
+
+![Route 53 显式 Region 关联查询](docs/ui-relations-dns-dark.png)
 
 ### Load Balancers 与 Target Groups
 
@@ -301,6 +325,8 @@ Sources/AWSPlatform/
 │   ├── HealthModels.swift
 │   ├── Route53Models.swift
 │   ├── ELBModels.swift
+│   ├── SecurityGroupModels.swift
+│   ├── ResourceRelationModels.swift
 │   ├── WorkspaceDestination.swift
 │   ├── ResourceFavorite.swift
 │   ├── RecentResource.swift
@@ -315,10 +341,13 @@ Sources/AWSPlatform/
 │   ├── AWSHealthService.swift    # 账号专属 Health 事件、详情和受影响资源
 │   ├── AWSRoute53Service.swift   # Hosted Zones、DNS 记录、元数据和标签
 │   ├── AWSELBService.swift       # 负载均衡器、目标组、路由配置和目标健康
+│   ├── AWSSecurityGroupService.swift
+│   ├── AWSResourceRelationshipService.swift
 │   ├── AWSCLICredentialProvider.swift # 自定义配置路径的 SSO 凭据桥接
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
 │   ├── ConfigReader.swift
+│   ├── Route53LoadBalancerMatcher.swift
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
 │   ├── AlarmViewModel.swift
@@ -327,6 +356,8 @@ Sources/AWSPlatform/
 │   ├── HealthViewModel.swift
 │   ├── Route53ViewModel.swift
 │   ├── ELBViewModel.swift
+│   ├── SecurityGroupsViewModel.swift
+│   ├── ResourceRelationshipsViewModel.swift
 │   ├── EC2TargetGroupsViewModel.swift
 │   ├── ELBResourceNavigation.swift
 │   ├── EC2ViewModel.swift
@@ -343,6 +374,8 @@ Sources/AWSPlatform/
     ├── Health/
     ├── Route53/
     ├── ELB/
+    ├── SecurityGroups/
+    ├── Relationships/
     ├── EC2/
     ├── Lambda/
     ├── S3/

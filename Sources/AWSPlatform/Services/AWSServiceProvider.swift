@@ -93,6 +93,13 @@ actor AWSServiceProvider {
         return ec2
     }
 
+    /// Uses an explicitly selected relationship query region without reconfiguring the workspace.
+    func relationshipEC2Client(scope: MonitoringScope) throws -> EC2 {
+        guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
+              let awsClient else { throw SecurityGroupError.invalidScope }
+        return EC2(client: awsClient, region: .init(rawValue: scope.region))
+    }
+
     func lambdaClient() throws -> Lambda {
         guard let lambda else { throw AWSServiceError.notConfigured }
         return lambda
@@ -143,6 +150,12 @@ actor AWSServiceProvider {
     func elbClient(scope: MonitoringScope) throws -> ElasticLoadBalancingV2 {
         guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
               currentRegion == scope.region, let awsClient else { throw ELBError.invalidScope }
+        return ElasticLoadBalancingV2(client: awsClient, region: .init(rawValue: scope.region))
+    }
+
+    func relationshipELBClient(scope: MonitoringScope) throws -> ElasticLoadBalancingV2 {
+        guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
+              let awsClient else { throw ELBError.invalidScope }
         return ElasticLoadBalancingV2(client: awsClient, region: .init(rawValue: scope.region))
     }
 

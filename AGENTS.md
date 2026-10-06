@@ -63,3 +63,24 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 - 未选择 Profile 时，不进行账号身份验证或 AWS 数据查询，资源列表与详情保持空白；不得回退到默认、上次使用、第一个 Profile 或环境变量指定的 Profile。
 - 启动、Session 登录成功、重新登录或切换 Session 均不得自动选择 Profile；只有手动选择 Profile 并验证身份成功后才加载数据。收藏及后续新增入口也必须遵守此规则。
 - 切换或清空 Profile 时，清空旧数据并取消旧请求或使其结果失效；查询状态和缓存按 Profile 隔离，区域型查询同时按 Region 隔离，防止跨 Profile 展示数据。
+
+<!-- HARNESS_VERIFICATION_START -->
+
+## Harness 验证
+
+- 验证事实源：`.harness/verification.json`。
+- 固定入口：`scripts/verify-before-push.sh`。
+- Profiles：待确认。
+- Adapters：无。
+- 文件规模门禁：超过 500 行警告，超过 1000 行失败。
+- `.` 检查：source-file-lines, swift-package-build, swift-package-test, git-diff-check, design-spec-lint。
+
+<!-- HARNESS_VERIFICATION_END -->
+
+## 设计规范与验证入口
+
+- 根目录 `DESIGN.md` 是可复用视觉规范；现有 SwiftUI 主题／组件入口：`Sources/AWSPlatform/ContentView.swift`、`Sources/AWSPlatform/Views`、`Sources/AWSPlatform/App.swift`。foundation 由主题入口维护，公共组件与功能目录消费语义样式。
+- 生成 primitive token 不适用：现有原生组件已有消费者，本轮不新增无消费者的 CSS／JSON 产物。
+- 运行 `python3 scripts/harness/verify.py --mode task` 执行静态门禁；设计结构由固定版本 `@google/design.md@0.4.0` lint 检查，需要 Node.js／npm，缓存只在 `.tmp/design-md/`。
+- 系统动态语义颜色／字体，以及 0、1 pt 细描边、百分比、图表坐标属于结构例外；新增自定义视觉值先更新 `DESIGN.md` 并归入主题／公共组件。设计硬编码 baseline、增量扫描和全部主题自动验收尚未接入，缺口见 `ROADMAP.md`；结构 lint 不等于完整设计治理验收。
+- 当前共享检测器没有对应的 SwiftPM macOS Profile／Adapter；配置保留空检测结果，通过已确认的原生构建／测试命令提供实际门禁，不按 XcodeGen 工程初始化。

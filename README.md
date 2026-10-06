@@ -459,3 +459,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the current stage, verification records, and 
 ## License
 
 Original code in this project is licensed under the [MIT License](LICENSE). Third-party dependencies retain their respective licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for versions and upstream licenses.
+
+## 工程规范入口
+
+项目约定见 [AGENTS.md](AGENTS.md)，视觉规则见 [DESIGN.md](DESIGN.md)，当前进度见 [ROADMAP.md](ROADMAP.md)。静态检查：`python3 scripts/harness/verify.py --mode task`；推送检查：`scripts/verify-before-push.sh`。设计 lint 使用固定版本 `@google/design.md@0.4.0`，需要 Node.js／npm，工具缓存保存在已忽略的 `.tmp/`。

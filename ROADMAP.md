@@ -97,6 +97,7 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码�
 
 ## 进行中
 
+- `0.2.0 (2)` 分架构分发：按用户授权生成 Apple Silicon `arm64` 与 Intel `x86_64` 独立 ZIP／DMG，并发布到 GitHub Release。脚本已支持架构、版本与 build 参数，核对实际主程序／运行库切片和源码提交；本轮发布门禁及离线脚本回归通过。正式签名、公证、产物独立核验和上传回读进行中，旧 `0.1.0 (1)` 产物保留。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。
 - Route 53 真实账号与窗口验收：对照当前 Profile 的公有／私有 Hosted Zones、NS／VPC／标签、普通和 Alias／复杂路由记录、实际分页及四项 IAM 权限局部失败；确认资源 Region 不触发重查、切换或清空 Profile／session 后无旧数据、global 收藏与最近访问不改变资源 Region，目标删除／账号变化／列表失败时不误选缓存。当前展示配置，不验证实际 DNS 传播，不自动查询关联健康检查、流量策略或 VPC。

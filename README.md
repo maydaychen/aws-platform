@@ -90,7 +90,9 @@ The script uses the dependencies pinned in `Package.resolved`, builds Release ve
 - `dist/AWSPlatform.app`: an app for both architectures on macOS 13 or later, ready to copy to the Applications folder.
 - `dist/AWSPlatform-universal.zip`: an archive containing the app.
 
-These local builds use ad-hoc signing. For distribution, use `scripts/package-distribution.py` to sign with a local Developer ID Application identity, notarize with Apple, and staple the tickets. It produces versioned Universal ZIP and DMG files, checksums, and notarization records. A valid signing identity and configured `asc` authentication are required; see the [distribution packaging instructions (Chinese)](scripts/README.md#正式签名与公证). A regular `swift build` still builds only for the current machine's architecture.
+These local builds use ad-hoc signing. Both packaging scripts accept `--architecture arm64` for Apple Silicon, `--architecture x86_64` for Intel, or `--architecture universal` (the default) for both. Single-architecture builds contain only that architecture, including embedded Swift runtime libraries. Use separate `--output-dir` directories when keeping multiple local builds. Version and build number can be set with `--version` and `--build-number`.
+
+For distribution, use `scripts/package-distribution.py` with the same architecture/version options to sign with a local Developer ID Application identity, notarize with Apple, and staple the tickets. It produces versioned ZIP and DMG files named `AWSPlatform-<version>-<architecture>`, checksums, and notarization records. A valid signing identity and configured `asc` authentication are required; see the [distribution packaging instructions (Chinese)](scripts/README.md#正式签名与公证). A regular `swift build` still builds only for the current machine's architecture.
 
 ### Interface Language
 

@@ -90,7 +90,9 @@ open Package.swift
 - `dist/AWSPlatform.app`：适用于 macOS 13 及以上的两种芯片，可复制到「应用程序」目录。
 - `dist/AWSPlatform-universal.zip`：包含上述应用的压缩包。
 
-上述本地包使用 ad-hoc 签名。正式分发入口为 `scripts/package-distribution.py`，使用本机 Developer ID Application 签名、Apple 公证和票据附加，输出版本化 Universal ZIP、DMG、校验值及公证记录；需要有效签名身份和已配置的 `asc` 认证，详见 [正式打包说明](scripts/README.md#正式签名与公证)。普通 `swift build` 仍只构建当前机器架构。
+上述本地包使用 ad-hoc 签名。两个打包脚本均支持 `--architecture arm64`（Apple Silicon）、`--architecture x86_64`（Intel）和 `--architecture universal`（默认，两种架构）。单架构包的主程序和内嵌 Swift 运行库只包含目标架构；保留多个本地包时请使用不同的 `--output-dir`。可通过 `--version` 和 `--build-number` 指定版本与构建号。
+
+正式分发入口为 `scripts/package-distribution.py`，使用相同的架构／版本参数、本机 Developer ID Application 签名、Apple 公证和票据附加，输出以 `AWSPlatform-<版本>-<架构>` 命名的 ZIP、DMG、校验值及公证记录；需要有效签名身份和已配置的 `asc` 认证，详见 [正式打包说明](scripts/README.md#正式签名与公证)。普通 `swift build` 仍只构建当前机器架构。
 
 ### 界面语言
 

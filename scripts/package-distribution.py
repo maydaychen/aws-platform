@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and notarize a Universal ZIP and DMG using an existing Developer ID."""
+"""Build and notarize architecture-specific ZIP and DMG files with Developer ID."""
 
 import argparse
 import hashlib
@@ -15,6 +15,11 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parent.parent
+ARCHITECTURES = {"universal": ["arm64", "x86_64"], "arm64": ["arm64"], "x86_64": ["x86_64"]}
+REQUIRED_INPUTS = ("Package.swift", "Package.resolved", "scripts/build-universal.sh",
+                   "scripts/package-distribution.py", "scripts/collect-licenses.py",
+                   "scripts/licenses/sources.json", "LICENSE", "THIRD_PARTY_NOTICES.md")
+DISTRIBUTION_INPUTS = ("Sources", "Tests", "scripts/licenses", *REQUIRED_INPUTS)
 
 
 def run(*args, capture=False):
@@ -38,6 +43,63 @@ def sha256(path):
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def validate_options(identity, team, architecture, version, build_number):
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", identity) or not re.fullmatch(r"[A-Z0-9]{10}", team):
+        raise ValueError("Expected a 40-character identity SHA-1 and 10-character team ID")
+    if architecture not in ARCHITECTURES:
+        raise ValueError("Architecture must be universal, arm64, or x86_64")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise ValueError("Version must contain three numeric components")
+    if not re.fullmatch(r"[1-9][0-9]*", build_number):
+        raise ValueError("Build number must be a positive integer")
+
+
+def require_new_destination(destination):
+    if os.path.lexists(destination):
+        raise RuntimeError(f"Keep or move the existing distribution first: {destination}")
+
+
+def publish_distribution(output, destination):
+    destination.parent.mkdir(exist_ok=True)
+    # Reserve the final name exclusively, including against another packaging run.
+    # rename may replace only this newly created empty directory, never a prior release.
+    destination.mkdir()
+    os.rename(output, destination)
+
+
+def source_snapshot(expected_commit=None):
+    if run("git", "status", "--porcelain", "--", *DISTRIBUTION_INPUTS, capture=True).strip():
+        raise RuntimeError("Commit and verify application source and distribution scripts before distribution")
+    run("git", "ls-files", "--error-unmatch", "--", *REQUIRED_INPUTS, capture=True)
+    commit = run("git", "rev-parse", "HEAD", capture=True).strip()
+    if not re.fullmatch(r"[0-9a-f]{40,64}", commit):
+        raise RuntimeError("Could not identify the committed distribution source")
+    if expected_commit is not None and commit != expected_commit:
+        raise RuntimeError("Source commit changed during distribution; work retained for inspection")
+    return commit
+
+
+def verify_bundle(app, architecture, version, build_number):
+    info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
+    if info.get("CFBundleShortVersionString") != version or info.get("CFBundleVersion") != build_number:
+        raise RuntimeError("Built application version or build number does not match the requested release")
+    if info.get("CFBundleIdentifier") != "AWSPlatform" or info.get("CFBundleExecutable") != "AWSPlatform":
+        raise RuntimeError("Built application identity does not match AWSPlatform")
+    if info.get("LSMinimumSystemVersion") != "13.0":
+        raise RuntimeError("Built application must declare macOS 13.0 compatibility")
+    executable = app / "Contents" / "MacOS" / "AWSPlatform"
+    binaries = [executable, *sorted((app / "Contents" / "Frameworks").glob("*.dylib"))]
+    expected = set(ARCHITECTURES[architecture])
+    actual = None
+    for binary in binaries:
+        detected = run("xcrun", "lipo", "-archs", binary, capture=True).split()
+        if set(detected) != expected or len(detected) != len(expected):
+            raise RuntimeError(f"Unexpected architectures in {binary.name}: expected {architecture}")
+        if binary == executable:
+            actual = sorted(detected)
+    return info, actual
 
 
 def verify_signature(path, team, runtime=False):
@@ -75,33 +137,29 @@ def notarize(path, evidence, name):
     return record
 
 
-def package(identity, team):
+def package(identity, team, architecture="universal", version="0.2.0", build_number="2"):
+    validate_options(identity, team, architecture, version, build_number)
+    identity = identity.upper()
+    stem = f"AWSPlatform-{version}-{architecture}"
+    destination = ROOT / "dist" / stem
+    require_new_destination(destination)
+    source_commit = source_snapshot()
     identities = run("security", "find-identity", "-v", "-p", "codesigning", capture=True)
     pattern = rf'^\s*\d+\) {re.escape(identity)} "Developer ID Application: .* \({re.escape(team)}\)"$'
     if not any(re.match(pattern, line) for line in identities.splitlines()):
         raise RuntimeError("Matching valid Developer ID Application identity and team not found")
     run("asc", "notarization", "list", "--limit", "1", "--output", "json", capture=True)
-    if run("git", "status", "--porcelain", "--", "Sources", "Tests", "Package.swift",
-           "Package.resolved", capture=True).strip():
-        raise RuntimeError("Commit and verify application source changes before distribution")
-    source_commit = run("git", "rev-parse", "HEAD", capture=True).strip()
     temporary_root = ROOT / ".tmp" / "distribution"
     temporary_root.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix="run-", dir=temporary_root))
     print(f"Staging distribution at {stage}", flush=True)
     try:
         build = stage / "build"
-        run(ROOT / "scripts" / "build-universal.sh", "--output-dir", build)
+        run(ROOT / "scripts" / "build-universal.sh", "--architecture", architecture,
+            "--version", version, "--build-number", build_number, "--output-dir", build)
         app = build / "AWSPlatform.app"
-        info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
-        version = info["CFBundleShortVersionString"]
-        build_number = info["CFBundleVersion"]
-        if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", version):
-            raise RuntimeError("Invalid application version")
-        stem = f"AWSPlatform-{version}-universal"
-        destination = ROOT / "dist" / stem
-        if destination.exists():
-            raise RuntimeError(f"Keep or move the existing distribution first: {destination}")
+        info, actual_architectures = verify_bundle(app, architecture, version, build_number)
+        source_snapshot(source_commit)
         output = stage / "output"
         output.mkdir()
         evidence = stage / "evidence"
@@ -141,16 +199,16 @@ def package(identity, team):
         verify_signature(dmg_path, team)
         run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature",
             "--verbose=2", dmg_path)
+        source_snapshot(source_commit)
         checksums = {path.name: sha256(path) for path in (zip_path, dmg_path)}
         (output / "SHA256SUMS.txt").write_text("".join(f"{value}  {name}\n" for name, value in checksums.items()))
         manifest = {"version": version, "build": build_number, "bundleID": info["CFBundleIdentifier"],
-                    "sourceCommit": source_commit, "architectures": ["arm64", "x86_64"],
-                    "minimumMacOS": "13.0", "teamID": team, "appNotarization": app_notary,
+                    "sourceCommit": source_commit, "architectures": actual_architectures,
+                    "minimumMacOS": info["LSMinimumSystemVersion"], "teamID": team, "appNotarization": app_notary,
                     "dmgNotarization": dmg_notary, "sha256": checksums}
         (output / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n")
         shutil.move(str(app), output / "AWSPlatform.app")
-        destination.parent.mkdir(exist_ok=True)
-        os.rename(output, destination)
+        publish_distribution(output, destination)
         print(f"Signed and notarized distribution: {destination}", flush=True)
         try:
             shutil.rmtree(stage)
@@ -165,10 +223,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--identity", required=True, help="SHA-1 of a valid Developer ID Application identity")
     parser.add_argument("--team-id", required=True, help="Apple Developer team identifier")
+    parser.add_argument("--architecture", choices=ARCHITECTURES, default="universal",
+                        help="Target architecture (default: universal)")
+    parser.add_argument("--version", default="0.2.0", help="Release version (default: 0.2.0)")
+    parser.add_argument("--build-number", default="2", help="Positive build number (default: 2)")
     args = parser.parse_args()
-    if not re.fullmatch(r"[0-9a-fA-F]{40}", args.identity) or not re.fullmatch(r"[A-Z0-9]{10}", args.team_id):
-        parser.error("Expected a 40-character identity SHA-1 and 10-character team ID")
-    package(args.identity.upper(), args.team_id)
+    try:
+        validate_options(args.identity, args.team_id, args.architecture, args.version, args.build_number)
+    except ValueError as error:
+        parser.error(str(error))
+    package(args.identity, args.team_id, args.architecture, args.version, args.build_number)
 
 
 if __name__ == "__main__":

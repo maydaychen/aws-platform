@@ -4,15 +4,35 @@ set -euo pipefail
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="AWSPlatform"
 dist_dir="$project_root/dist"
-if [ "$#" -gt 0 ]; then
-    if [ "$#" -eq 2 ] && [ "$1" = --output-dir ] && [ -n "$2" ]; then
-        mkdir -p "$2"
-        dist_dir="$(cd "$2" && pwd)"
-    else
-        printf 'Usage: %s [--output-dir DIRECTORY]\n' "$0" >&2
-        exit 2
-    fi
-fi
+architecture=universal
+version=0.2.0
+build_number=2
+usage() {
+    printf 'Usage: %s [--output-dir DIRECTORY] [--architecture universal|arm64|x86_64] [--version VERSION] [--build-number NUMBER]\n' "$0"
+}
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --help|-h) usage; exit 0 ;;
+        --output-dir|--architecture|--version|--build-number)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || { usage >&2; exit 2; }
+            case "$1" in
+                --output-dir) dist_dir="$2" ;;
+                --architecture) architecture="$2" ;;
+                --version) version="$2" ;;
+                --build-number) build_number="$2" ;;
+            esac
+            shift 2 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+case "$architecture" in
+    universal) architectures=(arm64 x86_64) ;;
+    arm64|x86_64) architectures=("$architecture") ;;
+    *) usage >&2; exit 2 ;;
+esac
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { usage >&2; exit 2; }
+[[ "$build_number" =~ ^[1-9][0-9]*$ ]] || { usage >&2; exit 2; }
+zip_name="$app_name-$architecture.zip"
 stage_dir=""
 publishing=0
 old_app=0
@@ -34,13 +54,13 @@ cleanup() {
             rm -rf "$dist_dir/$app_name.app" || restore_failed=1
         fi
         if [ "$new_zip" -eq 1 ]; then
-            rm -f "$dist_dir/$app_name-universal.zip" || restore_failed=1
+            rm -f "$dist_dir/$zip_name" || restore_failed=1
         fi
         if [ "$old_app" -eq 1 ]; then
             mv "$stage_dir/previous.app" "$dist_dir/$app_name.app" || restore_failed=1
         fi
         if [ "$old_zip" -eq 1 ]; then
-            mv "$stage_dir/previous.zip" "$dist_dir/$app_name-universal.zip" || restore_failed=1
+            mv "$stage_dir/previous.zip" "$dist_dir/$zip_name" || restore_failed=1
         fi
     fi
     if [ "$restore_failed" -ne 0 ]; then
@@ -110,16 +130,23 @@ build_architecture() {
     [ -s "$localized_resources/MessageArguments.json" ] || fail "Missing localized message metadata for $architecture."
 }
 
-build_architecture arm64
-build_architecture x86_64
-diff -rq "$stage_dir/arm64/resources" "$stage_dir/x86_64/resources" || fail 'The architecture builds contain different resource bundles.'
+for target_architecture in "${architectures[@]}"; do
+    build_architecture "$target_architecture"
+done
+if [ "$architecture" = universal ]; then
+    diff -rq "$stage_dir/arm64/resources" "$stage_dir/x86_64/resources" || fail 'The architecture builds contain different resource bundles.'
+fi
 
 app_path="$stage_dir/$app_name.app"
 executable="$app_path/Contents/MacOS/$app_name"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
-xcrun lipo -create "$stage_dir/arm64/$app_name" "$stage_dir/x86_64/$app_name" -output "$executable"
+if [ "$architecture" = universal ]; then
+    xcrun lipo -create "$stage_dir/arm64/$app_name" "$stage_dir/x86_64/$app_name" -output "$executable"
+else
+    cp "$stage_dir/$architecture/$app_name" "$executable"
+fi
 chmod 755 "$executable"
-/usr/bin/ditto "$stage_dir/arm64/resources" "$app_path/Contents/Resources"
+/usr/bin/ditto "$stage_dir/${architectures[0]}/resources" "$app_path/Contents/Resources"
 
 cat > "$app_path/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -155,13 +182,18 @@ cat > "$app_path/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+plutil -replace CFBundleShortVersionString -string "$version" "$app_path/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$build_number" "$app_path/Contents/Info.plist"
 plutil -lint "$app_path/Contents/Info.plist"
-for architecture in arm64 x86_64; do
-    xcrun lipo "$executable" -verify_arch "$architecture"
-    minimum_os="$(xcrun vtool -arch "$architecture" -show-build "$executable" | awk '$1 == "minos" { print $2 }')"
+if [ "$architecture" != universal ]; then
+    [ "$(xcrun lipo -archs "$executable")" = "$architecture" ] || fail 'Unexpected executable architecture.'
+fi
+for target_architecture in "${architectures[@]}"; do
+    xcrun lipo "$executable" -verify_arch "$target_architecture"
+    minimum_os="$(xcrun vtool -arch "$target_architecture" -show-build "$executable" | awk '$1 == "minos" { print $2 }')"
     case "$minimum_os" in
         13.0|13.0.0) ;;
-        *) fail "Expected macOS 13.0 for $architecture; found: $minimum_os" ;;
+        *) fail "Expected macOS 13.0 for $target_architecture; found: $minimum_os" ;;
     esac
 done
 
@@ -189,17 +221,25 @@ while IFS= read -r dependency; do
 done < <(xcrun otool -L "$executable" | awk '$1 ~ /^@rpath\// { print $1 }' | sort -u)
 for library in "$frameworks_dir"/*.dylib; do
     [ -f "$library" ] || continue
-    for architecture in arm64 x86_64; do
-        xcrun lipo "$library" -verify_arch "$architecture"
-        minimum_os="$(xcrun vtool -arch "$architecture" -show-build "$library" | awk '
+    if [ "$architecture" != universal ]; then
+        if [ "$(xcrun lipo -archs "$library")" != "$architecture" ]; then
+            xcrun lipo "$library" -thin "$architecture" -output "$library.thin"
+            mv "$library.thin" "$library"
+        fi
+        [ "$(xcrun lipo -archs "$library")" = "$architecture" ] || fail 'Unexpected runtime architecture.'
+        /usr/bin/codesign --force --sign - "$library"
+    fi
+    for target_architecture in "${architectures[@]}"; do
+        xcrun lipo "$library" -verify_arch "$target_architecture"
+        minimum_os="$(xcrun vtool -arch "$target_architecture" -show-build "$library" | awk '
             $1 == "cmd" { legacy_macos = ($2 == "LC_VERSION_MIN_MACOSX"); platform = "" }
             $1 == "platform" { platform = $2 }
             legacy_macos && $1 == "version" { print $2 }
             platform == "MACOS" && $1 == "minos" { print $2 }')"
-        [ -n "$minimum_os" ] || fail "Missing macOS deployment target: $library ($architecture)"
+        [ -n "$minimum_os" ] || fail "Missing macOS deployment target: $library ($target_architecture)"
         printf '%s\n' "$minimum_os" | awk -F. '
             $1 < 13 || ($1 == 13 && $2 == 0 && ($3 == "" || $3 == 0)) { next }
-            { exit 1 }' || fail "Runtime requires newer than macOS 13: $library ($architecture)"
+            { exit 1 }' || fail "Runtime requires newer than macOS 13: $library ($target_architecture)"
     done
     /usr/bin/codesign --verify --strict --verbose=2 "$library"
 done
@@ -207,8 +247,8 @@ done
 # Ad-hoc signing uses no signing identity or Apple account.
 /usr/bin/codesign --force --sign - "$app_path"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
-/usr/bin/ditto -c -k --keepParent "$app_path" "$stage_dir/$app_name-universal.zip"
-/usr/bin/unzip -t -q "$stage_dir/$app_name-universal.zip"
+/usr/bin/ditto -c -k --keepParent "$app_path" "$stage_dir/$zip_name"
+/usr/bin/unzip -t -q "$stage_dir/$zip_name"
 
 # Keep prior deliverables until both new artifacts have passed validation.
 mkdir -p "$dist_dir"
@@ -217,16 +257,16 @@ if [ -e "$dist_dir/$app_name.app" ]; then
     mv "$dist_dir/$app_name.app" "$stage_dir/previous.app"
     old_app=1
 fi
-if [ -e "$dist_dir/$app_name-universal.zip" ]; then
-    mv "$dist_dir/$app_name-universal.zip" "$stage_dir/previous.zip"
+if [ -e "$dist_dir/$zip_name" ]; then
+    mv "$dist_dir/$zip_name" "$stage_dir/previous.zip"
     old_zip=1
 fi
 mv "$app_path" "$dist_dir/$app_name.app"
 new_app=1
-mv "$stage_dir/$app_name-universal.zip" "$dist_dir/$app_name-universal.zip"
+mv "$stage_dir/$zip_name" "$dist_dir/$zip_name"
 new_zip=1
 publishing=0
 
-printf '\nBuilt Universal app (arm64 + x86_64, macOS 13+):\n%s\n%s\n' \
-    "$dist_dir/$app_name.app" "$dist_dir/$app_name-universal.zip"
+printf '\nBuilt %s app (macOS 13+):\n%s\n%s\n' "$architecture" \
+    "$dist_dir/$app_name.app" "$dist_dir/$zip_name"
 printf 'Signing: local ad-hoc only; not Developer ID signed or notarized.\n'

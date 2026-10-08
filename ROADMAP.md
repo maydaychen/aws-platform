@@ -2,13 +2,15 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查。已提供面向 macOS 13+ 的 Intel／Apple Silicon Universal 正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 及 Apple Silicon 离线启动检查；Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查；Lambda 源码预览加固通过离线回归。面向 macOS 13+ 的 `0.2.0 (2)` 已按 Apple Silicon `arm64`／Intel `x86_64` 分别提供正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订及 Gatekeeper 检查；Apple Silicon 离线启动通过，Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
 
-源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；当前未发布应用二进制 Release。
+源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；[v0.2.0 Release](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) 提供四个分架构安装包及 `SHA256SUMS.txt`。
 
-Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码已推送至 GitHub `main`；中英文界面与 Lambda 源码预览加固代码尚未推送。上述新增功能尚未包含在已有的 `0.1.0 (1)` 正式分发包中。
+当前分发包的源提交为 `d5f9389`，包含 Health、最近访问、Route 53、ELBv2、安全组、统一资源关联、中英文界面与 Lambda 源码预览加固，源码均已推送至 GitHub `main`。原 `0.1.0 (1)` Universal 本地产物保留。
 
 ## 最近完成
+
+- 2026-10-08 15:02：发布 [v0.2.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) ，build 为 `2`、源提交为 `d5f9389`；Apple Silicon `arm64` 与 Intel `x86_64` 各提供独立 ZIP／DMG，附统一 SHA-256 校验文件。两套 App／DMG 均完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 及独立产物核验，Apple Silicon 空 AWS 配置启动通过。打包入口支持架构、版本与 build 参数，防止覆盖已有分发包并校验实际切片与源码提交；双语 README 增加架构下载入口，旧 `0.1.0 (1)` 本地产物保留。
 
 - 2026-10-05 01:04：加固 Lambda 部署包源码预览：HTTPS 流式下载限制 50 MiB，内存逐块读取限制展开 250 MiB、10,000 个条目、累计文本 10 MiB；保留单文本 200,000 字节限制。校验 ZIP 元数据、实际字节与 CRC，拒绝越界／重复路径、符号链接及不支持的格式；仅临时 ZIP 落盘，成功／失败／取消后清理。下载限时 60 秒、读取限时 30 秒，新增取消按钮及双语错误；请求标识隔离同名重试和切换账号后的迟到结果。使用系统 zlib，无新增第三方下载依赖；双语 README 同步限制。本轮仅本地源码，未推送或重新打包。
 
@@ -31,9 +33,10 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码�
 - 2026-10-03 12:54：SNS Topic 详情新增「调用链查看」弹窗，显示当前 Profile／Region 的 CloudWatch Metric／Composite 告警三类动作 → Topic → 已加载订阅；保留禁用／抑制和订阅确认状态，区分检查失败与无匹配。支持同范围告警、已确认 Lambda 订阅跳转详情，保留 qualifier 并注明函数级详情；Endpoint 默认遮罩，跨账号／Region 和未支持服务不跳转。独立导航不写收藏、不重配全服务，修复关联目标缺失时 Lambda 自动选首项及立即取消仍启动查询的问题。范围明确为配置关系，不是实际消息轨迹；README 和弹窗组件示例已同步。
 - 2026-10-03 12:24：新增按当前 Profile／Region 隔离的 SNS 只读模块，提供 Standard／FIFO Topic 搜索与筛选、属性／标签／订阅三组独立读取、配置及策略展示、手动刷新与取消。Topic 和订阅完整分页，保留待确认／已删除／未知状态及合法跨账号订阅 Owner；Endpoint 默认隐藏，显示后才可复制，切换 Topic／身份或刷新时重置。接入 ARN 收藏，未增加消息发布、订阅变更或自动跨账号导航。README 和六张模拟组件示例已同步。
 - 2026-10-03 11:46：新增 CloudWatch Metric／Composite Alarm 只读浏览，按当前 Profile 和资源 Region 隔离；首次进入列表才加载，支持搜索、状态／类型筛选、手动刷新和取消。详情展示状态原因、单指标／Math／Insights 配置、Composite 规则及抑制配置、动作目标 ARN；选择告警后独立加载标签和最近 30 天历史。完整分页、ARN 校验、错误脱敏与迟到结果隔离，接入现有 ARN 收藏定位。未增加 SNS 查询／发送、指标数据或告警写入；同时消除 Cost 时间默认闭包的 Sendable 编译警告，查询行为不变。README 和模拟组件截图已同步。
-- 2026-10-03 11:16：实现按当前 Profile 经 STS 验证账号查询的 Cost Explorer 面板；所有汇总、日明细及费用区域请求强制 LINKED_ACCOUNT，不自动汇总组织成员。提供本月／上月汇总、日趋势、服务明细、UTC 完整日与独立费用 Region 筛选、8 组内存缓存、手动刷新和取消。完整分页、Decimal 金额／币种校验、错误脱敏与迟到结果隔离；资源 Region 切换保留 AWSClient，不触发费用重复加载。README 和四张模拟组件示例已同步。
 
 ## 最近验证
+
+- 2026-10-08 15:03：`0.2.0 (2)` 分架构发布通过 Harness release／pre-push 五项门禁、691 项应用测试和 23 项打包脚本测试；独立核验两套包的主程序／运行库切片、最低系统、双语资源、锁定依赖许可、签名、App／DMG 的 Apple Accepted 状态、票据及 Gatekeeper，ZIP 解压和 DMG 只读挂载后的 App 内容一致。Apple Silicon ZIP 副本在空 AWS 配置与隔离偏好下持续运行 8 秒；公开 Release 的四个包及校验文件均经匿名下载，字节数和 SHA-256 与本地一致，源提交为 `d5f9389`。未执行真实 AWS 查询，Intel／macOS 13 实机运行仍未验收。
 
 - 2026-10-05 01:04：`swift test --disable-sandbox -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`（缓存／配置／安全目录显式设在任务临时目录）通过，691 项正式测试零失败、无编译警告。新增 71 项覆盖下载真实／声明限额、HTTPS、错误脱敏、ZIP CRC／路径／条目范围、实际解压中取消和超时、临时目录清理、同名请求隔离及双语错误；竞态修复前 2 项测试稳定产生 5 个断言失败，修复后通过。独立源码与日志复核、arm64／x86_64 的 macOS 13 SDK zlib 头文件检查、双语 README 各 27 个链接、语言资源 plist 及 `git diff --check` 通过。未调用真实 AWS，未验证新版安装包或 Intel／macOS 13 实机。
 
@@ -56,7 +59,6 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码�
 - 2026-10-03 12:54：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，258 项正式单测全部通过；新增 43 项覆盖关系精确匹配、范围与 ARN 校验、qualifier／特殊订阅状态、安全错误、迟到结果、按需导航和 Lambda 空选择回归。另 1 项临时原生离线渲染测试通过，7 种状态在 960／1200 宽度及深浅色生成 28 张截图，抽查长名称／ARN、默认遮罩／显示、空态和独立错误。独立审查核对关键代码、日志和截图；临时测试入口已移除，`git diff --check` 通过。未调用真实 AWS，也未进行完整窗口点击或 macOS 13 实机验收。
 - 2026-10-03 12:24：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，215 项正式单测全部通过；新增 37 项覆盖 SNS 服务分页／范围／特殊订阅状态、三组详情独立失败、过期结果隔离、Endpoint 显示状态和收藏兼容／导航。另有 4 项临时离线渲染测试通过，SNS 的 13 种整页状态在 960／1280 与深浅色下生成 52 张截图，加 4 张 Endpoint 显示／展开策略组件图；已抽查三个页签、长 ARN、空态和局部错误，独立审查核对核心代码、日志和关键截图。临时入口已移除，文档结构与 `git diff --check` 通过。未调用真实 AWS，真实 IAM／分页、窗口交互和 macOS 13 仍待验收；原有 Cost Charts 运行时警告继续保留在工程待办。
 - 2026-10-03 11:46：最终源码严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，无编译警告，178 项正式单测全部通过；新增 36 项覆盖两类告警映射、分页、账号／Region／分区校验、历史窗口、取消、局部权限失败、切换后过期结果和收藏兼容／定位。另有 3 项临时离线渲染测试通过，生成告警 14 种状态在 960／1280 宽度与深浅色下的 56 张截图，并刷新共享导航下的 Cost／资源组件示例；抽查四个页签、长名称／ARN／规则、空态、错误和加载态。独立审查核对核心代码、测试及关键截图；临时入口已移除，`git diff --check` 通过。未执行真实 AWS 查询或真实窗口交互，IAM 组合、实际分页及 macOS 13 运行时仍待用户验收；原有 Cost Charts 警告仍见工程待办。
-- 2026-10-03 11:16：最终源码通过 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，142 项正式单测和 2 项临时渲染测试共 144 项全部通过，`git diff --check` 通过。新增 38 项正式测试覆盖账号／区域过滤、日期边界、分页／取消／异常金额与币种、错误脱敏、缓存与 Profile／身份／配置隔离、跨 UTC 日月刷新及资源 Region 客户端复用。生成 36 张 Cost 状态／报表截图及 6 张资源／空 Profile 截图，抽查深浅色、960／1280 宽度、长文本、负数退款、无数据、月初、错误、加载及自定义日期；独立审查核对核心代码和关键截图。临时测试入口已移除。未执行真实 AWS 登录／费用 API，账单对照、实际窗口操作和 macOS 13 运行时仍待验收；渲染日志的 Charts anchor 警告见工程待办。
 
 ## 已完成
 
@@ -92,12 +94,11 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码�
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化的 620 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离的 691 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
-- `0.2.0 (2)` 分架构分发：按用户授权生成 Apple Silicon `arm64` 与 Intel `x86_64` 独立 ZIP／DMG，并发布到 GitHub Release。脚本已支持架构、版本与 build 参数，核对实际主程序／运行库切片和源码提交；本轮发布门禁及离线脚本回归通过。正式签名、公证、产物独立核验和上传回读进行中，旧 `0.1.0 (1)` 产物保留。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。
 - Route 53 真实账号与窗口验收：对照当前 Profile 的公有／私有 Hosted Zones、NS／VPC／标签、普通和 Alias／复杂路由记录、实际分页及四项 IAM 权限局部失败；确认资源 Region 不触发重查、切换或清空 Profile／session 后无旧数据、global 收藏与最近访问不改变资源 Region，目标删除／账号变化／列表失败时不误选缓存。当前展示配置，不验证实际 DNS 传播，不自动查询关联健康检查、流量策略或 VPC。
@@ -137,7 +138,6 @@ Health、最近访问、Route 53、ELBv2、安全组与统一资源关联源码�
 - 待确认：离线 Swift Charts 渲染在当前运行环境输出一次 AxisValueLabel anchor 警告；应用使用公开默认轴 API，分别对照标准 X／Y 锚点后警告仍存在，已撤销无效候选。当前截图坐标与数值可读，需结合真实窗口和 macOS 13 验收进一步定位，不将其报告为已修复。
 - 为 S3 Bucket 详情的各类 AWS 错误增加更细粒度的模拟测试。
 - 验证 S3 大目录全量分页的等待时间和内存占用。
-- 应用二进制公开分发：正式签名、公证及许可附件已完成；如需创建 GitHub Release，另行确定版本说明并授权上传。
 
 ## 阻塞
 

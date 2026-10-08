@@ -4,6 +4,17 @@
 
 A native macOS app for read-only browsing of AWS resources and costs, built with SwiftUI.
 
+## Download
+
+[Version 0.2.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) requires **macOS 13 or later**. Choose the package for your Mac:
+
+| Mac | Installer | Archive |
+| --- | --- | --- |
+| Apple Silicon (M-series, `arm64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.2.0/AWSPlatform-0.2.0-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.2.0/AWSPlatform-0.2.0-arm64.zip) |
+| Intel (`x86_64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.2.0/AWSPlatform-0.2.0-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.2.0/AWSPlatform-0.2.0-x86_64.zip) |
+
+Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both builds are Developer ID signed and notarized by Apple. [SHA-256 checksums](https://github.com/maydaychen/aws-platform/releases/download/v0.2.0/SHA256SUMS.txt) are available with the release. AWS CLI v2 is required for SSO sign-in; see [Prerequisites](#prerequisites).
+
 ## Features
 
 - **EC2 instances** - View instance state, networking, AMIs, and tags

@@ -1,13 +1,23 @@
 import Foundation
 
+enum HealthQueryMode: String, CaseIterable, Sendable {
+    case account, organization
+}
+
 struct HealthScope: Hashable, Sendable {
     let profile: AWSProfile
     let accountID: String
     let principalARN: String
     let configPath: String
     let credentialsPath: String
+    var queryMode: HealthQueryMode = .account
+    var organizationAccountFilter: String? = nil
 
     var profileName: String { profile.name }
+
+    static func isAccountID(_ value: String) -> Bool {
+        value.count == 12 && value.utf8.allSatisfy { (48...57).contains($0) }
+    }
 
     init(profile: AWSProfile, identity: AWSIdentity, paths: AWSConfigurationPaths = AWSConfigurationPaths()) {
         self.profile = profile
@@ -23,6 +33,11 @@ struct HealthScope: Hashable, Sendable {
               accountID.range(of: "^[0-9]{12}$", options: .regularExpression) != nil,
               parts.count == 6, parts[0] == "arn", ["sts", "iam"].contains(String(parts[2])),
               parts[4] == accountID, !parts[5].isEmpty else { throw HealthError.invalidScope }
+        if let organizationAccountFilter {
+            guard queryMode == .organization, Self.isAccountID(organizationAccountFilter) else {
+                throw HealthError.invalidAccountFilter
+            }
+        }
         switch parts[1] {
         case "aws":
             return HealthEndpoint(partition: "aws", region: "us-east-1", url: "https://health.us-east-1.amazonaws.com")
@@ -52,6 +67,8 @@ struct HealthEvent: Identifiable, Hashable, Sendable {
     var startTime: Date? = nil
     var endTime: Date? = nil
     var lastUpdatedTime: Date? = nil
+    // Present only on a detail request, never inferred from the querying profile.
+    var affectedAccountID: String? = nil
 
     var id: String { arn }
 }
@@ -71,7 +88,7 @@ struct HealthAffectedEntity: Identifiable, Hashable, Sendable {
 }
 
 enum HealthError: LocalizedError, Equatable {
-    case invalidScope, unsupportedPartition, invalidResponse, incompletePagination
+    case invalidScope, unsupportedPartition, invalidResponse, incompletePagination, invalidAccountFilter
 
     var errorDescription: String? {
         switch self {
@@ -83,6 +100,8 @@ enum HealthError: LocalizedError, Equatable {
             return "AWS Health returned incomplete or mismatched data. Refresh to try again."
         case .incompletePagination:
             return "AWS Health pagination could not be completed. Partial results were not displayed. Refresh to try again."
+        case .invalidAccountFilter:
+            return "Enter a 12-digit AWS account ID, or leave the account filter empty for all accounts."
         }
     }
 }

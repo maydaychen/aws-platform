@@ -53,7 +53,7 @@ struct HealthEventListView: View {
             }
             .labelsHidden()
             .frame(maxWidth: .infinity)
-            .help(L10n.text(title == "Event region" ? "Filter event regions within this account. Independent of the resource region." : title, locale: locale))
+            .help(L10n.text(title == "Event region" ? "Filter event regions within the selected query scope. Independent of the resource region." : title, locale: locale))
         }
     }
 

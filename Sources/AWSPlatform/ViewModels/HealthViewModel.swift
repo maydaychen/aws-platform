@@ -5,8 +5,15 @@ final class HealthViewModel: ObservableObject {
     typealias ListLoader = @Sendable (HealthScope) async throws -> [HealthEvent]
     typealias DetailLoader = @Sendable (HealthScope, HealthEvent) async throws -> HealthEventDetails
     typealias EntityLoader = @Sendable (HealthScope, HealthEvent) async throws -> [HealthAffectedEntity]
+    typealias AccountsLoader = @Sendable (HealthScope, HealthEvent) async throws -> [String]
 
     @Published private(set) var scope: HealthScope?
+    @Published private(set) var queryMode: HealthQueryMode = .account
+    @Published private(set) var accountFilter = ""
+    @Published private(set) var affectedAccounts: [String] = []
+    @Published private(set) var selectedAccount: String?
+    @Published private(set) var isAccountsLoading = false
+    @Published private(set) var accountsError: String?
     @Published private(set) var events: [HealthEvent] = []
     @Published private(set) var isLoading = false
     @Published private(set) var error: String?
@@ -22,6 +29,7 @@ final class HealthViewModel: ObservableObject {
                 self.selectedEvent = nil
             }
             guard oldValue?.arn != selectedEvent?.arn else { return }
+            clearAccounts()
             refreshDetails()
         }
     }
@@ -34,6 +42,9 @@ final class HealthViewModel: ObservableObject {
     private let listLoader: ListLoader
     private let detailLoader: DetailLoader
     private let entityLoader: EntityLoader
+    private let accountsLoader: AccountsLoader
+    private var accountsTask: Task<Void, Never>?
+    private var accountsGeneration = 0
     private var listTask: Task<Void, Never>?
     private var detailTask: Task<Void, Never>?
     private var entityTask: Task<Void, Never>?
@@ -41,10 +52,56 @@ final class HealthViewModel: ObservableObject {
     private var detailGeneration = 0
     private var hasAttemptedLoad = false
 
-    init(listLoader: @escaping ListLoader, detailLoader: @escaping DetailLoader, entityLoader: @escaping EntityLoader) {
+    init(listLoader: @escaping ListLoader, detailLoader: @escaping DetailLoader, entityLoader: @escaping EntityLoader,
+         accountsLoader: @escaping AccountsLoader = { _, _ in throw HealthError.invalidScope }) {
         self.listLoader = listLoader
         self.detailLoader = detailLoader
         self.entityLoader = entityLoader
+        self.accountsLoader = accountsLoader
+    }
+
+    private var queryScope: HealthScope? {
+        guard var scope else { return nil }
+        scope.queryMode = queryMode
+        scope.organizationAccountFilter = accountFilter.isEmpty ? nil : accountFilter
+        return scope
+    }
+
+    func setQueryMode(_ mode: HealthQueryMode) {
+        guard scope != nil, queryMode != mode else { return }
+        let currentScope = scope
+        reset()
+        scope = currentScope
+        queryMode = mode
+        startListLoad()
+    }
+
+    func applyAccountFilter(_ value: String) {
+        guard queryMode == .organization, scope != nil else { return }
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.isEmpty || HealthScope.isAccountID(value) else {
+            error = listError(HealthError.invalidAccountFilter.localizedDescription)
+            return
+        }
+        guard value != accountFilter else { return }
+        let currentScope = scope
+        reset()
+        scope = currentScope
+        queryMode = .organization
+        accountFilter = value
+        startListLoad()
+    }
+
+    func selectAccount(_ account: String?) {
+        guard queryMode == .organization else { return }
+        guard let account else {
+            selectedAccount = nil
+            clearDetails()
+            return
+        }
+        guard affectedAccounts.contains(account), account != selectedAccount else { return }
+        selectedAccount = account
+        refreshDetails()
     }
 
     var availableStatuses: [String] { options(events.map(\.status)) }
@@ -87,6 +144,7 @@ final class HealthViewModel: ObservableObject {
     func waitForCurrentLoad() async { await listTask?.value }
 
     func waitForDetails() async {
+        await accountsTask?.value
         let detail = detailTask
         let entity = entityTask
         await detail?.value
@@ -103,6 +161,13 @@ final class HealthViewModel: ObservableObject {
     }
 
     func cancelDetails() {
+        if isAccountsLoading {
+            accountsGeneration += 1
+            accountsTask?.cancel()
+            accountsTask = nil
+            isAccountsLoading = false
+            accountsError = "Loading cancelled. Use Refresh details to try again."
+        }
         detailGeneration += 1
         detailTask?.cancel()
         entityTask?.cancel()
@@ -119,6 +184,9 @@ final class HealthViewModel: ObservableObject {
         listTask?.cancel()
         listTask = nil
         scope = nil
+        queryMode = .account
+        accountFilter = ""
+        clearAccounts()
         events = []
         selectedEvent = nil
         clearDetails()
@@ -134,7 +202,16 @@ final class HealthViewModel: ObservableObject {
 
     func refreshDetails() {
         clearDetails()
-        guard let scope, let event = selectedEvent, events.contains(event) else { return }
+        guard let scope = queryScope, let selectedEvent, events.contains(selectedEvent) else { return }
+        var requestEvent = selectedEvent
+        if queryMode == .organization {
+            guard let selectedAccount else {
+                refreshAffectedAccounts()
+                return
+            }
+            requestEvent.affectedAccountID = selectedAccount
+        }
+        let event = requestEvent
         do { _ = try scope.endpoint() }
         catch {
             detailError = safeMessage(error)
@@ -195,11 +272,53 @@ final class HealthViewModel: ObservableObject {
     }
 
     private func isCurrentDetail(_ generation: Int, scope: HealthScope, event: HealthEvent) -> Bool {
-        detailGeneration == generation && self.scope == scope && selectedEvent?.arn == event.arn
+        detailGeneration == generation && queryScope == scope && selectedEvent?.arn == event.arn &&
+            (queryMode == .account || selectedAccount == event.affectedAccountID)
+    }
+
+    func refreshAffectedAccounts() {
+        clearAccounts()
+        clearDetails()
+        guard let scope = queryScope, scope.queryMode == .organization,
+              let event = selectedEvent, events.contains(event) else { return }
+        do { _ = try scope.endpoint() }
+        catch { accountsError = safeMessage(error); return }
+        let generation = accountsGeneration
+        let loader = accountsLoader
+        isAccountsLoading = true
+        accountsTask = Task { [weak self] in
+            do {
+                try Task.checkCancellation()
+                let accounts = try await loader(scope, event)
+                try Task.checkCancellation()
+                guard let self, self.accountsGeneration == generation, self.queryScope == scope,
+                      self.selectedEvent?.arn == event.arn else { return }
+                guard accounts.allSatisfy(HealthScope.isAccountID) else { throw HealthError.invalidResponse }
+                self.affectedAccounts = Array(Set(accounts)).sorted()
+                self.isAccountsLoading = false
+                self.accountsTask = nil
+            } catch {
+                guard let self, self.accountsGeneration == generation, self.queryScope == scope,
+                      self.selectedEvent?.arn == event.arn else { return }
+                self.isAccountsLoading = false
+                self.accountsTask = nil
+                self.accountsError = self.safeMessage(error)
+            }
+        }
+    }
+
+    private func clearAccounts() {
+        accountsGeneration += 1
+        accountsTask?.cancel()
+        accountsTask = nil
+        affectedAccounts = []
+        selectedAccount = nil
+        isAccountsLoading = false
+        accountsError = nil
     }
 
     private func startListLoad() {
-        guard let scope else { return }
+        guard let scope = queryScope else { return }
         listGeneration += 1
         let generation = listGeneration
         listTask?.cancel()
@@ -219,7 +338,7 @@ final class HealthViewModel: ObservableObject {
                 try Task.checkCancellation()
                 let events = try await loader(scope)
                 try Task.checkCancellation()
-                guard let self, self.listGeneration == generation, self.scope == scope else { return }
+                guard let self, self.listGeneration == generation, self.queryScope == scope else { return }
                 let selectedARN = self.selectedEvent?.arn
                 self.events = events
                 self.selectedEvent = selectedARN.flatMap { arn in events.first { $0.arn == arn } }
@@ -231,7 +350,7 @@ final class HealthViewModel: ObservableObject {
                 self.isLoading = false
                 self.listTask = nil
             } catch {
-                guard let self, self.listGeneration == generation, self.scope == scope else { return }
+                guard let self, self.listGeneration == generation, self.queryScope == scope else { return }
                 self.isLoading = false
                 self.listTask = nil
                 self.error = self.listError(self.safeMessage(error))

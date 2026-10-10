@@ -60,7 +60,8 @@ struct ContentView: View {
         _healthVM = StateObject(wrappedValue: HealthViewModel(
             listLoader: { try await health.loadEvents(scope: $0) },
             detailLoader: { try await health.loadDetails(scope: $0, event: $1) },
-            entityLoader: { try await health.loadEntities(scope: $0, event: $1) }
+            entityLoader: { try await health.loadEntities(scope: $0, event: $1) },
+            accountsLoader: { try await health.loadAffectedAccounts(scope: $0, event: $1) }
         ))
         let alarms = AWSAlarmService(provider: profiles.provider)
         _relationshipsVM = StateObject(wrappedValue: SNSRelationshipViewModel(loader: {

@@ -1408,3 +1408,31 @@
 "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version." = "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version.";
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation.";
 "Browse · S3 transfers" = "Browse · S3 transfers";
+
+/* AWS Health organizational view */
+"Query scope" = "Query scope";
+"Current account" = "Current account";
+"Entire organization" = "Entire organization";
+"%@ · Organization view · All regions" = "%@ · Organization view · All regions";
+"Requires organizational view, a management or delegated administrator role, and eligible AWS Support. Events are retained for up to 90 days." = "Requires organizational view, a management or delegated administrator role, and eligible AWS Support. Events are retained for up to 90 days.";
+"Account ID (empty for all accounts)" = "Account ID (empty for all accounts)";
+"Filter organization by account ID" = "Filter organization by account ID";
+"Apply account filter" = "Apply account filter";
+"Account filter: %@" = "Account filter: %@";
+"All accounts" = "All accounts";
+"Affected accounts" = "Affected accounts";
+"Affected accounts: %@" = "Affected accounts: %@";
+"Loading affected accounts…" = "Loading affected accounts…";
+"Retry affected accounts" = "Retry affected accounts";
+"Refresh affected accounts" = "Refresh affected accounts";
+"No affected accounts were returned." = "No affected accounts were returned.";
+"Affected account" = "Affected account";
+"Select an affected account" = "Select an affected account";
+"Select an affected account to view its event description and resources." = "Select an affected account to view its event description and resources.";
+"Enter a 12-digit AWS account ID, or leave the account filter empty for all accounts." = "Enter a 12-digit AWS account ID, or leave the account filter empty for all accounts.";
+"Organization Health access was denied. Use a management or delegated administrator profile with health:DescribeEventsForOrganization permission, and check that organizational view is enabled." = "Organization Health access was denied. Use a management or delegated administrator profile with health:DescribeEventsForOrganization permission, and check that organizational view is enabled.";
+"Affected accounts could not be read. Check health:DescribeAffectedAccountsForOrganization permission." = "Affected accounts could not be read. Check health:DescribeAffectedAccountsForOrganization permission.";
+"Organization event details could not be read. Check health:DescribeEventDetailsForOrganization permission." = "Organization event details could not be read. Check health:DescribeEventDetailsForOrganization permission.";
+"Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission." = "Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission.";
+"AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically." = "AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically.";
+"Filter event regions within the selected query scope. Independent of the resource region." = "Filter event regions within the selected query scope. Independent of the resource region.";

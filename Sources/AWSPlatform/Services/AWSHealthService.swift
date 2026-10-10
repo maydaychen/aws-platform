@@ -15,19 +15,29 @@ struct AWSHealthService: Sendable {
 
     private let provider: AWSServiceProvider?
     private let injected: Operations?
+    private let injectedOrganization: OrganizationOperations?
     private static let maximumPages = 100
 
     init(provider: AWSServiceProvider) {
         self.provider = provider
         injected = nil
+        injectedOrganization = nil
     }
 
     init(eventLoader: @escaping EventLoader, detailLoader: @escaping DetailLoader, entityLoader: @escaping EntityLoader) {
         provider = nil
         injected = Operations(events: eventLoader, details: detailLoader, entities: entityLoader)
+        injectedOrganization = nil
+    }
+
+    init(organizationOperations: OrganizationOperations) {
+        provider = nil
+        injected = nil
+        injectedOrganization = organizationOperations
     }
 
     func loadEvents(scope: HealthScope) async throws -> [HealthEvent] {
+        if scope.queryMode == .organization { return try await loadOrganizationEvents(scope: scope) }
         do {
             try Task.checkCancellation()
             let endpoint = try scope.endpoint()
@@ -64,6 +74,7 @@ struct AWSHealthService: Sendable {
     }
 
     func loadDetails(scope: HealthScope, event: HealthEvent) async throws -> HealthEventDetails {
+        if scope.queryMode == .organization { return try await loadOrganizationDetails(scope: scope, event: event) }
         do {
             try Task.checkCancellation()
             let endpoint = try scope.endpoint()
@@ -92,6 +103,7 @@ struct AWSHealthService: Sendable {
     }
 
     func loadEntities(scope: HealthScope, event: HealthEvent) async throws -> [HealthAffectedEntity] {
+        if scope.queryMode == .organization { return try await loadOrganizationEntities(scope: scope, event: event) }
         do {
             try Task.checkCancellation()
             let endpoint = try scope.endpoint()
@@ -146,22 +158,40 @@ struct AWSHealthService: Sendable {
         )
     }
 
-    private static func arnParts(_ arn: String, scope: HealthScope, partition: String) throws -> [Substring] {
+    func organizationOperations(scope: HealthScope) async throws -> OrganizationOperations {
+        try Task.checkCancellation()
+        guard scope.queryMode == .organization else { throw HealthError.invalidScope }
+        _ = try scope.endpoint()
+        if let injectedOrganization { return injectedOrganization }
+        guard let provider else { throw HealthError.invalidScope }
+        let client = try await provider.healthClient(scope: scope)
+        return OrganizationOperations(
+            events: { try await client.describeEventsForOrganization($0) },
+            accounts: { try await client.describeAffectedAccountsForOrganization($0) },
+            details: { try await client.describeEventDetailsForOrganization($0) },
+            entities: { try await client.describeAffectedEntitiesForOrganization($0) }
+        )
+    }
+
+    static func arnParts(_ arn: String, scope: HealthScope, partition: String) throws -> [Substring] {
         let parts = arn.split(separator: ":", maxSplits: 5, omittingEmptySubsequences: false)
         guard parts.count == 6, parts[0] == "arn", parts[1] == partition,
               parts[2] == "health",
-              parts[4].isEmpty || parts[4] == scope.accountID else { throw HealthError.invalidResponse }
+              parts[4].isEmpty || parts[4] == scope.accountID ||
+                (scope.queryMode == .organization && HealthScope.isAccountID(String(parts[4]))) else {
+            throw HealthError.invalidResponse
+        }
         return parts
     }
 
-    private static func validate(_ event: HealthEvent, scope: HealthScope, partition: String) throws {
+    static func validate(_ event: HealthEvent, scope: HealthScope, partition: String) throws {
         let parts = try arnParts(event.arn, scope: scope, partition: partition)
         let resource = parts[5].split(separator: "/", omittingEmptySubsequences: false)
         guard resource.count == 4, resource[0] == "event", resource.allSatisfy({ !$0.isEmpty }),
               resource[1] == event.service, resource[2] == event.typeCode else { throw HealthError.invalidResponse }
     }
 
-    private static func map(_ raw: Health.Event, scope: HealthScope, partition: String) throws -> HealthEvent {
+    static func map(_ raw: Health.Event, scope: HealthScope, partition: String) throws -> HealthEvent {
         guard let arn = raw.arn, let service = raw.service, let code = raw.eventTypeCode else {
             throw HealthError.invalidResponse
         }
@@ -175,9 +205,9 @@ struct AWSHealthService: Sendable {
         return event
     }
 
-    private enum Operation { case events, details, entities }
+    enum Operation { case events, details, entities, organizationEvents, organizationAccounts, organizationDetails, organizationEntities }
 
-    private static func sanitized(_ error: Error, operation: Operation) -> Error {
+    static func sanitized(_ error: Error, operation: Operation) -> Error {
         if error is CancellationError || Task.isCancelled { return CancellationError() }
         if let error = error as? HealthError { return error }
         if let error = error as? RequestError { return error }
@@ -188,11 +218,16 @@ struct AWSHealthService: Sendable {
             case .events: return RequestError.listPermission
             case .details: return RequestError.detailPermission
             case .entities: return RequestError.entitiesPermission
+            case .organizationEvents: return RequestError.organizationListPermission
+            case .organizationAccounts: return RequestError.organizationAccountsPermission
+            case .organizationDetails: return RequestError.organizationDetailPermission
+            case .organizationEntities: return RequestError.organizationEntitiesPermission
             }
         }
         if UserFacingError.requiresSSOLogin(error) { return RequestError.credentials }
         if error is URLError { return RequestError.network }
         switch code {
+        case "AWSOrganizationsNotInUseException", "HealthServiceAccessNotEnabledException": return RequestError.organizationUnavailable
         case "SubscriptionRequiredException", "SubscriptionRequired": return RequestError.subscriptionRequired
         case "Throttling", "ThrottlingException", "TooManyRequestsException", "LimitExceededException": return RequestError.throttled
         case "InvalidPaginationToken", "InvalidNextToken", "InvalidNextTokenException": return HealthError.incompletePagination
@@ -202,12 +237,18 @@ struct AWSHealthService: Sendable {
 
     enum RequestError: LocalizedError, Equatable {
         case listPermission, detailPermission, entitiesPermission, subscriptionRequired, credentials, network, throttled, failed
+        case organizationListPermission, organizationAccountsPermission, organizationDetailPermission, organizationEntitiesPermission, organizationUnavailable
 
         var errorDescription: String? {
             switch self {
             case .listPermission: return "Health event access was denied. Check health:DescribeEvents permission for the selected profile."
             case .detailPermission: return "Health event details could not be read. Check health:DescribeEventDetails permission for this event."
             case .entitiesPermission: return "Affected resources could not be read. Check health:DescribeAffectedEntities permission for this event."
+            case .organizationListPermission: return "Organization Health access was denied. Use a management or delegated administrator profile with health:DescribeEventsForOrganization permission, and check that organizational view is enabled."
+            case .organizationAccountsPermission: return "Affected accounts could not be read. Check health:DescribeAffectedAccountsForOrganization permission."
+            case .organizationDetailPermission: return "Organization event details could not be read. Check health:DescribeEventDetailsForOrganization permission."
+            case .organizationEntitiesPermission: return "Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission."
+            case .organizationUnavailable: return "AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically."
             case .subscriptionRequired: return "AWS Health API access requires an eligible AWS Support plan for this account. You can still check events in the AWS Health console."
             case .credentials: return "AWS credentials expired or are unavailable. Sign in to the session, select the profile again, then reload Health events."
             case .network: return "Unable to reach AWS Health. Check your network or proxy, then refresh."

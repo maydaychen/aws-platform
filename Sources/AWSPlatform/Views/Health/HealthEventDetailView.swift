@@ -12,7 +12,7 @@ struct HealthEventDetailView: View {
         return vm.details
     }
     private var displayedEvent: HealthEvent { details?.event ?? event }
-    private var isLoading: Bool { isCurrentSelection && (vm.isDetailLoading || vm.isEntitiesLoading) }
+    private var isLoading: Bool { isCurrentSelection && (vm.isDetailLoading || vm.isEntitiesLoading || vm.isAccountsLoading) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +20,9 @@ struct HealthEventDetailView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if vm.queryMode == .organization {
+                        HealthAffectedAccountsView(vm: vm)
+                    }
                     DetailSectionTitle(title: "Overview")
                     DetailGrid(items: [
                         ("Service", HealthDisplay.returned(displayedEvent.service, locale: locale)),
@@ -30,14 +33,16 @@ struct HealthEventDetailView: View {
                         ("End time", HealthDisplay.date(displayedEvent.endTime, locale: locale)),
                         ("Last updated", HealthDisplay.date(displayedEvent.lastUpdatedTime, locale: locale))
                     ])
-                    description
-                    if let details, !details.metadata.isEmpty {
-                        DisclosureGroup(L10n.text("Event metadata", locale: locale)) {
-                            DetailKeyValueRows(values: details.metadata).padding(.top, 8)
+                    if vm.queryMode == .account || vm.selectedAccount != nil {
+                        description
+                        if let details, !details.metadata.isEmpty {
+                            DisclosureGroup(L10n.text("Event metadata", locale: locale)) {
+                                DetailKeyValueRows(values: details.metadata).padding(.top, 8)
+                            }
+                            .font(.callout)
                         }
-                        .font(.callout)
+                        affectedEntities
                     }
-                    affectedEntities
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)

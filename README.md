@@ -27,7 +27,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
 - **Resource relationships** - Explore Route 53 records, load balancers, Target Groups, EC2 instances, and security groups one hop at a time, with explicit reverse queries and precise resource navigation
-- **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
+- **AWS Health events** - Switch between current-account and organization events using the current Profile, with account filtering, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
 - **Searchable Profiles** - Search Profile names, account IDs, and roles within the selected session
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
@@ -232,7 +232,11 @@ The following component preview uses mock cost data:
 
 ### AWS Health Events
 
-After manually selecting and verifying a Profile, open `Health` in the sidebar. It loads account-specific events across all regions for that account, including upcoming scheduled changes. Public events are excluded, and management accounts do not aggregate organization members. No queries run without a selected Profile. The resource Region selector is hidden on this page; changing a resource Region elsewhere does not reload Health. The commercial, China, and GovCloud partitions use their respective Health endpoints.
+After manually selecting and verifying a Profile, open `Health` in the sidebar. `Current account` is the default and loads that account's events across all regions, including upcoming scheduled changes. Switch explicitly to `Entire organization` to query organization events through the same Profile's permissions. No queries run without a selected Profile, and public events are excluded. The resource Region selector is hidden on this page; changing a resource Region elsewhere does not reload Health. The commercial, China, and GovCloud partitions use their respective Health endpoints.
+
+Organization mode requires a management or delegated administrator role, an organization with all features enabled, AWS Health organizational view enabled, and an eligible Support plan for API access. The app only reads data; it does not enable organization access or change your Support plan. Organization events are retained for up to 90 days. See [organizational view prerequisites](https://docs.aws.amazon.com/health/latest/ug/aggregate-events.html) and [organization queries](https://docs.aws.amazon.com/health/latest/APIReference/API_DescribeEventsForOrganization.html).
+
+Enter a 12-digit account ID and apply it to filter organization events at AWS, or leave it empty for all accounts. Select an event to load its affected account IDs, then explicitly select one account to read its description and resources. The caller Profile stays unchanged. The role needs `health:DescribeEventsForOrganization`, `health:DescribeAffectedAccountsForOrganization`, `health:DescribeEventDetailsForOrganization`, and `health:DescribeAffectedEntitiesForOrganization`; allow these organization read actions with `Resource: "*"`. Account, description, and resource failures show separate actionable errors. Switching query mode or applying an account filter clears old results; changing or clearing the Profile also resets to current-account mode. In-flight requests are cancelled and late results are ignored.
 
 Search by event type, ARN, service, or Region, and filter locally by status, category, service, and event Region. Select an event to read its latest description, metadata, times in UTC, and affected resources. Details and affected resources load independently and show separate errors. Missing values remain explicitly unavailable. This is a list of AWS Health events and their latest state, not a history of every update to each event.
 
@@ -245,6 +249,8 @@ The following component previews use mock Health data:
 ![AWS Health events in light mode](docs/ui-health-light.png)
 
 ![AWS Health events in dark mode](docs/ui-health-dark.png)
+
+![Organization Health events with member-account details](docs/ui-health-organization-dark.png)
 
 ### CloudWatch Alarms
 

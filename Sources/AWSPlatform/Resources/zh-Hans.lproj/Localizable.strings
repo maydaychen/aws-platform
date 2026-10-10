@@ -1408,3 +1408,31 @@
 "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version." = "上传不会复制原对象的元数据、标签或 ACL，将使用 Bucket 默认设置。若已启用版本控制，AWS 会保留上一版本。";
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "这将使用上方显示的 Profile 向 AWS 写入文件。同名对象需要再次确认后才能覆盖。";
 "Browse · S3 transfers" = "资源浏览 · S3 传输";
+
+/* AWS Health organizational view */
+"Query scope" = "查询范围";
+"Current account" = "当前账号";
+"Entire organization" = "整个组织";
+"%@ · Organization view · All regions" = "%1$@ · 组织视图 · 所有区域";
+"Requires organizational view, a management or delegated administrator role, and eligible AWS Support. Events are retained for up to 90 days." = "需要启用组织视图、使用管理账号或委派管理员角色，并具备符合条件的 AWS Support 计划。事件最多保留 90 天。";
+"Account ID (empty for all accounts)" = "账号 ID（留空表示所有账号）";
+"Filter organization by account ID" = "按账号 ID 筛选组织事件";
+"Apply account filter" = "应用账号筛选";
+"Account filter: %@" = "账号筛选：%1$@";
+"All accounts" = "所有账号";
+"Affected accounts" = "受影响账号";
+"Affected accounts: %@" = "受影响账号：%1$@";
+"Loading affected accounts…" = "正在加载受影响账号…";
+"Retry affected accounts" = "重试受影响账号";
+"Refresh affected accounts" = "刷新受影响账号";
+"No affected accounts were returned." = "未返回受影响账号。";
+"Affected account" = "受影响账号";
+"Select an affected account" = "选择受影响账号";
+"Select an affected account to view its event description and resources." = "选择受影响账号，查看该账号的事件说明和资源。";
+"Enter a 12-digit AWS account ID, or leave the account filter empty for all accounts." = "请输入 12 位 AWS 账号 ID，或留空以查询所有账号。";
+"Organization Health access was denied. Use a management or delegated administrator profile with health:DescribeEventsForOrganization permission, and check that organizational view is enabled." = "组织 Health 访问被拒绝。请使用具备 health:DescribeEventsForOrganization 权限的管理账号或委派管理员 Profile，并检查组织视图是否已启用。";
+"Affected accounts could not be read. Check health:DescribeAffectedAccountsForOrganization permission." = "无法读取受影响账号。请检查 health:DescribeAffectedAccountsForOrganization 权限。";
+"Organization event details could not be read. Check health:DescribeEventDetailsForOrganization permission." = "无法读取组织事件详情。请检查 health:DescribeEventDetailsForOrganization 权限。";
+"Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission." = "无法读取组织受影响资源。请检查 health:DescribeAffectedEntitiesForOrganization 权限。";
+"AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically." = "AWS Health 组织视图不可用。请从组织管理账号启用后刷新。应用不会自动启用组织视图。";
+"Filter event regions within the selected query scope. Independent of the resource region." = "在所选查询范围内筛选事件区域，与资源区域无关。";

@@ -2,7 +2,9 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查；Lambda 源码预览加固通过离线回归。面向 macOS 13+ 的 `0.2.0 (2)` 已按 Apple Silicon `arm64`／Intel `x86_64` 分别提供正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订及 Gatekeeper 检查；Apple Silicon 离线启动通过，Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；用户已确认真实账号日常使用验收通过，记录见「最近验证」。
+Health 组织模式已完成本地源码、离线回归与模拟组件渲染；尚未安装到本机应用或纳入公开分发，真实组织与权限验收待完成，详见最新验证记录。
+
+只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号／组织事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查；Lambda 源码预览加固通过离线回归。面向 macOS 13+ 的 `0.2.0 (2)` 已按 Apple Silicon `arm64`／Intel `x86_64` 分别提供正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订及 Gatekeeper 检查；Apple Silicon 离线启动通过，Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；用户已确认真实账号日常使用验收通过，记录见「最近验证」。
 
 源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；[v0.2.0 Release](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) 提供四个分架构安装包及 `SHA256SUMS.txt`。
 
@@ -13,6 +15,8 @@
 S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线回归：绑定当前已验证 Profile 和 Bucket 实际 Region，支持按钮选文件或从 Finder 拖入一个本地文件到当前前缀；上传前确认目标，同名覆盖需再次确认并使用 ETag 条件写。按块传输、进度／取消、失败保留原有本地文件，首版上传上限为 5 GiB。覆盖不会复制原对象元数据／标签／ACL，提示及双语 README 已说明。真实拖拽、写入与异常路径的逐项覆盖保留在专项验收清单；实现时未更新本机 build 4 安装、未推送或发布公开安装包。
 
 ## 最近完成
+
+- 2026-10-11 01:14：Health 新增当前账号／整个组织显式切换，通过当前已验证 Profile 调用组织级只读接口；支持 AWS 侧 12 位账号 ID 筛选、受影响账号完整分页和按账号读取说明／资源。切换 Profile、查询范围、账号筛选或详情账号时清空相关旧结果并取消／隔离旧请求；组织未启用、权限和 Support 计划不足分别提示。同步双语文案、README 与模拟组件截图；未启用真实 AWS 组织服务、购买计划、安装、推送或发布。
 
 - 2026-10-11 00:39：用户确认已进行真实账号日常使用，未发现问题，验收成功；整体使用验收状态改为通过。保留异常权限、并发覆盖、多窗口及 Intel／macOS 13 等专项清单，不把整体反馈推断为逐项覆盖或新版安装／发布记录。
 
@@ -42,9 +46,10 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - 2026-10-03 23:28：根目录 `README.md` 改为完整英文版，原中文正文保留为 `README.zh-CN.md`，两版顶部增加相对路径语言切换链接；功能、权限、费用提示、命令、配置示例和截图保持对应。仅调整项目文档。
 - 2026-10-03 17:30：交付 `0.1.0 (1)` 正式 Universal ZIP／DMG，源构建提交为 `89461dd`；新增 `scripts/package-distribution.py`，串联双架构构建、完整许可收集、Developer ID 签名、App／DMG 分别公证及票据装订，生成校验和与分发清单。正式产物位于 `dist/AWSPlatform-0.1.0-universal/`，保留原本地预览包。README 和脚本说明同步打包入口及原生 AWS CLI 前提；未创建 GitHub Release。
 - 2026-10-03 16:13：源码已上传至 GitHub 公开仓库 `maydaychen/aws-platform` 的 `main`；新增 MIT LICENSE 和 26 项锁定依赖的许可／NOTICE 索引。修正 README 的公开克隆地址、Swift 6.2+ 构建前提和 Lambda 配置读取权限，说明部署包临时落盘行为；补齐本地 AWS 配置、环境配置、证书及个人 Agent 文件的忽略规则。保留原私有远端；未变更业务代码，未发布应用二进制。
-- 2026-10-03 15:02：新增 `scripts/build-universal.sh`，锁定依赖分别构建 arm64／x86_64 Release 并合并为 Universal `.app` 与 ZIP；标准资源布局、Swift 兼容运行库嵌入及构建机绝对 RPATH 清理，检查架构、最低系统、缺库与本地 ad-hoc 签名后交付。保留 `AWSPlatform` 偏好域标识；README 和脚本说明提供命令，`dist/` 加入忽略规则。未使用 Developer ID、执行公证或对外发布。
 
 ## 最近验证
+
+- 2026-10-11 01:14：组织 Health 的新增服务／状态流／本地化与原生渲染回归通过；严格并发与警告视为错误的完整 `swift test` 共 784 项通过，最后的详情布局修订另通过 84 项 Health 相关回归。静态 Harness 的文件规模、diff 与设计 lint 通过，语言资源 plist 合法；模拟截图覆盖英文浅色 760 × 720 与中文深色 1060 × 720。未调用真实 AWS；management／委派管理员权限、组织启用、Support 计划和真实事件一致性仍待专项验收。
 
 - 2026-10-11 00:39：应用真实账号日常使用验收通过，方式为用户本人实际使用并反馈「今天已经用过了，没有问题，验收成功」。具体 App build、服务／操作覆盖及异常场景未逐项提供；此记录来自用户验收，不代表 Agent 本轮执行了 AWS 查询或额外安装／发布。
 
@@ -74,7 +79,6 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - 2026-10-03 23:28：中英文 README 静态审计各检查 14 个本地引用，均无问题；中文正文与原版完全一致，英文版章节层级、全部原有链接／截图目标、代码命令和配置示例（排除翻译注释）逐项比对通过，权限及查询边界人工复核一致。语言切换、打包说明标题锚点和 `git diff --check` 通过；纯文档变更，未重复构建或执行 AWS 查询。
 - 2026-10-03 17:30：arm64／x86_64 Release 构建和 11 项离线打包测试通过。独立核验主程序双切片最低系统为 13.0，嵌套 Developer ID 签名、Hardened Runtime、安全时间戳有效；26 项依赖许可附件及补充来源哈希一致。Apple 回读 App／DMG 两次公证均为 Accepted，最终 App／DMG 票据与 Gatekeeper 通过；ZIP 独立解压和 DMG 只读挂载后的应用内容、签名及信任检查一致。解压副本以空 AWS 配置、隔离偏好在 Apple Silicon 上运行 8 秒，未见启动崩溃；README 审计、脚本秘密扫描及 `git diff --check` 通过。未调用真实 AWS，未进行 Intel／macOS 13 实机验收；另定位本机旧 Intel AWS CLI 在缺少 Rosetta 时无法启动，与应用签名无关。
 - 2026-10-03 16:13：重新执行 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，严格构建成功，312 项正式测试零失败。Gitleaks 对全部可达 Git 历史、发布分支和当前发布文件扫描均未发现秘密；逐张检查 9 张文档截图，均为模拟数据。26 个依赖版本／revision 和 42 个 LICENSE／NOTICE 文件链接核对通过，README 静态审计、忽略规则及 `git diff --check` 通过。GitHub API 确认仓库公开、MIT 和 `main`，6 个关键文件 Git blob 与本地一致；无凭据克隆成功，提交与完整文件树一致。独立源码及交付审查未发现阻断源码公开的问题；未连接真实 AWS，未新增 Intel／macOS 13 实机验收。
-- 2026-10-03 15:02：arm64／x86_64 Release 构建通过，最终通用产物经独立 `lipo`、`vtool`、`plutil`、严格深层 `codesign` 与 ZIP 完整性核验；主程序两切片最低系统均为 13.0，嵌入的 Swift Span 运行库满足两架构的系统下限，无 Xcode 绝对 RPATH，已移除工具生成的冗余备份。ZIP 解压到独立目录后，以空 AWS 配置在 Apple Silicon 上持续运行 8 秒；包内运行库 `dlopen` 成功，启动日志未加载 Xcode 工具链库。使用当前正式 XCTest 产物运行 312 项测试，全部通过；业务源码未修改。Shell 语法、忽略规则及 `git diff --check` 通过。未调用真实 AWS；当前主机无 Rosetta，未执行 Intel 或 macOS 13 实机验收。
 
 ## 已完成
 
@@ -85,7 +89,7 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - ELBv2 ALB／NLB／GWLB、Target Groups、监听器／ALB 规则／加权转发和目标健康状态；关联跳转限定同 Profile／账号／Region，支持 ARN 收藏及最近访问。EC2 手动查询所属实例型目标组，保留注册端口并明确部分失败；认证摘要不包含密钥和额外参数。
 - Route 53 当前 Profile／账号的全局公有／私有 Hosted Zones、DNS 记录和标签只读查询；委派 NS、VPC 关联、Alias 与各类路由配置展示，支持 global 收藏和最近访问，不执行 DNS 写入或传播检测。
 - 最近访问资源历史，按当前已验证 Profile／账号隔离、每组最多 50 条；仅记录可见详情，支持本地恢复、搜索、删除／清空及重新核验账号后打开保存的资源与 Region。
-- AWS Health 只读当前账号事件记录，全区域查询、公共事件过滤、本地筛选、最新说明与受影响资源；按 Profile 隔离，未选不查询，权限和 Support 计划不足明确提示。
+- AWS Health 当前账号／整个组织只读事件记录，全区域查询、公共事件过滤、本地筛选、组织账号 ID 筛选、受影响账号列表、按账号读取最新说明与资源；调用方仍为当前已验证 Profile，未选不查询，权限、组织启用和 Support 计划不足明确提示。
 - macOS 13+ 的 Intel／Apple Silicon 通用应用构建、资源与 Swift 兼容运行库打包、完整许可收集、Developer ID 签名、Apple 公证及正式 ZIP／DMG 交付；正式打包入口为 `scripts/package-distribution.py`，本地预览入口为 `scripts/build-universal.sh`。
 - EC2／Lambda CloudWatch 指标和 Lambda 日志检索，按明确 Profile／Region／资源隔离，手动读取／刷新／取消；共享日志组按函数隔离，分页与显示上限明确提示，查询和正文仅保存在当前页内存中。
 - CloudWatch 告警动作中的合法 SNS Topic ARN 可在同 Profile／账号／Region 内打开详情；不自动选其他 Profile、换区域或选择不存在目标的替代资源。
@@ -123,7 +127,7 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。
 - Route 53 真实账号与窗口验收：对照当前 Profile 的公有／私有 Hosted Zones、NS／VPC／标签、普通和 Alias／复杂路由记录、实际分页及四项 IAM 权限局部失败；确认资源 Region 不触发重查、切换或清空 Profile／session 后无旧数据、global 收藏与最近访问不改变资源 Region，目标删除／账号变化／列表失败时不误选缓存。当前展示配置，不验证实际 DNS 传播，不自动查询关联健康检查、流量策略或 VPC。
 - 最近访问真实窗口与账号验收：确认仅当前可见详情计入历史，后台加载不记录；验证切换／清空 Profile、切换 session 及多窗口范围隔离，重启恢复、单条删除与清空确认；重新打开保存的 Region，检查资源删除／无权限／账号变化时保留记录并提示，不自动选 Profile、不写入收藏。
-- Health 真实账号验收：与 AWS Health 控制台对照当前 Profile 账号的专属事件、未来计划变更、最新说明和受影响资源；验证 API Support 计划限制、三项读取权限、实际分页、全区域事件与资源 Region 独立，以及清空／切换 Profile 或 session 后旧数据不可见。当前页面展示事件最新状态，不保存事件每次更新的历史流水。
+- Health 真实账号验收：组织模式还需与 management／委派管理员控制台对照受影响账号、账号筛选和按账号说明／资源，验证组织未启用、四项组织读取权限失败、90 天范围，以及切换模式／筛选／详情账号后旧数据失效；不自动启用组织服务。与 AWS Health 控制台对照当前 Profile 账号的专属事件、未来计划变更、最新说明和受影响资源；验证 API Support 计划限制、三项读取权限、实际分页、全区域事件与资源 Region 独立，以及清空／切换 Profile 或 session 后旧数据不可见。当前页面展示事件最新状态，不保存事件每次更新的历史流水。
 - 指标／日志和告警 SNS 跳转真实账号验收：与控制台对照相同 UTC 时段及 5 分钟聚合；验证指标空／部分／无权限、默认和共享日志组函数隔离、过滤语法、实际分页／取消／显示上限；验证空 Profile 不请求、切换账号／Region／资源／页签清空结果。指标需要 `cloudwatch:GetMetricData`，日志需要 `logs:FilterLogEvents`，共享组额外需要 `logs:DescribeLogStreams`；日志组配置依赖 `lambda:GetFunction`。告警 SNS 动作只跳同范围 Topic，目标删除／无权限应提示而不误选；真实查询可能产生 CloudWatch 使用费用。
 - SNS 调用链真实账号验收：三类告警动作／禁用与抑制、上游权限不足、订阅部分失败、节点默认收起／点击展开后 Lambda 跳转、Endpoint 显示／隐藏、别名／版本说明、目标删除／缺权限及同名错误 ARN；确认跨账号／Region 不跳转、切换 Profile／Region／session 关闭弹窗并取消旧导航。当前只覆盖 CloudWatch 配置上游和 SNS 订阅下游。
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。

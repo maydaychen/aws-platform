@@ -27,7 +27,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
 - **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
 - **资源关联** - 逐层查看 Route 53 记录、负载均衡、目标组、EC2 和安全组的配置关系，支持手动反查及精确跳转
-- **AWS Health 事件** - 查看当前 Profile 账号跨区域的专属事件，支持搜索、筛选、事件说明和受影响资源
+- **AWS Health 事件** - 通过当前 Profile 切换当前账号／整个组织的跨区域事件，支持账号筛选、事件说明和受影响资源
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
 - **Profile 搜索** - 在所选 session 内按 Profile 名称、账号 ID 和角色查找
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
@@ -232,7 +232,11 @@ EC2 详情的 `Target Groups` 页签提供手动查询：列出当前 Region 的
 
 ### AWS Health 事件
 
-手动选择并验证 Profile 后，打开侧栏 `Health`，加载该账号所有区域的专属事件，包括尚未开始的计划变更。公共事件会被过滤，管理账号不会聚合组织成员；未选 Profile 时不查询。此页隐藏资源 Region 选择器，在其他页面切换资源 Region 不会重查 Health；商业区、中国区和 GovCloud 使用各自的 Health 端点。
+手动选择并验证 Profile 后，打开侧栏 `Health`，默认「当前账号」，加载该账号所有区域的专属事件，包括尚未开始的计划变更。手动切换「整个组织」后，通过同一 Profile 的权限查询组织事件。公共事件会被过滤；未选 Profile 时不查询。此页隐藏资源 Region 选择器，在其他页面切换资源 Region 不会重查 Health；商业区、中国区和 GovCloud 使用各自的 Health 端点。
+
+组织模式需要管理账号或委派管理员角色、启用全部功能的组织、已启用的 AWS Health 组织视图，以及符合 API 要求的 Support 计划。应用仅执行读取，不自动启用组织访问或修改 Support 计划；组织事件最多保留 90 天。参考 [组织视图前提](https://docs.aws.amazon.com/health/latest/ug/aggregate-events.html) 和 [组织事件接口](https://docs.aws.amazon.com/health/latest/APIReference/API_DescribeEventsForOrganization.html) 。
+
+输入 12 位账号 ID 并应用后，在 AWS 侧筛选该账号事件；留空查询所有账号。选择事件后加载受影响账号 ID，再明确选择其中一个账号，查看对应说明和资源，调用方 Profile 不变。角色需要 `health:DescribeEventsForOrganization`、`health:DescribeAffectedAccountsForOrganization`、`health:DescribeEventDetailsForOrganization` 和 `health:DescribeAffectedEntitiesForOrganization`，组织读取权限使用 `Resource: "*"`。账号列表、说明和资源分别显示失败提示。切换查询范围或应用账号筛选时清空旧结果；切换或清空 Profile 时恢复「当前账号」，取消旧请求并忽略迟到结果。
 
 支持按事件类型、ARN、服务或 Region 搜索，以及状态、类别、服务和事件 Region 的本地筛选。选择事件后显示最新说明、metadata、UTC 时间和受影响资源；说明与资源独立加载，失败分别提示，缺失值明确标记。页面展示 AWS Health 事件及其最新状态，不是每条事件所有更新的历史流水。
 
@@ -245,6 +249,8 @@ AWS Health API 要求账号具备符合条件的 AWS Support 计划；不满足�
 ![浅色 AWS Health 事件](docs/ui-health-light.png)
 
 ![深色 AWS Health 事件](docs/ui-health-dark.png)
+
+![组织 Health 事件与成员账号详情](docs/ui-health-organization-dark.png)
 
 ### CloudWatch Alarms
 

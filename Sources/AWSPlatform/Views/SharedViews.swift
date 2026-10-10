@@ -50,6 +50,35 @@ struct DetailGrid: View {
     }
 }
 
+/// Aligned rows for mixed short values, names and long resource identifiers.
+struct DetailFieldRows: View {
+    @Environment(\.locale) private var locale
+    let items: [(String, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(items.indices, id: \.self) { index in
+                let item = items[index]
+                HStack(alignment: .top, spacing: WorkspaceLayout.contextSpacing) {
+                    Text(L10n.text(item.0, locale: locale))
+                        .font(.caption).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: WorkspaceLayout.overviewLabelWidth, alignment: .leading)
+                    Text(item.1).font(.callout)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 10)
+                if index != items.count - 1 { Divider() }
+            }
+        }
+        .padding(.horizontal, 12)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.06)))
+    }
+}
+
 struct ListToolbar: View {
     @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

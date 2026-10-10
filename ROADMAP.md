@@ -8,7 +8,11 @@
 
 当前分发包的源提交为 `d5f9389`，包含 Health、最近访问、Route 53、ELBv2、安全组、统一资源关联、中英文界面与 Lambda 源码预览加固，源码均已推送至 GitHub `main`。原 `0.1.0 (1)` Universal 本地产物保留。
 
+本轮工作台交互改进已完成本地实现与回归：Profile 搜索与可选账户名称、紧凑顶部栏、区域地点名称、侧栏统一滚动／整行点击及切换动画修复、EC2 概览字段对齐；完整工程门禁、离线组件渲染与原生鼠标事件检查通过。本轮尚未推送或重新打包，当前分发包仍为上述 `v0.2.0`。
+
 ## 最近完成
+
+- 2026-10-10 17:22：完成八项工作台易用性改进：Profile 弹框按名称／角色／账号 ID／已缓存账户名称多词搜索；STS 成功后可选读取当前 Profile 的 GetAccountInformation，不传 AccountId、不枚举 Session 账号，后台名称加载不阻塞资源，缓存按 Profile／账号／配置路径隔离，权限不足保留名称／ID。Session、登录与 Profile 同行，窄窗口区域组换行；区域显示本地化地点与原始代码。工作区／服务共用滚动容器，菜单整行可点击，导航禁用已复现的 180 毫秒动画；EC2 概览按分组字段行对齐，长名称／ARN 换行。同步设计规范、双语使用说明和模拟 EC2 截图。本轮仅本地源码，未推送或重新打包。
 
 - 2026-10-08 15:02：发布 [v0.2.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) ，build 为 `2`、源提交为 `d5f9389`；Apple Silicon `arm64` 与 Intel `x86_64` 各提供独立 ZIP／DMG，附统一 SHA-256 校验文件。两套 App／DMG 均完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 及独立产物核验，Apple Silicon 空 AWS 配置启动通过。打包入口支持架构、版本与 build 参数，防止覆盖已有分发包并校验实际切片与源码提交；双语 README 增加架构下载入口，旧 `0.1.0 (1)` 本地产物保留。
 
@@ -32,9 +36,10 @@
 - 2026-10-03 13:09：简化 SNS 调用链首屏：告警、Topic 和订阅节点默认仅显示名称，整行可展开／收起，详情与 Open 按钮仅在展开后显示。合法 Lambda 节点显示函数名，展开即可跳转，不再要求先 Reveal；原始 Endpoint 仍默认遮罩，覆盖范围说明收入 About this view。展开状态随弹窗关闭或上下文变化重置；README 和默认收起的示例截图已更新。
 - 2026-10-03 12:54：SNS Topic 详情新增「调用链查看」弹窗，显示当前 Profile／Region 的 CloudWatch Metric／Composite 告警三类动作 → Topic → 已加载订阅；保留禁用／抑制和订阅确认状态，区分检查失败与无匹配。支持同范围告警、已确认 Lambda 订阅跳转详情，保留 qualifier 并注明函数级详情；Endpoint 默认遮罩，跨账号／Region 和未支持服务不跳转。独立导航不写收藏、不重配全服务，修复关联目标缺失时 Lambda 自动选首项及立即取消仍启动查询的问题。范围明确为配置关系，不是实际消息轨迹；README 和弹窗组件示例已同步。
 - 2026-10-03 12:24：新增按当前 Profile／Region 隔离的 SNS 只读模块，提供 Standard／FIFO Topic 搜索与筛选、属性／标签／订阅三组独立读取、配置及策略展示、手动刷新与取消。Topic 和订阅完整分页，保留待确认／已删除／未知状态及合法跨账号订阅 Owner；Endpoint 默认隐藏，显示后才可复制，切换 Topic／身份或刷新时重置。接入 ARN 收藏，未增加消息发布、订阅变更或自动跨账号导航。README 和六张模拟组件示例已同步。
-- 2026-10-03 11:46：新增 CloudWatch Metric／Composite Alarm 只读浏览，按当前 Profile 和资源 Region 隔离；首次进入列表才加载，支持搜索、状态／类型筛选、手动刷新和取消。详情展示状态原因、单指标／Math／Insights 配置、Composite 规则及抑制配置、动作目标 ARN；选择告警后独立加载标签和最近 30 天历史。完整分页、ARN 校验、错误脱敏与迟到结果隔离，接入现有 ARN 收藏定位。未增加 SNS 查询／发送、指标数据或告警写入；同时消除 Cost 时间默认闭包的 Sendable 编译警告，查询行为不变。README 和模拟组件截图已同步。
 
 ## 最近验证
+
+- 2026-10-10 17:22：工作台改进通过 Harness release 模式五项门禁（构建、全部应用测试、文件规模、差异与设计 lint），新增 18 项 Profile 搜索／账号元数据竞态及缓存边界测试与 1 项区域名称测试；当前共 710 项应用测试。3 项离线原生视图验收覆盖中英文、深浅色、960／1280 宽度、81 个 Profile 搜索、长名称／ARN、短侧栏统一滚动，以及行右侧空白的鼠标点击与无导航动画 transaction；双语文案 1,371 条键一致、无重复，README 本地引用审计与图片检查通过，浏览器预览因 IAB 不可用／Chrome 启动退出未完成。验收使用隔离 UserDefaults／注入 loader 和 NSHostingView，无真实 AWS 调用；实际账号名称权限、真实数据量下的性能、Intel／macOS 13 窗口仍待用户验收。
 
 - 2026-10-08 15:03：`0.2.0 (2)` 分架构发布通过 Harness release／pre-push 五项门禁、691 项应用测试和 23 项打包脚本测试；独立核验两套包的主程序／运行库切片、最低系统、双语资源、锁定依赖许可、签名、App／DMG 的 Apple Accepted 状态、票据及 Gatekeeper，ZIP 解压和 DMG 只读挂载后的 App 内容一致。Apple Silicon ZIP 副本在空 AWS 配置与隔离偏好下持续运行 8 秒；公开 Release 的四个包及校验文件均经匿名下载，字节数和 SHA-256 与本地一致，源提交为 `d5f9389`。未执行真实 AWS 查询，Intel／macOS 13 实机运行仍未验收。
 
@@ -58,10 +63,10 @@
 - 2026-10-03 13:09：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项临时离线原生渲染测试通过，8 种状态在 960／1200 宽度及深浅色生成 32 张截图，已核对默认收起、展开、原始 Endpoint 隐藏／显示及错误布局。临时测试入口已移除，`git diff --check` 通过。改动仅为展示与展开状态；未访问真实 AWS，完整窗口点击、键盘操作和 macOS 13 实机仍待验收。
 - 2026-10-03 12:54：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，258 项正式单测全部通过；新增 43 项覆盖关系精确匹配、范围与 ARN 校验、qualifier／特殊订阅状态、安全错误、迟到结果、按需导航和 Lambda 空选择回归。另 1 项临时原生离线渲染测试通过，7 种状态在 960／1200 宽度及深浅色生成 28 张截图，抽查长名称／ARN、默认遮罩／显示、空态和独立错误。独立审查核对关键代码、日志和截图；临时测试入口已移除，`git diff --check` 通过。未调用真实 AWS，也未进行完整窗口点击或 macOS 13 实机验收。
 - 2026-10-03 12:24：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建无编译警告，215 项正式单测全部通过；新增 37 项覆盖 SNS 服务分页／范围／特殊订阅状态、三组详情独立失败、过期结果隔离、Endpoint 显示状态和收藏兼容／导航。另有 4 项临时离线渲染测试通过，SNS 的 13 种整页状态在 960／1280 与深浅色下生成 52 张截图，加 4 张 Endpoint 显示／展开策略组件图；已抽查三个页签、长 ARN、空态和局部错误，独立审查核对核心代码、日志和关键截图。临时入口已移除，文档结构与 `git diff --check` 通过。未调用真实 AWS，真实 IAM／分页、窗口交互和 macOS 13 仍待验收；原有 Cost Charts 运行时警告继续保留在工程待办。
-- 2026-10-03 11:46：最终源码严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，无编译警告，178 项正式单测全部通过；新增 36 项覆盖两类告警映射、分页、账号／Region／分区校验、历史窗口、取消、局部权限失败、切换后过期结果和收藏兼容／定位。另有 3 项临时离线渲染测试通过，生成告警 14 种状态在 960／1280 宽度与深浅色下的 56 张截图，并刷新共享导航下的 Cost／资源组件示例；抽查四个页签、长名称／ARN／规则、空态、错误和加载态。独立审查核对核心代码、测试及关键截图；临时入口已移除，`git diff --check` 通过。未执行真实 AWS 查询或真实窗口交互，IAM 组合、实际分页及 macOS 13 运行时仍待用户验收；原有 Cost Charts 警告仍见工程待办。
 
 ## 已完成
 
+- Profile 多词搜索、当前账号名称后台读取及本地缓存；选择／验证前不查询账户元数据，不枚举 Session 账号。顶部 Session／Profile 同行，区域含地点名，侧栏统一滚动与整行点击、导航立即切换，EC2 概览字段按组对齐。
 - 应用内中英文与跟随系统设置，偏好本地持久化、现存提示即时切换、日期语言适配及原始 AWS 内容保留；语言切换不重建数据状态或查询 AWS。实现约定见 [本地化说明](docs/localization.md) 。
 
 - 独立 Security Groups 只读页、完整规则／标签／共享 owner 展示、本地搜索与 VPC 筛选、收藏／最近访问；统一关联支持 Route 53 → LB → Target Group → EC2／Lambda／ALB，以及 EC2／LB → 安全组和权限引用。逐层查询、手动反查、缓存返回、部分失败及精确导航均按当前 Profile／身份隔离；DNS 可显式查询一个 Region，打开精确记录时置顶展开。
@@ -94,11 +99,12 @@
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离的 691 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 账号名称／搜索及区域名称的 710 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
 
+- 工作台易用性真实窗口与账号验收：大量 Profile 的搜索／角色区分，首次选择后账户名称读取与 account:GetAccountInformation 权限降级、重试改名；确认未选 Profile 或只登录 Session 时不请求元数据。用实际资源数据量检查侧栏快速切换、整行点击、短窗口滚动及宽窄窗口顶部／EC2 对齐；当前鼠标与渲染证据来自离线 NSHostingView，不代表真实账号下全部 CPU 卡顿已排除。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。
 - Route 53 真实账号与窗口验收：对照当前 Profile 的公有／私有 Hosted Zones、NS／VPC／标签、普通和 Alias／复杂路由记录、实际分页及四项 IAM 权限局部失败；确认资源 Region 不触发重查、切换或清空 Profile／session 后无旧数据、global 收藏与最近访问不改变资源 Region，目标删除／账号变化／列表失败时不误选缓存。当前展示配置，不验证实际 DNS 传播，不自动查询关联健康检查、流量策略或 VPC。

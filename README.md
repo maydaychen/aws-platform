@@ -29,12 +29,13 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **Resource relationships** - Explore Route 53 records, load balancers, Target Groups, EC2 instances, and security groups one hop at a time, with explicit reverse queries and precise resource navigation
 - **AWS Health events** - View account-specific events across regions for the current Profile, with search, filters, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
+- **Searchable Profiles** - Search Profile names, account IDs, roles, and cached account names within the selected session
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
 - **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Interface language** - Follow the system language, or choose Simplified Chinese or English; switch instantly without reloading AWS data
-- **Native desktop layout** - Compact service navigation, resource lists with counts, adaptive detail grids, and system-aware light and dark themes
+- **Native desktop layout** - Compact Session/Profile controls, Region names with codes, a shared scrolling workspace/service sidebar, aligned EC2 overview fields, and system-aware light and dark themes
 
 The app does not create, modify, or delete resources, or invoke Lambda functions.
 
@@ -317,7 +318,11 @@ The following component previews use mock monitoring data:
 
 1. Choose a configured session in `SSO Session` and click `SSO Login`. The app runs the local `aws sso login --sso-session <name>` command in the background, and AWS CLI opens the default browser for authorization. No terminal window opens, and you do not need to select a Profile first.
 2. After a successful login, the Profile remains `Select profile`, resource lists and details stay empty, and no account identity verification or resource queries are sent.
-3. Only after you manually select a Profile associated with that session does the app verify your identity and load resources for that Profile's account, role, and Region. Switching sessions, signing in again, or returning the Profile to `Select profile` clears the current selection and resource views.
+3. Only after you manually select a Profile associated with that session does the app verify your identity and load resources for that Profile's account, role, and Region. Switching sessions, signing in again, or choosing `Clear profile selection` in the Profile popover clears the current selection and resource views.
+
+Click the Profile selector to search by Profile name, role, account ID, or a previously loaded account name. Space-separated search terms all need to match. Filtering stays within the selected session (or `Other profiles`) and never selects a Profile automatically. Results show the account name when available, with the original Profile, role, and account ID underneath; press Return to choose a single matching result.
+
+After identity verification, the app optionally reads the current account's name in the background using [GetAccountInformation](https://docs.aws.amazon.com/accounts/latest/APIReference/API_GetAccountInformation.html). This requires `account:GetAccountInformation`; `AccountId` is omitted to query only the selected Profile's credential account. Names are cached locally by Profile, account ID, and AWS configuration paths. No account-name requests run without a selected, verified Profile, and no other session accounts are enumerated. Missing permissions, unavailable endpoints, or errors leave the original Profile name/account ID visible and do not prevent resource browsing. `Retry Connection` refreshes the name as well as the connection.
 
 The app remembers only the last selected named session; a Profile must be selected manually on every launch. Valid AWS CLI login caches can be reused without signing in again. A session with only one Profile still does not select it automatically. You can also sign in to a session before configuring any associated Profiles.
 
@@ -453,7 +458,7 @@ sso_registration_scopes = sso:account:access
 
 Replace the example values with your configuration, then run `aws sso login --sso-session company` to sign in to the shared `company` session. Selecting `company` in the app makes `development` and `production` available in the Profile list, but you must still choose one manually. Both Profiles can reuse the login while the session is valid and you have access to the corresponding accounts and roles. Each Profile independently determines the account, role, and resource Region; `sso_region` is the IAM Identity Center Region. In the standard format, each Profile references one session. Different sessions require separate logins, and the app does not automatically discover or create Profiles for other accounts. See the [AWS CLI SSO documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
 
-The Region list includes commonly used regions known to the SDK and regions found in your configuration. You can also enter another Region code using the edit button beside the Region selector. Region activation, partition membership, and service permissions remain governed by AWS.
+The Region list includes commonly used regions known to the SDK and regions found in your configuration. Known regions show a localized location and the unchanged code, for example `Singapore · ap-southeast-1`; unknown codes remain visible verbatim. You can also enter another Region code using the edit button beside the Region selector. Region activation, partition membership, and service permissions remain governed by AWS.
 
 The Lambda list uses `GetFunction` to supplement function state and tags, fetching at most four functions concurrently. If some functions cannot be read or access is denied, the list remains available with a message. State filters exclude functions with unknown state. Required permissions include at least `lambda:ListFunctions` and `lambda:GetFunction` for the additional information.
 

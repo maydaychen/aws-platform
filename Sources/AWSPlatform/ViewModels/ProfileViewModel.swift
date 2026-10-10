@@ -5,6 +5,7 @@ import SotoCore
 final class ProfileViewModel: ObservableObject {
     typealias ProfileValidator = (AWSProfile, String) async throws -> AWSIdentity
     typealias SSOLogin = @MainActor (String, AWSConfigurationPaths) async throws -> Void
+    typealias AccountInformationLoader = (AWSProfile, AWSIdentity, AWSConfigurationPaths) async throws -> AWSAccountInformation
 
     @Published var profiles: [AWSProfile] = []
     @Published private(set) var sessions: [AWSSOSession] = []
@@ -17,6 +18,7 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var isSigningIn = false
     @Published private(set) var loginMessage: String?
     @Published private(set) var requiresSSOLogin = false
+    @Published private(set) var accountNames: [ProfileAccountName] = []
 
     private let savedSessionKey = "selectedSSOSessionID"
     private var hasLoadedConfiguration = false
@@ -25,6 +27,10 @@ final class ProfileViewModel: ObservableObject {
     private let defaults: UserDefaults
     private let profileValidator: ProfileValidator?
     private let ssoLogin: SSOLogin
+    private let accountInformationLoader: AccountInformationLoader?
+    private let accountNamesKey = "profileAccountNames.v1"
+    private var accountNameTask: Task<Void, Never>?
+    private var verifiedAccountIDs: [String: String] = [:]
     private var configurationGeneration = 0
 
     let provider = AWSServiceProvider()
@@ -68,13 +74,19 @@ final class ProfileViewModel: ObservableObject {
     init(
         defaults: UserDefaults = .standard,
         profileValidator: ProfileValidator? = nil,
+        accountInformationLoader: AccountInformationLoader? = nil,
         ssoLogin: @escaping SSOLogin = { session, paths in
             try await AWSSSOLoginService().login(session: session, paths: paths)
         }
     ) {
         self.defaults = defaults
         self.profileValidator = profileValidator
+        self.accountInformationLoader = accountInformationLoader
         self.ssoLogin = ssoLogin
+        if let data = defaults.data(forKey: accountNamesKey),
+           let names = try? JSONDecoder().decode([ProfileAccountName].self, from: data) {
+            accountNames = names.filter(\.isValid)
+        }
     }
 
     var selectedSession: AWSSOSession? {
@@ -95,6 +107,40 @@ final class ProfileViewModel: ObservableObject {
 
     var selectedProfile: AWSProfile? {
         availableProfiles.first { $0.id == selectedProfileID }
+    }
+
+    func accountID(for profile: AWSProfile, paths: AWSConfigurationPaths = AWSConfigurationPaths()) -> String? {
+        if selectedProfileID == profile.id, case .valid(let identity) = profileStatus {
+            return identity.account
+        }
+        return profile.ssoAccountID ?? verifiedAccountIDs[accountCacheKey(profile: profile, paths: paths)]
+    }
+
+    func accountName(for profile: AWSProfile, paths: AWSConfigurationPaths = AWSConfigurationPaths()) -> String? {
+        guard let accountID = accountID(for: profile, paths: paths) else { return nil }
+        return accountNames.first { $0.matches(profile: profile, accountID: accountID, paths: paths) }?.name
+    }
+
+    func profileTitle(_ profile: AWSProfile) -> String {
+        accountName(for: profile) ?? profile.name
+    }
+
+    func profileSubtitle(_ profile: AWSProfile) -> String {
+        var parts = [profile.name]
+        if let role = profile.ssoRoleName, !role.isEmpty { parts.append(role) }
+        if let accountID = accountID(for: profile) { parts.append(accountID) }
+        return parts.joined(separator: " · ")
+    }
+
+    func filteredProfiles(matching query: String) -> [AWSProfile] {
+        let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        return availableProfiles.filter { profile in
+            let fields = [profile.name, profile.ssoRoleName ?? "", accountID(for: profile) ?? "",
+                          accountName(for: profile) ?? ""]
+            return terms.allSatisfy { term in
+                fields.contains { $0.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+            }
+        }
     }
 
     var selectionPrompt: String {
@@ -150,6 +196,7 @@ final class ProfileViewModel: ObservableObject {
 
     private func clearProfileSelection() {
         configurationGeneration += 1
+        accountNameTask?.cancel()
         selectedProfileID = nil
         validatedProfileID = nil
         validatedRegion = nil
@@ -161,6 +208,7 @@ final class ProfileViewModel: ObservableObject {
 
     func beginConfiguration() {
         configurationGeneration += 1
+        accountNameTask?.cancel()
         if selectedProfile != nil { loginMessage = nil }
         requiresSSOLogin = false
         isValidatingProfile = selectedProfile != nil
@@ -199,6 +247,7 @@ final class ProfileViewModel: ObservableObject {
 
     func configureProvider(forceRefresh: Bool = false) async -> Bool {
         configurationGeneration += 1
+        accountNameTask?.cancel()
         let generation = configurationGeneration
         let profile = selectedProfile
         let region = selectedRegion
@@ -234,6 +283,7 @@ final class ProfileViewModel: ObservableObject {
             validatedProfileID = profile.id
             validatedRegion = region
             profileStatus = .valid(identity)
+            loadAccountName(profile: profile, identity: identity, generation: generation, forceRefresh: forceRefresh)
             return true
         } catch is CancellationError {
             if generation == configurationGeneration {
@@ -251,8 +301,48 @@ final class ProfileViewModel: ObservableObject {
 
     func shutdown() async {
         configurationGeneration += 1
+        accountNameTask?.cancel()
         isValidatingProfile = false
         await provider.shutdown()
+    }
+
+    private func accountCacheKey(profile: AWSProfile, paths: AWSConfigurationPaths) -> String {
+        [paths.config, paths.credentials, profile.id].joined(separator: "\u{0}")
+    }
+
+    private func loadAccountName(profile: AWSProfile, identity: AWSIdentity, generation: Int, forceRefresh: Bool) {
+        let paths = AWSConfigurationPaths()
+        verifiedAccountIDs[accountCacheKey(profile: profile, paths: paths)] = identity.account
+        if !forceRefresh, accountNames.contains(where: { $0.matches(profile: profile, accountID: identity.account, paths: paths) }) {
+            return
+        }
+        // Injected validation must never implicitly fall through to live AWS in offline tests.
+        guard accountInformationLoader != nil || profileValidator == nil else { return }
+        accountNameTask = Task {
+            do {
+                try Task.checkCancellation()
+                guard generation == configurationGeneration, selectedProfile == profile else { return }
+                let information: AWSAccountInformation
+                if let accountInformationLoader {
+                    information = try await accountInformationLoader(profile, identity, paths)
+                } else {
+                    information = try await provider.accountInformation(profile: profile, identity: identity, paths: paths)
+                }
+                try Task.checkCancellation()
+                guard generation == configurationGeneration, selectedProfile == profile,
+                      case .valid(let currentIdentity) = profileStatus, currentIdentity == identity,
+                      information.accountID == identity.account else { return }
+                let entry = ProfileAccountName(profileID: profile.id, accountID: identity.account,
+                    name: information.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    configPath: paths.config, credentialsPath: paths.credentials)
+                guard entry.isValid else { return }
+                accountNames.removeAll { $0.profileID == profile.id && $0.configPath == paths.config && $0.credentialsPath == paths.credentials }
+                accountNames.append(entry)
+                if let data = try? JSONEncoder().encode(accountNames) { defaults.set(data, forKey: accountNamesKey) }
+            } catch {
+                // Display metadata is optional; STS validation and resource browsing stay ready.
+            }
+        }
     }
 }
 

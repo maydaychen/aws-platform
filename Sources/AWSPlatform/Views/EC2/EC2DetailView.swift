@@ -154,21 +154,28 @@ struct EC2DetailView: View {
     private var overviewTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                DetailGrid(items: [
+                sectionTitle("Instance")
+                DetailFieldRows(items: [
                     ("Instance ID", instance.instanceId),
                     ("State", instance.state),
                     ("Type", instance.instanceType),
                     ("OS", instance.imageName ?? instance.platformDetails ?? "-"),
                     ("Architecture", instance.architecture ?? "-"),
                     ("AMI", instance.imageId ?? "-"),
-                    ("Key Pair", instance.keyName ?? "-"),
                     ("Launch Time", format(instance.launchTime)),
-                    ("Availability Zone", instance.availabilityZone ?? "-"),
+                    ("Availability Zone", instance.availabilityZone ?? "-")
+                ])
+                sectionTitle("Access and monitoring")
+                DetailFieldRows(items: [
+                    ("Key Pair", instance.keyName ?? "-"),
                     ("Monitoring", detail?.monitoringState ?? "-"),
                     ("IAM Profile", detail?.iamProfileARN ?? "-"),
-                    ("Lifecycle", detail?.lifecycle ?? "on-demand"),
                     ("Root Device", detail?.rootDeviceName ?? "-"),
-                    ("Root Device Type", detail?.rootDeviceType ?? "-"),
+                    ("Root Device Type", detail?.rootDeviceType ?? "-")
+                ])
+                sectionTitle("Compute and capacity")
+                DetailFieldRows(items: [
+                    ("Lifecycle", detail?.lifecycle ?? "on-demand"),
                     ("Virtualization", detail?.virtualizationType ?? "-"),
                     ("Hypervisor", detail?.hypervisor ?? "-"),
                     ("CPU Cores", number(detail?.cpuCoreCount)),

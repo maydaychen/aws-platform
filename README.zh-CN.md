@@ -118,6 +118,8 @@ open Package.swift
 
 选择并验证 Profile 后，打开 Bucket 并进入对象列表。「上传文件」选择一个本地文件，使用文件名上传到当前前缀。写入前的确认弹窗显示 Profile、账号、Bucket、完整 Key、本地路径和大小；同名对象需要单独确认「覆盖」。新建使用 `If-None-Match: *`，确认覆盖使用当前对象的 ETag 作为 `If-Match`，并发变化会导致上传失败，避免静默替换更新后的对象。上传成功后刷新当前前缀。覆盖不会复制原对象的元数据、标签或 ACL，新对象使用本次上传参数和 Bucket 默认设置；Bucket 现有版本控制、默认加密和策略继续生效，应用不会修改这些配置。
 
+也可从 Finder 拖入一个本地文件到对象列表，空列表同样支持。拖入高亮显示当前 Bucket／前缀；拖到文件夹行上仍上传到正在浏览的目录。松手后直接进入同一上传确认流程，无需再选择文件。暂不支持多文件、文件夹、符号链接或网页链接；有其他传输或确认时禁用拖入。文件地址解析期间切换 Profile 或离开目录，会使这次拖入失效。
+
 通过对象详情按钮或右键菜单下载，再由 macOS 保存窗口选择本地位置。应用先流式写入目标旁的临时文件，完整成功后才提交；传输中断或失败会删除临时文件并保留原有本地文件，完成后再取消不能撤销已保存的文件。支持空对象，不下载文件夹；S3 Key 不会作为本地文件系统路径使用。
 
 传输只使用当前已验证 Profile 和 Bucket 实际 Region。切换／清空 Profile、重新验证、切换 Region 或离开 Bucket／前缀时，取消待处理任务并使旧弹窗和结果失效。取消上传不能撤销 AWS 已经接收的写入，需要刷新确认对象。文件按块读写，提供进度和「取消」；单文件上传上限为 5 GiB。每个窗口同时执行一个传输，不自动重试。
@@ -384,6 +386,7 @@ Sources/AWSPlatform/
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
 │   ├── ConfigReader.swift
+│   ├── S3FileDrop.swift
 │   ├── S3TransferFiles.swift
 │   ├── Route53LoadBalancerMatcher.swift
 │   └── UserFacingError.swift

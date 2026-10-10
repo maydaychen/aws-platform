@@ -1386,6 +1386,10 @@
 "The Bucket or object no longer exists. Refresh and try again." = "Bucket 或对象已不存在，请刷新后重试。";
 "The transfer failed. Check your connection, credentials and local file permissions, then retry." = "传输失败，请检查网络、凭据和本地文件权限后重试。";
 "Choose a file to upload" = "选择要上传的文件";
+"Preparing upload" = "正在准备上传";
+"Drop a file to upload here" = "拖入文件上传到此处";
+"or drop a file" = "或拖入文件";
+"Drop one file at a time. Multiple files are not supported." = "每次请拖入一个文件，暂不支持多文件上传。";
 "Choose a save location" = "选择保存位置";
 "Uploading" = "正在上传";
 "Downloading" = "正在下载";

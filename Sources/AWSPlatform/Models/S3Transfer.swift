@@ -52,7 +52,7 @@ struct S3TransferProgress: Sendable {
 }
 
 enum S3TransferError: Error, Equatable, LocalizedError {
-    case invalidScope, invalidFilename, invalidFile, fileChanged, tooLarge
+    case invalidScope, invalidFilename, invalidFile, multipleFiles, fileChanged, tooLarge
     case regionUnavailable, destinationChanged, incompleteDownload
     case objectExists(etag: String, region: String)
     case objectChanged, accessDenied, archivedObject, notFound, failed
@@ -62,6 +62,7 @@ enum S3TransferError: Error, Equatable, LocalizedError {
         case .invalidScope: return "Select and verify a Profile before transferring files."
         case .invalidFilename: return "Use a valid filename. The full S3 key must fit within 1,024 UTF-8 bytes."
         case .invalidFile: return "Choose a readable regular file. Folders and symbolic links are not supported."
+        case .multipleFiles: return "Drop one file at a time. Multiple files are not supported."
         case .fileChanged: return "The local file changed. Choose it again before uploading."
         case .tooLarge: return "Single-file uploads are limited to 5 GiB."
         case .regionUnavailable: return "Could not determine the Bucket region. Check s3:GetBucketLocation permission and retry."

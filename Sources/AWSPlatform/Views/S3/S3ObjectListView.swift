@@ -1,7 +1,9 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct S3ObjectListView: View {
     @Environment(\.locale) private var locale
+    @State private var isDropTargeted = false
     @ObservedObject var vm: S3ViewModel
     @ObservedObject var transferVM: S3TransferViewModel
     let bucketName: String
@@ -24,6 +26,8 @@ struct S3ObjectListView: View {
                     Label(L10n.text("Upload File", locale: locale), systemImage: "arrow.up.doc")
                 }
                 .disabled(!transferVM.canStart || transferContext == nil)
+                Text(L10n.text("or drop a file", locale: locale))
+                    .font(.caption).foregroundColor(.secondary)
                 Spacer()
             }.padding(.horizontal, 12).padding(.vertical, 8)
             S3TransferStatusView(vm: transferVM)
@@ -92,10 +96,41 @@ struct S3ObjectListView: View {
             }
             ResourceListFooter(visible: vm.filteredObjects.count, total: vm.objects.count)
         }
+        .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+            guard let context = transferContext else { return false }
+            return transferVM.receiveUploadDrop(context: context, numberOfFiles: providers.count) {
+                try await S3FileDrop.load(providers)
+            }
+        }
+        .overlay {
+            if isDropTargeted, transferVM.canStart, let context = transferContext {
+                S3UploadDropOverlay(context: context).allowsHitTesting(false)
+            }
+        }
     }
 
     private func lastComponent(of key: String) -> String {
         let trimmed = key.hasSuffix("/") ? String(key.dropLast()) : key
         return trimmed.split(separator: "/").last.map(String.init) ?? key
+    }
+}
+
+struct S3UploadDropOverlay: View {
+    @Environment(\.locale) private var locale
+    let context: S3TransferContext
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.regularMaterial)
+            Rectangle().strokeBorder(Color.accentColor, lineWidth: 1)
+            VStack(spacing: WorkspaceLayout.controlSpacing) {
+                Label(L10n.text("Drop a file to upload here", locale: locale), systemImage: "arrow.up.doc")
+                    .font(.headline)
+                Text("s3://" + context.bucket + "/" + context.prefix)
+                    .font(.caption).foregroundColor(.secondary)
+                    .lineLimit(2).truncationMode(.middle)
+                    .help("s3://" + context.bucket + "/" + context.prefix)
+            }.padding(WorkspaceLayout.contextSpacing)
+        }
     }
 }

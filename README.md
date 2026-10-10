@@ -118,6 +118,8 @@ For contributor guidance on display strings and resource packaging, see [Localiz
 
 Select and verify a Profile, open a Bucket, and browse its objects. `Upload File` selects one local file and uploads it under the current prefix using its filename. Before any write, a confirmation shows the Profile, account, Bucket, complete key, local path, and size. A same-key object requires a separate `Overwrite` confirmation. New objects use `If-None-Match: *`; confirmed overwrites use the existing object's ETag with `If-Match`, so a concurrent change fails instead of silently replacing a newer object. Upload success refreshes the current prefix. Overwriting does not copy existing object metadata, tags, or ACLs; the new object uses this upload's parameters and Bucket defaults. Existing Bucket versioning, default encryption, and policies continue to apply; the app does not change that configuration.
 
+You can also drag one local file from Finder into the object list, including an empty list. The highlighted drop target shows the current Bucket/prefix; dropping on a folder row still targets the directory currently being browsed. Dropping opens the same upload confirmation without a file picker. Multiple files, folders, symbolic links, and web links are not supported. A drop is disabled during another transfer or confirmation. Changing Profile or leaving the directory while the file URL is resolving discards that pending drop.
+
 Download an object from its detail button or right-click menu, then choose a local destination in the macOS Save panel. The app streams into a temporary file beside that destination and commits it only after the transfer completes. An interrupted or failed download removes the temporary file and preserves an existing local file; cancelling after completion cannot undo the saved file. Empty objects are supported; folders are not downloaded. S3 keys are never used as local filesystem paths.
 
 Transfers use only the current verified Profile and the Bucket's actual Region. Switching or clearing the Profile, revalidating it, changing Region, or leaving the Bucket/prefix cancels pending work and invalidates old dialogs and results. Upload cancellation cannot undo a write AWS has already accepted; refresh to check the object. Files are streamed in bounded chunks, with progress and `Cancel`; single-file uploads are limited to 5 GiB. Each window runs one transfer at a time, without automatic retries.
@@ -384,6 +386,7 @@ Sources/AWSPlatform/
 │   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
 ├── Utilities/                   # Utilities
 │   ├── ConfigReader.swift
+│   ├── S3FileDrop.swift
 │   ├── S3TransferFiles.swift
 │   ├── Route53LoadBalancerMatcher.swift
 │   └── UserFacingError.swift

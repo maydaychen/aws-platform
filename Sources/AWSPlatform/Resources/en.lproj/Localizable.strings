@@ -1386,6 +1386,10 @@
 "The Bucket or object no longer exists. Refresh and try again." = "The Bucket or object no longer exists. Refresh and try again.";
 "The transfer failed. Check your connection, credentials and local file permissions, then retry." = "The transfer failed. Check your connection, credentials and local file permissions, then retry.";
 "Choose a file to upload" = "Choose a file to upload";
+"Preparing upload" = "Preparing upload";
+"Drop a file to upload here" = "Drop a file to upload here";
+"or drop a file" = "or drop a file";
+"Drop one file at a time. Multiple files are not supported." = "Drop one file at a time. Multiple files are not supported.";
 "Choose a save location" = "Choose a save location";
 "Uploading" = "Uploading";
 "Downloading" = "Downloading";

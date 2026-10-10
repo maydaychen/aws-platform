@@ -5,6 +5,7 @@ final class S3TransferViewModel: ObservableObject {
     typealias Uploader = @Sendable (S3UploadIntent, @escaping S3ProgressHandler) async throws -> Void
     typealias Downloader = @Sendable (S3TransferContext, String, S3DownloadDestination, @escaping S3ProgressHandler) async throws -> Void
     typealias Picker = @MainActor () async -> URL?
+    typealias DropLoader = @MainActor () async throws -> URL
 
     @Published private(set) var isBusy = false
     @Published var pendingUpload: S3UploadIntent?
@@ -67,15 +68,30 @@ final class S3TransferViewModel: ObservableObject {
             guard current(token, context), !Task.isCancelled else { return }
             guard let url else { finishSelection(); return }
             do {
-                acquireAccess(url)
-                let file = try S3LocalFile(url: url)
-                let key = try context.key(filename: url.lastPathComponent)
-                pendingUpload = .init(context: context, file: file, key: key)
-                isBusy = false
-                status = nil
-                task = nil
+                try prepareUpload(url, context: context)
             } catch { fail(error, token: token, context: context) }
         }
+    }
+
+    /// Capture the browsing context before the item provider resolves its file URL.
+    @discardableResult
+    func receiveUploadDrop(context: S3TransferContext, numberOfFiles: Int, loader: @escaping DropLoader) -> Bool {
+        guard canStart, accepts(context), numberOfFiles > 0 else { return false }
+        guard numberOfFiles == 1 else {
+            status = nil
+            error = S3TransferError.multipleFiles.errorDescription
+            return false
+        }
+        let token = begin(key: nil, uploading: true, status: "Preparing upload")
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let url = try await loader()
+                guard current(token, context), !Task.isCancelled else { return }
+                try prepareUpload(url, context: context)
+            } catch { fail(error, token: token, context: context) }
+        }
+        return true
     }
 
     func dismissUpload() {
@@ -185,6 +201,17 @@ final class S3TransferViewModel: ObservableObject {
     }
 
     private func finishSelection() {
+        isBusy = false
+        status = nil
+        task = nil
+    }
+
+    private func prepareUpload(_ url: URL, context: S3TransferContext) throws {
+        guard url.isFileURL else { throw S3TransferError.invalidFile }
+        acquireAccess(url)
+        let file = try S3LocalFile(url: url)
+        let key = try context.key(filename: url.lastPathComponent)
+        pendingUpload = .init(context: context, file: file, key: key)
         isBusy = false
         status = nil
         task = nil

@@ -6,7 +6,7 @@ import SotoS3
 final class S3ViewModel: ObservableObject {
     typealias BucketLoader = () async throws -> [S3BucketModel]
     typealias DetailLoader = (S3BucketModel) async throws -> S3BucketModel
-    typealias ObjectLoader = (String, String) async throws -> [S3ObjectModel]
+    typealias ObjectLoader = (String, String, String?) async throws -> S3ObjectPage
 
     @Published var buckets: [S3BucketModel] = []
     @Published var selectedBucket: S3BucketModel?
@@ -15,6 +15,10 @@ final class S3ViewModel: ObservableObject {
     @Published var currentPrefix = ""
     @Published var isLoading = false
     @Published var error: String?
+    @Published private(set) var isLoadingMoreObjects = false
+    @Published private(set) var hasLoadedObjectPage = false
+    @Published private(set) var nextObjectToken: String?
+    @Published private(set) var objectPageError: String?
     @Published var bucketSearchText = ""
     @Published var objectSearchText = ""
 
@@ -28,6 +32,10 @@ final class S3ViewModel: ObservableObject {
     private var listGeneration = 0
     private var detailGeneration = 0
     private var objectGeneration = 0
+    private var objectBucket: String?
+    private var consumedObjectTokens: Set<Data> = []
+
+    var hasMoreObjects: Bool { nextObjectToken != nil }
 
     init(
         bucketLoader: BucketLoader? = nil,
@@ -87,15 +95,14 @@ final class S3ViewModel: ObservableObject {
         detailLoadTask?.cancel()
         objectLoadTask?.cancel()
         isLoading = false
+        isLoadingMoreObjects = false
     }
 
     func reset() {
         cancelLoading()
         buckets = []
         selectedBucket = nil
-        objects = []
-        selectedObject = nil
-        currentPrefix = ""
+        clearObjectBrowser()
         error = nil
     }
 
@@ -110,9 +117,7 @@ final class S3ViewModel: ObservableObject {
         isLoading = true
         error = nil
         selectedBucket = nil
-        selectedObject = nil
-        objects = []
-        currentPrefix = ""
+        clearObjectBrowser()
         defer {
             if generation == listGeneration { isLoading = false }
         }
@@ -250,116 +255,116 @@ final class S3ViewModel: ObservableObject {
         detailGeneration += 1
         objectGeneration += 1
         objectLoadTask?.cancel()
+        clearObjectBrowser()
+        isLoading = false
         selectedBucket = bucket
-        selectedObject = nil
         detailLoadTask?.cancel()
         detailLoadTask = Task { await loadBucketDetails(name: bucket.name) }
     }
 
     func loadObjects(bucket: String, prefix: String = "") async {
-        guard !Task.isCancelled, objectLoader != nil || provider != nil else { return }
+        guard let generation = beginObjectLoad(bucket: bucket, prefix: prefix) else { return }
+        await loadObjectPage(bucket: bucket, prefix: prefix, token: nil, generation: generation, append: false)
+    }
+
+    func navigateToPrefix(bucket: String, prefix: String) {
+        guard let generation = beginObjectLoad(bucket: bucket, prefix: prefix) else { return }
+        objectLoadTask = Task {
+            await loadObjectPage(bucket: bucket, prefix: prefix, token: nil, generation: generation, append: false)
+        }
+    }
+
+    private func beginObjectLoad(bucket: String, prefix: String) -> Int? {
+        guard !Task.isCancelled, objectLoader != nil || provider != nil else { return nil }
         objectGeneration += 1
-        let generation = objectGeneration
+        objectLoadTask?.cancel()
         listGeneration += 1
         loadTask?.cancel()
+        clearObjectBrowser()
+        objectBucket = bucket
+        currentPrefix = prefix
         isLoading = true
         error = nil
-        selectedObject = nil
-        currentPrefix = prefix
-        objects = []
-        defer {
-            if generation == objectGeneration { isLoading = false }
-        }
+        return objectGeneration
+    }
 
+    func loadMoreObjects(bucket: String) {
+        guard !isLoading, objectBucket == bucket, let token = nextObjectToken else { return }
+        let generation = objectGeneration
+        let prefix = currentPrefix
+        isLoading = true
+        isLoadingMoreObjects = true
+        objectPageError = nil
+        objectLoadTask = Task {
+            await loadObjectPage(bucket: bucket, prefix: prefix, token: token, generation: generation, append: true)
+        }
+    }
+
+    private func loadObjectPage(bucket: String, prefix: String, token: String?, generation: Int, append: Bool) async {
+        guard generation == objectGeneration, !Task.isCancelled else { return }
+        defer {
+            if generation == objectGeneration {
+                isLoading = false
+                isLoadingMoreObjects = false
+            }
+        }
         do {
-            let rows: [S3ObjectModel]
+            let page: S3ObjectPage
             if let objectLoader {
-                rows = try await objectLoader(bucket, prefix)
+                page = try await objectLoader(bucket, prefix, token)
             } else if let provider {
-                rows = try await fetchObjects(bucket: bucket, prefix: prefix, provider: provider)
+                let client = try await s3Client(forBucket: bucket, provider: provider)
+                try Task.checkCancellation()
+                let response = try await client.listObjectsV2(S3ObjectListing.request(bucket: bucket, prefix: prefix, token: token))
+                page = try S3ObjectListing.page(from: response, prefix: prefix)
             } else {
                 return
             }
             try Task.checkCancellation()
             guard generation == objectGeneration else { return }
-            objects = rows.sorted { $0.key < $1.key }
-            selectedObject = objects.first
+            if let next = page.nextContinuationToken,
+               next.isEmpty || Data(next.utf8) == token.map({ Data($0.utf8) }) || consumedObjectTokens.contains(Data(next.utf8)) {
+                throw S3PaginationError.invalidContinuation
+            }
+            if let token { consumedObjectTokens.insert(Data(token.utf8)) }
+            let selection = selectedObject?.id
+            objects = S3ObjectListing.merge(append ? objects : [], with: page.objects)
+            nextObjectToken = page.nextContinuationToken
+            hasLoadedObjectPage = true
+            if append {
+                selectedObject = selection.flatMap { id in objects.first { $0.id == id } }
+            } else {
+                selectedObject = objects.first
+            }
         } catch {
             guard generation == objectGeneration, !Task.isCancelled,
                   !(error is CancellationError) else { return }
-            objects = []
-            self.error = UserFacingError.message(for: error)
+            if append {
+                objectPageError = UserFacingError.message(for: error)
+            } else {
+                self.error = UserFacingError.message(for: error)
+            }
         }
-    }
-
-    private func fetchObjects(
-        bucket: String,
-        prefix: String,
-        provider: AWSServiceProvider
-    ) async throws -> [S3ObjectModel] {
-        let client = try await s3Client(forBucket: bucket, provider: provider)
-
-        var rows: [S3ObjectModel] = []
-        var continuationToken: String?
-
-        repeat {
-            try Task.checkCancellation()
-            let response = try await client.listObjectsV2(
-                .init(
-                    bucket: bucket,
-                    continuationToken: continuationToken,
-                    delimiter: "/",
-                    prefix: prefix.isEmpty ? nil : prefix
-                )
-            )
-            try Task.checkCancellation()
-
-            for entry in response.commonPrefixes ?? [] {
-                guard let prefix = entry.prefix else { continue }
-                rows.append(
-                    S3ObjectModel(
-                        key: prefix,
-                        size: nil,
-                        lastModified: nil,
-                        storageClass: nil,
-                        isPrefix: true
-                    )
-                )
-            }
-
-            for object in response.contents ?? [] {
-                guard let key = object.key, key != prefix else { continue }
-                rows.append(
-                    S3ObjectModel(
-                        key: key,
-                        size: object.size,
-                        lastModified: object.lastModified,
-                        storageClass: object.storageClass?.rawValue,
-                        isPrefix: false
-                    )
-                )
-            }
-
-            continuationToken = response.nextContinuationToken
-        } while continuationToken != nil
-
-        return rows
-    }
-
-    func navigateToPrefix(bucket: String, prefix: String) {
-        objectGeneration += 1
-        objectLoadTask?.cancel()
-        objectLoadTask = Task { await loadObjects(bucket: bucket, prefix: prefix) }
     }
 
     func leaveObjectBrowser() {
         objectGeneration += 1
         objectLoadTask?.cancel()
+        clearObjectBrowser()
+        error = nil
+        isLoading = false
+    }
+
+    private func clearObjectBrowser() {
         objects = []
         selectedObject = nil
         currentPrefix = ""
-        error = nil
-        isLoading = false
+        objectBucket = nil
+        nextObjectToken = nil
+        consumedObjectTokens = []
+        objectPageError = nil
+        hasLoadedObjectPage = false
+        isLoadingMoreObjects = false
     }
 
     private func s3Client(forBucket name: String, provider: AWSServiceProvider) async throws -> S3 {

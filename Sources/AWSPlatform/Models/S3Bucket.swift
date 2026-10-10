@@ -27,5 +27,18 @@ struct S3ObjectModel: Identifiable, Hashable {
     let storageClass: String?
     let isPrefix: Bool
 
-    var id: String { key }
+    var id: Data { Data(key.utf8) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.size == rhs.size && lhs.lastModified == rhs.lastModified
+            && lhs.storageClass == rhs.storageClass && lhs.isPrefix == rhs.isPrefix
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(size)
+        hasher.combine(lastModified)
+        hasher.combine(storageClass)
+        hasher.combine(isPrefix)
+    }
 }

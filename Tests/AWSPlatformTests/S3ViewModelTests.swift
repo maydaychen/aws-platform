@@ -6,9 +6,9 @@ final class S3ViewModelTests: XCTestCase {
     @MainActor
     func testLateObjectsCannotReplaceNewPrefix() async {
         let gate = TestGate()
-        let vm = S3ViewModel(objectLoader: { _, prefix in
+        let vm = S3ViewModel(objectLoader: { _, prefix, _ in
             if prefix == "old/" { await gate.wait() }
-            return [S3ObjectModel(key: prefix + "file", size: nil, lastModified: nil, storageClass: nil, isPrefix: false)]
+            return .init(objects: [S3ObjectModel(key: prefix + "file", size: nil, lastModified: nil, storageClass: nil, isPrefix: false)])
         })
         let old = Task { await vm.loadObjects(bucket: "example", prefix: "old/") }
         await gate.waitForEntry()
@@ -23,7 +23,7 @@ final class S3ViewModelTests: XCTestCase {
     @MainActor
     func testResetRejectsLateObjectError() async {
         let gate = TestGate()
-        let vm = S3ViewModel(objectLoader: { _, _ in
+        let vm = S3ViewModel(objectLoader: { _, _, _ in
             await gate.wait()
             throw S3TestError.failed
         })
@@ -41,9 +41,9 @@ final class S3ViewModelTests: XCTestCase {
     func testCancelledObjectRequestCannotEndNewLoadingState() async {
         let oldGate = TestGate()
         let newGate = TestGate()
-        let vm = S3ViewModel(objectLoader: { _, prefix in
+        let vm = S3ViewModel(objectLoader: { _, prefix, _ in
             await (prefix == "old/" ? oldGate : newGate).wait()
-            return []
+            return .init(objects: [])
         })
         let old = Task { await vm.loadObjects(bucket: "example", prefix: "old/") }
         await oldGate.waitForEntry()

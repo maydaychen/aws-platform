@@ -20,7 +20,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
-- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录；支持单文件上传／下载、进度与取消
+- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；支持单文件上传／下载、进度与取消
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
@@ -113,6 +113,12 @@ open Package.swift
 切换语言会保留当前 Session、Profile、Region、筛选条件、资源选择和已加载结果，不会登录、验证凭据或发送 AWS 请求。服务名、资源名称、ID、ARN、AWS 标签、日志和事件说明保留原文。macOS 原生菜单使用系统语言。
 
 开发者文案与资源打包约定见 [Localization](docs/localization.md) 。
+
+### S3 对象浏览
+
+打开 Bucket 时只加载对象和文件夹的第一页，每次请求最多返回 1,000 项；点击「加载更多」才请求下一页，不再自动遍历整个目录。底部显示已加载数量，搜索只筛选当前目录已加载的项目，不查询尚未加载的页面或子目录。当前页没有可显示项目时，仍可能存在后续页。
+
+点击路径栏的「根目录」或任意祖先目录即可返回，长路径支持横向滚动；前缀中的斜杠、空格、Unicode 与百分号按原样保留。续页失败保留已有列表，可点击「重试」；刷新以及上传成功后的刷新都会从第一页重新开始，新上传对象可能位于后续页。切换目录、Bucket 或 Profile 时清除旧分页状态并丢弃迟到结果。浏览使用 `s3:ListBucket` 和现有 Bucket 区域查询，LIST 请求可能产生 S3 请求费用。参考 [ListObjectsV2](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html) 。
 
 ### S3 文件传输
 
@@ -376,10 +382,12 @@ Sources/AWSPlatform/
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   ├── S3Bucket.swift
+│   ├── S3ObjectPage.swift
 │   └── S3Transfer.swift
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
 │   ├── AWSS3TransferService.swift
+│   ├── S3ObjectListing.swift
 │   ├── AWSAlarmService.swift     # CloudWatch 告警、标签和历史读取
 │   ├── AWSSNSService.swift       # SNS Topic、配置、标签和订阅读取
 │   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页

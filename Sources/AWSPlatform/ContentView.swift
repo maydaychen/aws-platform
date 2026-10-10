@@ -187,10 +187,10 @@ struct ContentView: View {
         .onChange(of: s3TransferVM.refreshID) { _ in
             guard let context = s3TransferVM.completedContext, let current = currentS3TransferContext,
                   context.scope == current.scope, context.bucket == current.bucket,
-                  context.prefix == current.prefix else { return }
+                  Data(context.prefix.utf8) == Data(current.prefix.utf8) else { return }
             s3VM.navigateToPrefix(bucket: context.bucket, prefix: context.prefix)
         }
-        .onChange(of: s3VM.currentPrefix) { _ in s3TransferVM.leaveBrowser() }
+        .onChange(of: Data(s3VM.currentPrefix.utf8)) { _ in s3TransferVM.leaveBrowser() }
         .onChange(of: detailSelectionID) { _ in
             if showsResourceRelationships { closeRelationships() }
         }

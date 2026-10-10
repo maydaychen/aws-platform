@@ -1409,6 +1409,17 @@
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "这将使用上方显示的 Profile 向 AWS 写入文件。同名对象需要再次确认后才能覆盖。";
 "Browse · S3 transfers" = "资源浏览 · S3 传输";
 
+// S3 directory navigation and pagination
+"Directory %@" = "目录 %@";
+"Search loaded objects" = "搜索已加载的对象";
+"%@ loaded items" = "已加载 %@ 项";
+"%@ of %@ loaded items" = "显示 %@／%@ 个已加载项";
+"More items available. Search filters loaded items only." = "还有更多项目。搜索仅筛选已加载的项目。";
+"All items loaded. Search filters this directory only." = "当前目录已全部加载。搜索仅筛选此目录。";
+"Search filters loaded items only." = "搜索仅筛选已加载的项目。";
+"No matching objects in the pages loaded so far. Use Load more to continue." = "已加载的页面中没有匹配对象，请点击「加载更多」继续。";
+"S3 returned an invalid page token. Retry this page or refresh the directory." = "S3 返回了无效的分页标记，请重试当前页或刷新目录。";
+
 /* AWS Health organizational view */
 "Query scope" = "查询范围";
 "Current account" = "当前账号";

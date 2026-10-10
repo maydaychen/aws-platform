@@ -1409,6 +1409,17 @@
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation.";
 "Browse · S3 transfers" = "Browse · S3 transfers";
 
+// S3 directory navigation and pagination
+"Directory %@" = "Directory %@";
+"Search loaded objects" = "Search loaded objects";
+"%@ loaded items" = "%@ loaded items";
+"%@ of %@ loaded items" = "%@ of %@ loaded items";
+"More items available. Search filters loaded items only." = "More items available. Search filters loaded items only.";
+"All items loaded. Search filters this directory only." = "All items loaded. Search filters this directory only.";
+"Search filters loaded items only." = "Search filters loaded items only.";
+"No matching objects in the pages loaded so far. Use Load more to continue." = "No matching objects in the pages loaded so far. Use Load more to continue.";
+"S3 returned an invalid page token. Retry this page or refresh the directory." = "S3 returned an invalid page token. Retry this page or refresh the directory.";
+
 /* AWS Health organizational view */
 "Query scope" = "Query scope";
 "Current account" = "Current account";

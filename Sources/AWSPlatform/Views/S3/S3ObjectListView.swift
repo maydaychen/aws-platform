@@ -16,7 +16,8 @@ struct S3ObjectListView: View {
                 isLoading: vm.isLoading,
                 searchText: $vm.objectSearchText,
                 onRefresh: { vm.navigateToPrefix(bucket: bucketName, prefix: vm.currentPrefix) },
-                onCancel: { vm.cancelLoading() }
+                onCancel: { vm.cancelLoading() },
+                searchPlaceholder: "Search loaded objects"
             )
             HStack {
                 Button {
@@ -31,25 +32,12 @@ struct S3ObjectListView: View {
                 Spacer()
             }.padding(.horizontal, 12).padding(.vertical, 8)
             S3TransferStatusView(vm: transferVM)
-            if !vm.currentPrefix.isEmpty {
-                HStack {
-                    Button(L10n.text("Root", locale: locale)) {
-                        vm.navigateToPrefix(bucket: bucketName, prefix: "")
-                    }
-                    Text(vm.currentPrefix)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(vm.currentPrefix)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+            S3BreadcrumbView(bucket: bucketName, prefix: vm.currentPrefix) { prefix in
+                vm.navigateToPrefix(bucket: bucketName, prefix: prefix)
             }
             Divider()
 
-            List(vm.filteredObjects, selection: $vm.selectedObject) { object in
+            List(vm.filteredObjects, selection: objectSelection) { object in
                 HStack {
                     Image(systemName: object.isPrefix ? "folder" : "doc")
                         .foregroundColor(object.isPrefix ? .blue : .secondary)
@@ -66,7 +54,7 @@ struct S3ObjectListView: View {
                     }
                 }
                 .padding(.vertical, 4)
-                .tag(object)
+                .tag(object.id)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if object.isPrefix {
@@ -91,10 +79,12 @@ struct S3ObjectListView: View {
                 if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error, icon: "exclamationmark.triangle")
                 } else if !vm.isLoading && vm.filteredObjects.isEmpty {
-                    EmptyStateView(text: vm.objects.isEmpty ? "No objects at this prefix" : "No matching objects", icon: "folder")
+                    EmptyStateView(text: vm.hasMoreObjects
+                                   ? "No matching objects in the pages loaded so far. Use Load more to continue."
+                                   : vm.objects.isEmpty ? "No objects at this prefix" : "No matching objects", icon: "folder")
                 }
             }
-            ResourceListFooter(visible: vm.filteredObjects.count, total: vm.objects.count)
+            S3ObjectPaginationFooter(vm: vm, bucket: bucketName)
         }
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             guard let context = transferContext else { return false }
@@ -109,9 +99,15 @@ struct S3ObjectListView: View {
         }
     }
 
+    private var objectSelection: Binding<Data?> {
+        Binding(get: { vm.selectedObject?.id }, set: { id in
+            vm.selectedObject = id.flatMap { key in vm.objects.first { $0.id == key } }
+        })
+    }
+
     private func lastComponent(of key: String) -> String {
-        let trimmed = key.hasSuffix("/") ? String(key.dropLast()) : key
-        return trimmed.split(separator: "/").last.map(String.init) ?? key
+        let name = S3Breadcrumb.path(for: key).last?.name ?? key
+        return name.isEmpty ? "/" : name
     }
 }
 

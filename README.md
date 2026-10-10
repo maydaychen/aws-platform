@@ -20,7 +20,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **EC2 instances** - View instance state, networking, AMIs, and tags
 - **Lambda functions** - View function configuration and source code from deployment packages
 - **Metrics and logs** - Manually query CloudWatch metrics for EC2 and Lambda, and logs for the current Lambda function, with time ranges, log filters, and pagination
-- **S3 buckets** - Browse bucket security settings, objects, and folders; upload or download individual files with progress and cancellation
+- **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; upload or download individual files with progress and cancellation
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
@@ -113,6 +113,12 @@ Open `Settings` at the bottom of the sidebar or press `Cmd+,`. Choose `Follow Sy
 Changing the language preserves the selected Session, Profile, Region, filters, resources, and loaded results. It does not log in, validate credentials, or send AWS requests. Service names, resource names, IDs, ARNs, AWS tags, logs, and event descriptions retain their original content. Native macOS menu labels follow the system language.
 
 For contributor guidance on display strings and resource packaging, see [Localization](docs/localization.md).
+
+### S3 Object Browsing
+
+Open a Bucket to load the first page of objects and folders (up to 1,000 entries per request). Click `Load more` to request the next page; the app does not automatically enumerate the whole directory. The footer counts loaded entries, and search only filters those entries in the current directory, not unloaded pages or subdirectories. A page with no visible entries can still have more pages.
+
+Click `Root` or an ancestor in the breadcrumb bar to return to that directory; long paths scroll horizontally. Prefixes keep their literal slashes, spaces, Unicode, and percent characters. A failed next page keeps the existing list and offers `Retry`. Refreshing, including after an upload, starts again at the first page; an uploaded key may be on a later page. Switching directory, Bucket, or Profile discards the previous pagination state and late results. Browsing uses `s3:ListBucket` and the existing Bucket Region lookup; LIST requests can incur S3 request charges. See [ListObjectsV2](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html).
 
 ### S3 File Transfers
 
@@ -376,10 +382,12 @@ Sources/AWSPlatform/
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
 │   ├── S3Bucket.swift
+│   ├── S3ObjectPage.swift
 │   └── S3Transfer.swift
 ├── Services/                    # AWS service layer
 │   ├── AWSServiceProvider.swift
 │   ├── AWSS3TransferService.swift
+│   ├── S3ObjectListing.swift
 │   ├── AWSAlarmService.swift     # CloudWatch alarms, tags, and history
 │   ├── AWSSNSService.swift       # SNS Topics, configuration, tags, and subscriptions
 │   ├── AWSCostService.swift       # Cost Explorer queries and complete pagination

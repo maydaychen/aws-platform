@@ -3,6 +3,7 @@ set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="AWSPlatform"
+icon_source="$project_root/Assets/AppIcon/AppIcon.icns"
 dist_dir="$project_root/dist"
 architecture=universal
 version=0.2.0
@@ -73,6 +74,7 @@ cleanup() {
 
 [ "$(uname -s)" = Darwin ] || fail 'This script requires macOS and Xcode command-line tools.'
 [ -f "$project_root/Package.resolved" ] || fail 'Package.resolved is required; resolve and review dependency versions first.'
+[ -s "$icon_source" ] || fail 'Missing AppIcon.icns; run scripts/generate-app-icon.sh first.'
 command -v swift >/dev/null || fail 'Swift was not found.'
 xcrun --find lipo >/dev/null
 xcrun --find vtool >/dev/null
@@ -147,6 +149,8 @@ else
 fi
 chmod 755 "$executable"
 /usr/bin/ditto "$stage_dir/${architectures[0]}/resources" "$app_path/Contents/Resources"
+cp "$icon_source" "$app_path/Contents/Resources/AppIcon.icns"
+cmp -s "$icon_source" "$app_path/Contents/Resources/AppIcon.icns" || fail 'Bundled app icon differs from its source.'
 
 cat > "$app_path/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -166,6 +170,8 @@ cat > "$app_path/Contents/Info.plist" <<'PLIST'
     <string>AWSPlatform</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
     <key>CFBundleName</key>
     <string>AWSPlatform</string>
     <key>CFBundlePackageType</key>

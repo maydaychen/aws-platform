@@ -24,11 +24,12 @@ class DistributionTests(unittest.TestCase):
         (app / "Contents/MacOS").mkdir(parents=True)
         (app / "Contents/Frameworks").mkdir()
         (app / "Contents/Resources").mkdir()
+        (app / "Contents/Resources/AppIcon.icns").write_bytes(b"mock icon")
         (app / "Contents/MacOS/AWSPlatform").write_bytes(b"mock executable")
         (app / "Contents/Frameworks/libswiftMock.dylib").write_bytes(b"mock runtime")
         info = {"CFBundleShortVersionString": version, "CFBundleVersion": build,
                 "CFBundleIdentifier": "AWSPlatform", "CFBundleExecutable": "AWSPlatform",
-                "LSMinimumSystemVersion": "13.0"}
+                "LSMinimumSystemVersion": "13.0", "CFBundleIconFile": "AppIcon.icns"}
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
 
     def fake_run(self, architecture, calls):
@@ -111,7 +112,8 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(distribution.source_snapshot(), self.commit)
         checked = calls[0][calls[0].index("--") + 1:]
         for path in ("Sources", "Tests", "Package.swift", "Package.resolved", "scripts/build-universal.sh",
-                     "scripts/package-distribution.py", "scripts/collect-licenses.py", "scripts/licenses"):
+                     "scripts/package-distribution.py", "scripts/collect-licenses.py", "scripts/licenses",
+                     "scripts/generate-app-icon.sh", "Assets/AppIcon/AppIcon.png", "Assets/AppIcon/AppIcon.icns"):
             self.assertIn(path, checked)
         self.assertNotIn("AGENTS.md", checked)
 
@@ -130,6 +132,29 @@ class DistributionTests(unittest.TestCase):
                 self.make_bundle(app, version, build)
                 with patch.object(distribution, "run") as run:
                     with self.assertRaisesRegex(RuntimeError, "version or build number"):
+                        distribution.verify_bundle(app, "arm64", "0.2.0", "2")
+                    run.assert_not_called()
+
+    def test_missing_empty_or_misconfigured_icon_stops_before_binary_verification(self):
+        for case in ("missing", "empty", "wrong-name", "no-reference"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                app = Path(directory) / "AWSPlatform.app"
+                self.make_bundle(app)
+                icon = app / "Contents/Resources/AppIcon.icns"
+                if case == "missing":
+                    icon.unlink()
+                elif case == "empty":
+                    icon.write_bytes(b"")
+                else:
+                    info_path = app / "Contents/Info.plist"
+                    info = plistlib.loads(info_path.read_bytes())
+                    if case == "wrong-name":
+                        info["CFBundleIconFile"] = "OtherIcon.icns"
+                    else:
+                        del info["CFBundleIconFile"]
+                    info_path.write_bytes(plistlib.dumps(info))
+                with patch.object(distribution, "run") as run:
+                    with self.assertRaisesRegex(RuntimeError, "configured AppIcon.icns"):
                         distribution.verify_bundle(app, "arm64", "0.2.0", "2")
                     run.assert_not_called()
 

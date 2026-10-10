@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ARCHITECTURES = {"universal": ["arm64", "x86_64"], "arm64": ["arm64"], "x86_64": ["x86_64"]}
 REQUIRED_INPUTS = ("Package.swift", "Package.resolved", "scripts/build-universal.sh",
                    "scripts/package-distribution.py", "scripts/collect-licenses.py",
+                   "scripts/generate-app-icon.sh", "Assets/AppIcon/AppIcon.png", "Assets/AppIcon/AppIcon.icns",
                    "scripts/licenses/sources.json", "LICENSE", "THIRD_PARTY_NOTICES.md")
 DISTRIBUTION_INPUTS = ("Sources", "Tests", "scripts/licenses", *REQUIRED_INPUTS)
 
@@ -89,6 +90,9 @@ def verify_bundle(app, architecture, version, build_number):
         raise RuntimeError("Built application identity does not match AWSPlatform")
     if info.get("LSMinimumSystemVersion") != "13.0":
         raise RuntimeError("Built application must declare macOS 13.0 compatibility")
+    icon = app / "Contents" / "Resources" / "AppIcon.icns"
+    if info.get("CFBundleIconFile") != icon.name or not icon.is_file() or icon.stat().st_size == 0:
+        raise RuntimeError("Built application must include its configured AppIcon.icns")
     executable = app / "Contents" / "MacOS" / "AWSPlatform"
     binaries = [executable, *sorted((app / "Contents" / "Frameworks").glob("*.dylib"))]
     expected = set(ARCHITECTURES[architecture])

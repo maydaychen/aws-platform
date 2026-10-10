@@ -3,6 +3,7 @@
 本目录只存放可复用的本地构建与打包脚本；应用代码仍放在 `Sources/`，临时文件放在 `.tmp/`，交付产物放在 `dist/`。
 
 - `build-universal.sh`：本地 ad-hoc 通用包或单架构包构建。
+- `generate-app-icon.sh`：用 macOS 原生 `sips`／`iconutil` 将 PNG 主图转换为多尺寸 ICNS。
 - `package-distribution.py`：Developer ID 签名、Apple 公证与 ZIP／DMG 分发打包。
 - `collect-licenses.py` 与 `licenses/`：按锁定依赖收集完整许可，固定补充许可的来源见 `licenses/README.md`。
 - `tests/`：不调用签名或 Apple 接口的打包保护逻辑测试。
@@ -24,6 +25,7 @@
 - 验证两个架构、最低系统版本、资源 bundle、`Info.plist` 和签名后，才替换现有交付产物。
 - 输出 `dist/AWSPlatform.app` 和 `dist/AWSPlatform-universal.zip`。解压后可将应用复制到「应用程序」目录。
 - Bundle ID 保持为 `AWSPlatform`，与既有 `swift run` 的偏好域一致，延续收藏和 Session 偏好。
+- 将 `Assets/AppIcon/AppIcon.icns` 放入 `Contents/Resources` 并在 `Info.plist` 中声明图标；缺少图标时停止构建。修改 PNG 主图后先运行 `./scripts/generate-app-icon.sh`，生成说明见 [App Icon](../Assets/AppIcon/README.md) 。
 
 产物使用本地 ad-hoc 签名，没有使用 Developer ID，也没有进行 Apple 公证。此脚本提供本地构建和架构兼容产物，不代表已通过其他 Mac 的 Gatekeeper 或 Intel 实机验收。
 

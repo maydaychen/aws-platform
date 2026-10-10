@@ -4,7 +4,6 @@ import SotoEC2
 import SotoLambda
 import SotoS3
 import SotoSTS
-import SotoAccount
 import SotoCostExplorer
 import SotoCloudWatch
 import SotoCloudWatchLogs
@@ -121,23 +120,6 @@ actor AWSServiceProvider {
             arn: response.arn ?? "-",
             userID: response.userId ?? "-"
         )
-    }
-
-    func accountInformation(profile: AWSProfile, identity: AWSIdentity,
-                            paths: AWSConfigurationPaths) async throws -> AWSAccountInformation {
-        guard currentProfile == profile, currentPaths == paths, let awsClient else {
-            throw AWSServiceError.notConfigured
-        }
-        let partition: AWSPartition
-        switch identity.arn.split(separator: ":").dropFirst().first {
-        case "aws": partition = .aws
-        case "aws-cn": partition = .awscn
-        default: throw AWSServiceError.notConfigured // No Account endpoint in the SDK for GovCloud.
-        }
-        let account = Account(client: awsClient, partition: partition, timeout: .seconds(10))
-        // Omitting AccountId queries only the account of the selected Profile's credentials.
-        let response = try await account.getAccountInformation(accountId: nil)
-        return AWSAccountInformation(accountID: response.accountId ?? "", name: response.accountName ?? "")
     }
 
     func costExplorerClient(profile: AWSProfile, paths: AWSConfigurationPaths, partition: AWSPartition) throws -> CostExplorer {

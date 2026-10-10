@@ -21,7 +21,6 @@ let package = Package(
                 .product(name: "SotoLambda", package: "soto"),
                 .product(name: "SotoS3", package: "soto"),
                 .product(name: "SotoSTS", package: "soto"),
-                .product(name: "SotoAccount", package: "soto"),
                 .product(name: "SotoCostExplorer", package: "soto"),
                 .product(name: "SotoCloudWatch", package: "soto"),
                 .product(name: "SotoCloudWatchLogs", package: "soto"),

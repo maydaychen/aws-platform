@@ -156,10 +156,10 @@ struct ProfileBarView: View {
                     .accessibilityLabel(L10n.text("Checking connection…", locale: locale))
                     .help(L10n.text("Checking AWS profile", locale: locale))
             case .valid(let identity):
-                Label(vm.selectedProfile.flatMap { vm.accountName(for: $0) } ?? identity.account, systemImage: "checkmark.circle.fill")
+                Label(identity.account, systemImage: "checkmark.circle.fill")
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.green)
-                    .help([vm.selectedProfile.flatMap { vm.accountName(for: $0) }, identity.account, identity.arn].compactMap { $0 }.joined(separator: "\n"))
+                    .help("\(identity.account)\n\(identity.arn)")
             case .failed(let message):
                 Label(L10n.text(vm.requiresSSOLogin ? "Login required" : "Connection failed", locale: locale), systemImage: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)

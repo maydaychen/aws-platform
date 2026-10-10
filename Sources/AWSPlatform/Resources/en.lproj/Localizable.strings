@@ -1324,7 +1324,6 @@
 "[Preview truncated. Expand to read the full message.]" = "[Preview truncated. Expand to read the full message.]";
 "gRPC success codes" = "gRPC success codes";
 "Access and monitoring" = "Access and monitoring";
-"Account names appear after verification when account:GetAccountInformation is allowed." = "Account names appear after verification when account:GetAccountInformation is allowed.";
 "Bahrain" = "Bahrain";
 "Beijing" = "Beijing";
 "Calgary" = "Calgary";
@@ -1356,7 +1355,7 @@
 "Oregon" = "Oregon";
 "Osaka" = "Osaka";
 "Paris" = "Paris";
-"Search profiles, accounts or roles" = "Search profiles, accounts or roles";
+"Search profiles, account IDs or roles" = "Search profiles, account IDs or roles";
 "Seoul" = "Seoul";
 "Session" = "Session";
 "Singapore" = "Singapore";

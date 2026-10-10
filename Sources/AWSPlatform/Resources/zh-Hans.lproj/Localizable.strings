@@ -1324,7 +1324,6 @@
 "[Preview truncated. Expand to read the full message.]" = "［预览已截断，请展开阅读完整消息。］";
 "gRPC success codes" = "gRPC 成功状态码";
 "Access and monitoring" = "访问与监控";
-"Account names appear after verification when account:GetAccountInformation is allowed." = "验证 Profile 后，如有 account:GetAccountInformation 权限，将显示账户名称。";
 "Bahrain" = "巴林";
 "Beijing" = "北京";
 "Calgary" = "卡尔加里";
@@ -1356,7 +1355,7 @@
 "Oregon" = "俄勒冈";
 "Osaka" = "大阪";
 "Paris" = "巴黎";
-"Search profiles, accounts or roles" = "搜索 Profile、账号或角色";
+"Search profiles, account IDs or roles" = "搜索 Profile、账号 ID 或角色";
 "Seoul" = "首尔";
 "Session" = "Session";
 "Singapore" = "新加坡";

@@ -29,7 +29,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **资源关联** - 逐层查看 Route 53 记录、负载均衡、目标组、EC2 和安全组的配置关系，支持手动反查及精确跳转
 - **AWS Health 事件** - 查看当前 Profile 账号跨区域的专属事件，支持搜索、筛选、事件说明和受影响资源
 - **Session 与 Profile 分开选择** - 按 session 登录，再手动选择关联的 Profile 和 Region；未选 Profile 时资源区域保持空白
-- **Profile 搜索** - 在所选 session 内按 Profile 名称、账号 ID、角色和已缓存的账户名称查找
+- **Profile 搜索** - 在所选 session 内按 Profile 名称、账号 ID 和角色查找
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
@@ -320,9 +320,7 @@ Lambda 的 `Logs` 页在函数配置加载成功后可用。选择时间范围�
 2. 登录成功后，Profile 保持 `Select profile`，资源列表与详情保持空白，不发送账号身份验证或资源查询请求。
 3. 手动选择关联该 session 的 Profile 后，应用才验证身份并加载该 Profile 对应账号、角色和 Region 的资源。切换 session、重新登录或在 Profile 弹框中点击 `Clear profile selection`，都会清空当前选择和资源展示。
 
-点击 Profile 选择器，可按 Profile 名称、角色、账号 ID 或之前读取的账户名称搜索；空格分隔的搜索词需全部匹配。搜索仅筛选所选 session（或 `Other profiles`），不会自动选择 Profile。结果优先展示账户名称，下方保留原 Profile、角色和账号 ID；只有一个匹配结果时，可按回车手动选择。
-
-身份验证成功后，应用在后台通过 [GetAccountInformation](https://docs.aws.amazon.com/accounts/latest/APIReference/API_GetAccountInformation.html) 可选读取当前账户名称，需要 `account:GetAccountInformation` 权限；请求不传 `AccountId`，只读取当前 Profile 凭据所属账号。名称按 Profile、账号 ID 和 AWS 配置路径在本机缓存。未选择并验证 Profile 时不请求名称，也不枚举 session 下的其他账户。权限不足、端点不可用或读取失败时保留原 Profile 名称／账号 ID，不影响资源浏览；`Retry Connection` 会同时重试名称读取与连接验证。
+点击 Profile 选择器，可按 Profile 名称、角色或账号 ID 搜索；空格分隔的搜索词需全部匹配。搜索仅筛选所选 session（或 `Other profiles`），不会自动选择 Profile。结果显示配置中的 Profile 名称，下方展示角色和已知账号 ID；只有一个匹配结果时，可按回车手动选择。SSO 账号 ID 来自本地配置，其他 Profile 仅在当前选中并验证身份期间显示账号 ID。应用不查询或缓存 AWS 账户名称。
 
 应用只记住上次选择的具名 session；每次启动都需要重新手动选择 Profile。有效的 AWS CLI 登录缓存可以直接复用，不必每次点击登录。即使一个 session 只有一个 Profile，也不会自动选中；只有 session、尚未配置任何关联 Profile 时，也可以登录。
 

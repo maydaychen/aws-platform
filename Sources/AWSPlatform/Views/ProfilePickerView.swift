@@ -9,7 +9,7 @@ struct ProfilePickerView: View {
     var body: some View {
         Button { query = ""; isPresented = true } label: {
             HStack {
-                Text(vm.selectedProfile.map(vm.profileTitle) ?? L10n.text("Select profile", locale: locale))
+                Text(vm.selectedProfile?.name ?? L10n.text("Select profile", locale: locale))
                     .lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.up.chevron.down").font(.caption2)
@@ -42,7 +42,7 @@ struct ProfileSearchPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: WorkspaceLayout.controlSpacing) {
             Text(L10n.text("Select profile", locale: locale)).font(.headline)
-            TextField(L10n.text("Search profiles, accounts or roles", locale: locale), text: $query)
+            TextField(L10n.text("Search profiles, account IDs or roles", locale: locale), text: $query)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
                 .accessibilityIdentifier("profile.search")
@@ -60,10 +60,12 @@ struct ProfileSearchPopover: View {
                     Button { onSelect(profile.id) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(vm.profileTitle(profile)).fontWeight(.medium)
+                                Text(profile.name).fontWeight(.medium)
                                     .lineLimit(1).truncationMode(.middle)
-                                Text(vm.profileSubtitle(profile)).font(.caption).foregroundColor(.secondary)
-                                    .lineLimit(2)
+                                if !vm.profileSubtitle(profile).isEmpty {
+                                    Text(vm.profileSubtitle(profile)).font(.caption).foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
                             }
                             Spacer(minLength: 0)
                             if vm.selectedProfileID == profile.id { Image(systemName: "checkmark").foregroundColor(.accentColor) }
@@ -81,9 +83,6 @@ struct ProfileSearchPopover: View {
             if profiles.isEmpty {
                 Text(L10n.text("No matching profiles", locale: locale)).font(.caption).foregroundColor(.secondary)
             }
-            Text(L10n.text("Account names appear after verification when account:GetAccountInformation is allowed.", locale: locale))
-                .font(.caption).foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding()
         .frame(width: WorkspaceLayout.profilePopoverWidth)

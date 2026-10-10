@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查；Lambda 源码预览加固通过离线回归。面向 macOS 13+ 的 `0.2.0 (2)` 已按 Apple Silicon `arm64`／Intel `x86_64` 分别提供正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订及 Gatekeeper 检查；Apple Silicon 离线启动通过，Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；等待用户进行真实 AWS 账号验收。
+只读浏览修复、本地收藏与最近访问、统一样式、按 session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、告警到 SNS 跳转、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号事件、Route 53 Hosted Zones 与 DNS 记录、ELBv2 负载均衡与目标组、独立安全组、统一资源关联及中英文界面切换已完成本地回归与模拟组件渲染检查；Lambda 源码预览加固通过离线回归。面向 macOS 13+ 的 `0.2.0 (2)` 已按 Apple Silicon `arm64`／Intel `x86_64` 分别提供正式 ZIP 和 DMG，完成 Developer ID 签名、Apple 公证、票据装订及 Gatekeeper 检查；Apple Silicon 离线启动通过，Intel 与 macOS 13 实机运行仍待验收。登录后保持 Profile 为空，只有手动选择 Profile 才加载数据；用户已确认真实账号日常使用验收通过，记录见「最近验证」。
 
 源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`；[v0.2.0 Release](https://github.com/maydaychen/aws-platform/releases/tag/v0.2.0) 提供四个分架构安装包及 `SHA256SUMS.txt`。
 
@@ -10,9 +10,11 @@
 
 本轮工作台交互改进已完成本地实现与回归：Profile 按配置名称／角色／账号 ID 搜索、紧凑顶部栏、区域地点名称、侧栏统一滚动／整行点击及切换动画修复、EC2 概览字段对齐；完整工程门禁、离线组件渲染与原生鼠标事件检查通过。按用户决定移除验证后的账户名称查询、缓存和权限提示，相关构建与 699 项测试通过。源提交 `c1fad8b` 已构建为 Apple Silicon `arm64` 本机预览版 `0.2.0 (4)`，安装至 `/Applications/AWSPlatform.app` 并确认完成启动、主窗口可见；采用本地 ad-hoc 签名，原 `0.2.0 (3)` 安装保留备份。本轮尚未推送或发布正式安装包，公开分发仍为上述 `v0.2.0`。
 
-S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线回归：绑定当前已验证 Profile 和 Bucket 实际 Region，支持按钮选文件或从 Finder 拖入一个本地文件到当前前缀；上传前确认目标，同名覆盖需再次确认并使用 ETag 条件写。按块传输、进度／取消、失败保留原有本地文件，首版上传上限为 5 GiB。覆盖不会复制原对象元数据／标签／ACL，提示及双语 README 已说明。等待用户真实窗口拖拽与 AWS 验收；本轮未更新本机 build 4 安装、未推送或发布公开安装包。
+S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线回归：绑定当前已验证 Profile 和 Bucket 实际 Region，支持按钮选文件或从 Finder 拖入一个本地文件到当前前缀；上传前确认目标，同名覆盖需再次确认并使用 ETag 条件写。按块传输、进度／取消、失败保留原有本地文件，首版上传上限为 5 GiB。覆盖不会复制原对象元数据／标签／ACL，提示及双语 README 已说明。真实拖拽、写入与异常路径的逐项覆盖保留在专项验收清单；实现时未更新本机 build 4 安装、未推送或发布公开安装包。
 
 ## 最近完成
+
+- 2026-10-11 00:39：用户确认已进行真实账号日常使用，未发现问题，验收成功；整体使用验收状态改为通过。保留异常权限、并发覆盖、多窗口及 Intel／macOS 13 等专项清单，不把整体反馈推断为逐项覆盖或新版安装／发布记录。
 
 - 2026-10-10 23:26：新增 S3 对象列表整栏单文件拖拽上传，空目录同样可用；拖入提示显示当前 Bucket／前缀，复用上传／覆盖确认与进度取消，不根据文件夹行改变目标。仅加载本地文件 URL 表示，拒绝多文件、目录／符号链接及非本地地址；异步解析绑定原查询范围，取消／切换后丢弃迟到回调。同步双语提示、README 与设计规范，未操作真实 AWS，未安装／推送／发布。
 
@@ -41,9 +43,10 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - 2026-10-03 17:30：交付 `0.1.0 (1)` 正式 Universal ZIP／DMG，源构建提交为 `89461dd`；新增 `scripts/package-distribution.py`，串联双架构构建、完整许可收集、Developer ID 签名、App／DMG 分别公证及票据装订，生成校验和与分发清单。正式产物位于 `dist/AWSPlatform-0.1.0-universal/`，保留原本地预览包。README 和脚本说明同步打包入口及原生 AWS CLI 前提；未创建 GitHub Release。
 - 2026-10-03 16:13：源码已上传至 GitHub 公开仓库 `maydaychen/aws-platform` 的 `main`；新增 MIT LICENSE 和 26 项锁定依赖的许可／NOTICE 索引。修正 README 的公开克隆地址、Swift 6.2+ 构建前提和 Lambda 配置读取权限，说明部署包临时落盘行为；补齐本地 AWS 配置、环境配置、证书及个人 Agent 文件的忽略规则。保留原私有远端；未变更业务代码，未发布应用二进制。
 - 2026-10-03 15:02：新增 `scripts/build-universal.sh`，锁定依赖分别构建 arm64／x86_64 Release 并合并为 Universal `.app` 与 ZIP；标准资源布局、Swift 兼容运行库嵌入及构建机绝对 RPATH 清理，检查架构、最低系统、缺库与本地 ad-hoc 签名后交付。保留 `AWSPlatform` 偏好域标识；README 和脚本说明提供命令，`dist/` 加入忽略规则。未使用 Developer ID、执行公证或对外发布。
-- 2026-10-03 14:00：新增 EC2／Lambda `Metrics` 页和 Lambda `Logs` 页，手动查询最近 1／6／24 小时；指标按 5 分钟批量读取四项曲线，保留缺口／部分状态，UTC 轴与详情一致，窄屏单列、宽屏双列。日志采用已成功加载的函数配置，默认组直接查询，自定义组完整枚举并精确隔离函数日志流；冻结查询分页、取消、5,000 条／8 MiB 正文上限及不完整提示，不落盘。新增告警动作到同 Profile／账号／Region 的 SNS Topic 精确跳转；切换或清空范围会取消并隔离旧响应。README、权限说明及两张组件示例已同步。
 
 ## 最近验证
+
+- 2026-10-11 00:39：应用真实账号日常使用验收通过，方式为用户本人实际使用并反馈「今天已经用过了，没有问题，验收成功」。具体 App build、服务／操作覆盖及异常场景未逐项提供；此记录来自用户验收，不代表 Agent 本轮执行了 AWS 查询或额外安装／发布。
 
 - 2026-10-10 23:26：S3 拖拽上传通过 Harness release 五项门禁，736 项应用测试零失败；严格并发相关 54 项回归通过，本轮新增 10 项验证文件 URL 特殊字符／编码空字符／取消回调、单文件及 Profile／目录隔离、确认流程与失败重试。4 张中英文／深浅色列表与拖入提示截图已检查，280 pt 最窄宽度下空列表和长路径显示可用；渲染中的拖入态由测试叠加，不代表 Finder 原生命中验收。独立源码核验无剩余阻塞；证据在 `.tmp/s3-drop/`，未执行真实 AWS 传输。
 
@@ -72,7 +75,6 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - 2026-10-03 17:30：arm64／x86_64 Release 构建和 11 项离线打包测试通过。独立核验主程序双切片最低系统为 13.0，嵌套 Developer ID 签名、Hardened Runtime、安全时间戳有效；26 项依赖许可附件及补充来源哈希一致。Apple 回读 App／DMG 两次公证均为 Accepted，最终 App／DMG 票据与 Gatekeeper 通过；ZIP 独立解压和 DMG 只读挂载后的应用内容、签名及信任检查一致。解压副本以空 AWS 配置、隔离偏好在 Apple Silicon 上运行 8 秒，未见启动崩溃；README 审计、脚本秘密扫描及 `git diff --check` 通过。未调用真实 AWS，未进行 Intel／macOS 13 实机验收；另定位本机旧 Intel AWS CLI 在缺少 Rosetta 时无法启动，与应用签名无关。
 - 2026-10-03 16:13：重新执行 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`，严格构建成功，312 项正式测试零失败。Gitleaks 对全部可达 Git 历史、发布分支和当前发布文件扫描均未发现秘密；逐张检查 9 张文档截图，均为模拟数据。26 个依赖版本／revision 和 42 个 LICENSE／NOTICE 文件链接核对通过，README 静态审计、忽略规则及 `git diff --check` 通过。GitHub API 确认仓库公开、MIT 和 `main`，6 个关键文件 Git blob 与本地一致；无凭据克隆成功，提交与完整文件树一致。独立源码及交付审查未发现阻断源码公开的问题；未连接真实 AWS，未新增 Intel／macOS 13 实机验收。
 - 2026-10-03 15:02：arm64／x86_64 Release 构建通过，最终通用产物经独立 `lipo`、`vtool`、`plutil`、严格深层 `codesign` 与 ZIP 完整性核验；主程序两切片最低系统均为 13.0，嵌入的 Swift Span 运行库满足两架构的系统下限，无 Xcode 绝对 RPATH，已移除工具生成的冗余备份。ZIP 解压到独立目录后，以空 AWS 配置在 Apple Silicon 上持续运行 8 秒；包内运行库 `dlopen` 成功，启动日志未加载 Xcode 工具链库。使用当前正式 XCTest 产物运行 312 项测试，全部通过；业务源码未修改。Shell 语法、忽略规则及 `git diff --check` 通过。未调用真实 AWS；当前主机无 Rosetta，未执行 Intel 或 macOS 13 实机验收。
-- 2026-10-03 14:00：最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，312 项正式测试零失败、无编译警告，覆盖指标定义／分页／缺失与状态、日志共享组隔离／空页续读／上限、取消与完整 Profile 隔离、告警 SNS 导航。1 项临时原生渲染测试通过，72 张 480／900 宽度深浅色截图，抽查指标缺口、UTC 轴、1／2 列、父详情页签、长日志、部分／空／错误／加载／超限及跳转按钮；修复实测横轴误用本地时间并消除该图表 AxisValueLabel 诊断。旧 SNS 不支持断言已按新范围更新，临时渲染入口已移除；独立代码审查无阻断，`git diff --check` 通过。未访问真实 AWS，真实窗口点击、macOS 13 运行时和实际权限／分页仍待验收。
 
 ## 已完成
 
@@ -112,7 +114,9 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称与 S3 文件传输／拖拽上传的 736 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
-## 进行中
+## 专项验收清单
+
+用户已确认真实账号日常使用验收通过。以下保留为后续针对平台、权限、数据量与失败路径的专项检查清单，不再作为整体使用验收的阻塞；本次反馈未逐项说明这些场景的覆盖情况。
 
 - 工作台易用性真实窗口与账号验收：大量 Profile 的配置名称／账号 ID 搜索与角色区分。用实际资源数据量检查侧栏快速切换、整行点击、短窗口滚动及宽窄窗口顶部／EC2 对齐；当前鼠标与渲染证据来自离线 NSHostingView，不代表真实账号下全部 CPU 卡顿已排除。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
@@ -156,9 +160,9 @@ S3 单文件上传／下载及列表拖拽上传已完成本地实现与离线�
 - 为 S3 Bucket 详情的各类 AWS 错误增加更细粒度的模拟测试。
 - 验证 S3 大目录全量分页的等待时间和内存占用。
 
-## 阻塞
+## 自动化边界
 
-- 自动化测试不调用真实 AWS；真实账号、Region 和 IAM 权限组合仍需用户验收，S3 写入只由用户主动确认发起。
+- 自动化测试不调用真实 AWS，S3 写入只由用户主动确认发起；整体日常使用已获用户验收，其他账号／Region／IAM 组合与平台覆盖按专项清单记录。
 
 ## 工程与设计治理
 

@@ -12,4 +12,6 @@ enum WorkspaceLayout {
     static let profilePopoverWidth: CGFloat = 420
     static let profileListHeight: CGFloat = 300
     static let overviewLabelWidth: CGFloat = 132
+    static let s3ConfirmationWidth: CGFloat = 520
+    static let s3ConfirmationDetailsHeight: CGFloat = 300
 }

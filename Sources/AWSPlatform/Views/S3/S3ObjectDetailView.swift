@@ -3,6 +3,8 @@ import SwiftUI
 struct S3ObjectDetailView: View {
     @Environment(\.locale) private var locale
     let object: S3ObjectModel
+    let canDownload: Bool
+    let onDownload: () -> Void
 
     var body: some View {
         ScrollView {
@@ -22,6 +24,11 @@ struct S3ObjectDetailView: View {
                     ("Last Modified", object.lastModified?.formatted(Date.FormatStyle().locale(locale)) ?? "-"),
                     ("Storage Class", object.storageClass ?? "-")
                 ])
+                if !object.isPrefix {
+                    Button(action: onDownload) {
+                        Label(L10n.text("Download", locale: locale), systemImage: "arrow.down.doc")
+                    }.disabled(!canDownload)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

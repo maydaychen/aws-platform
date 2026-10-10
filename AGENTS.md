@@ -64,6 +64,14 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 - 启动、Session 登录成功、重新登录或切换 Session 均不得自动选择 Profile；只有手动选择 Profile 并验证身份成功后才加载数据。收藏及后续新增入口也必须遵守此规则。
 - 切换或清空 Profile 时，清空旧数据并取消旧请求或使其结果失效；查询状态和缓存按 Profile 隔离，区域型查询同时按 Region 隔离，防止跨 Profile 展示数据。
 
+## S3 File Transfers
+
+- S3 允许用户主动发起当前已验证 Profile 的单文件上传与下载；其他服务继续只读。不调用对象删除、ACL／标签写入或 Bucket 配置写入接口；覆盖上传不复制原对象的元数据、标签及 ACL，必须在确认提示中说明。
+- 传输绑定 Profile、STS 账号／角色、配置路径与 Bucket 实际 Region，未选或未验证 Profile 时禁用入口；切换、清空或重新验证范围时取消旧任务并使旧回调／确认弹窗失效。取消不能撤销已由 AWS 接收的写入，不自动回滚远端对象。
+- 上传前显示 Profile／账号、Bucket、完整 Key 和本地文件，由用户确认后执行。新建使用条件写防止意外覆盖；覆盖需再次明确确认，并绑定已检查对象的 ETag，不以先检查再无条件上传替代并发保护。文件内容不整段载入内存。
+- 下载由用户选择本地目标，使用同目录临时文件，完整成功后提交；失败或取消清理临时文件并保留原文件。云端 Key 不直接作为本地路径拼接。
+- 自动化验证只使用模拟传输和任务临时文件；不得为测试向真实 S3 写入、覆盖或删除数据。
+
 <!-- HARNESS_VERIFICATION_START -->
 
 ## Harness 验证

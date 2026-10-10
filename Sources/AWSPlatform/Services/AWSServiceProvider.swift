@@ -122,6 +122,12 @@ actor AWSServiceProvider {
         )
     }
 
+    func transferS3Client(scope: MonitoringScope, region: String) throws -> S3 {
+        guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
+              currentRegion == scope.region, let awsClient else { throw S3TransferError.invalidScope }
+        return S3(client: awsClient, region: .init(rawValue: region)).with(timeout: .minutes(30))
+    }
+
     func costExplorerClient(profile: AWSProfile, paths: AWSConfigurationPaths, partition: AWSPartition) throws -> CostExplorer {
         guard currentProfile == profile, currentPaths == paths, let awsClient else {
             throw CostError.invalidIdentity

@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
+macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文件上传与下载，基于 SwiftUI 构建。
 
 ## 下载
 
@@ -20,7 +20,7 @@ macOS 原生 AWS 资源与费用只读浏览工具，基于 SwiftUI 构建。
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
-- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录
+- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录；支持单文件上传／下载、进度与取消
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
@@ -113,6 +113,16 @@ open Package.swift
 切换语言会保留当前 Session、Profile、Region、筛选条件、资源选择和已加载结果，不会登录、验证凭据或发送 AWS 请求。服务名、资源名称、ID、ARN、AWS 标签、日志和事件说明保留原文。macOS 原生菜单使用系统语言。
 
 开发者文案与资源打包约定见 [Localization](docs/localization.md) 。
+
+### S3 文件传输
+
+选择并验证 Profile 后，打开 Bucket 并进入对象列表。「上传文件」选择一个本地文件，使用文件名上传到当前前缀。写入前的确认弹窗显示 Profile、账号、Bucket、完整 Key、本地路径和大小；同名对象需要单独确认「覆盖」。新建使用 `If-None-Match: *`，确认覆盖使用当前对象的 ETag 作为 `If-Match`，并发变化会导致上传失败，避免静默替换更新后的对象。上传成功后刷新当前前缀。覆盖不会复制原对象的元数据、标签或 ACL，新对象使用本次上传参数和 Bucket 默认设置；Bucket 现有版本控制、默认加密和策略继续生效，应用不会修改这些配置。
+
+通过对象详情按钮或右键菜单下载，再由 macOS 保存窗口选择本地位置。应用先流式写入目标旁的临时文件，完整成功后才提交；传输中断或失败会删除临时文件并保留原有本地文件，完成后再取消不能撤销已保存的文件。支持空对象，不下载文件夹；S3 Key 不会作为本地文件系统路径使用。
+
+传输只使用当前已验证 Profile 和 Bucket 实际 Region。切换／清空 Profile、重新验证、切换 Region 或离开 Bucket／前缀时，取消待处理任务并使旧弹窗和结果失效。取消上传不能撤销 AWS 已经接收的写入，需要刷新确认对象。文件按块读写，提供进度和「取消」；单文件上传上限为 5 GiB。每个窗口同时执行一个传输，不自动重试。
+
+上传需要 `s3:PutObject`，下载及覆盖前的 ETag 检查需要 `s3:GetObject`；实际区域未知时，位置查询需要 `s3:GetBucketLocation`。使用 KMS 加密的对象还需要相应密钥权限。参考 [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html) 、[GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html) 和 [SSE-KMS 权限](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html) 。其他服务保持只读；没有单独的对象删除、归档恢复、ACL／标签编辑或 Bucket 配置操作。
 
 ### 资源收藏
 
@@ -357,9 +367,11 @@ Sources/AWSPlatform/
 │   ├── RecentResource.swift
 │   ├── EC2Instance.swift
 │   ├── LambdaFunction.swift
-│   └── S3Bucket.swift
+│   ├── S3Bucket.swift
+│   └── S3Transfer.swift
 ├── Services/                    # AWS 服务层
 │   ├── AWSServiceProvider.swift
+│   ├── AWSS3TransferService.swift
 │   ├── AWSAlarmService.swift     # CloudWatch 告警、标签和历史读取
 │   ├── AWSSNSService.swift       # SNS Topic、配置、标签和订阅读取
 │   ├── AWSCostService.swift       # Cost Explorer 读取与完整分页
@@ -372,6 +384,7 @@ Sources/AWSPlatform/
 │   └── AWSSSOLoginService.swift  # CLI 登录进程及共享调用配置
 ├── Utilities/                   # 工具类
 │   ├── ConfigReader.swift
+│   ├── S3TransferFiles.swift
 │   ├── Route53LoadBalancerMatcher.swift
 │   └── UserFacingError.swift
 ├── ViewModels/                  # 视图模型
@@ -391,7 +404,8 @@ Sources/AWSPlatform/
 │   ├── RecentResourcesViewModel.swift
 │   ├── LambdaViewModel.swift
 │   ├── ProfileViewModel.swift
-│   └── S3ViewModel.swift
+│   ├── S3ViewModel.swift
+│   └── S3TransferViewModel.swift
 └── Views/                       # 界面视图
     ├── CloudWatch/
     ├── SNS/

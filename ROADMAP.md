@@ -10,7 +10,11 @@
 
 本轮工作台交互改进已完成本地实现与回归：Profile 按配置名称／角色／账号 ID 搜索、紧凑顶部栏、区域地点名称、侧栏统一滚动／整行点击及切换动画修复、EC2 概览字段对齐；完整工程门禁、离线组件渲染与原生鼠标事件检查通过。按用户决定移除验证后的账户名称查询、缓存和权限提示，相关构建与 699 项测试通过。源提交 `c1fad8b` 已构建为 Apple Silicon `arm64` 本机预览版 `0.2.0 (4)`，安装至 `/Applications/AWSPlatform.app` 并确认完成启动、主窗口可见；采用本地 ad-hoc 签名，原 `0.2.0 (3)` 安装保留备份。本轮尚未推送或发布正式安装包，公开分发仍为上述 `v0.2.0`。
 
+S3 单文件上传／下载已完成本地实现与离线回归：绑定当前已验证 Profile 和 Bucket 实际 Region，上传前确认目标，同名覆盖需再次确认并使用 ETag 条件写；按块传输、进度／取消、失败保留原有本地文件，首版上传上限为 5 GiB。覆盖不会复制原对象元数据／标签／ACL，提示及双语 README 已说明。等待用户真实 AWS 验收；本轮未更新本机 build 4 安装、未推送或发布公开安装包。
+
 ## 最近完成
+
+- 2026-10-10 23:11：新增 S3 单文件上传／下载，提供系统选择／保存窗口、当前前缀上传、目标确认、同名覆盖确认、详情／右键下载、进度与取消；新建 If-None-Match、覆盖 If-Match 防止误覆盖，实际 Region 查询失败不回退。下载使用同目录临时文件和完整成功后提交，空文件、文件变化、权限失败及迟到结果有离线回归；同步双语文案、README、设计与 S3 写入规范。未操作真实 AWS，未安装／推送／发布。
 
 - 2026-10-10 22:25：按用户决定移除验证后才读取的 AWS 账户名称功能：删除 GetAccountInformation 调用、SotoAccount 产品依赖、名称模型／异步任务／持久化及权限提示；启动时仅清理旧名称缓存键，不改变其他偏好。Profile 保持配置名称，次行显示角色及已知账号 ID，保留多词搜索；同步双语 README、文案与设计说明。源提交 `c1fad8b` 已构建、安装并打开本机 `arm64` 预览版 `0.2.0 (4)`，产物及原安装备份保存在 `dist/local-preview-arm64-no-account-name/`；未推送或上传正式分发包。
 
@@ -37,9 +41,10 @@
 - 2026-10-03 15:02：新增 `scripts/build-universal.sh`，锁定依赖分别构建 arm64／x86_64 Release 并合并为 Universal `.app` 与 ZIP；标准资源布局、Swift 兼容运行库嵌入及构建机绝对 RPATH 清理，检查架构、最低系统、缺库与本地 ad-hoc 签名后交付。保留 `AWSPlatform` 偏好域标识；README 和脚本说明提供命令，`dist/` 加入忽略规则。未使用 Developer ID、执行公证或对外发布。
 - 2026-10-03 14:00：新增 EC2／Lambda `Metrics` 页和 Lambda `Logs` 页，手动查询最近 1／6／24 小时；指标按 5 分钟批量读取四项曲线，保留缺口／部分状态，UTC 轴与详情一致，窄屏单列、宽屏双列。日志采用已成功加载的函数配置，默认组直接查询，自定义组完整枚举并精确隔离函数日志流；冻结查询分页、取消、5,000 条／8 MiB 正文上限及不完整提示，不落盘。新增告警动作到同 Profile／账号／Region 的 SNS Topic 精确跳转；切换或清空范围会取消并隔离旧响应。README、权限说明及两张组件示例已同步。
 - 2026-10-03 13:19：提升 SNS 调用链卡片层次：服务色图标、轻渐变底色、连续圆角、细边框和柔和阴影；悬停／展开时加强边框与层次。保留名称首屏、点击展开和 Open 流程，身份／区域校验及原始 Endpoint 遮罩不变；增加增强对比度边框和减少动态效果分支，更新默认收起的文档示例。
-- 2026-10-03 13:09：简化 SNS 调用链首屏：告警、Topic 和订阅节点默认仅显示名称，整行可展开／收起，详情与 Open 按钮仅在展开后显示。合法 Lambda 节点显示函数名，展开即可跳转，不再要求先 Reveal；原始 Endpoint 仍默认遮罩，覆盖范围说明收入 About this view。展开状态随弹窗关闭或上下文变化重置；README 和默认收起的示例截图已更新。
 
 ## 最近验证
+
+- 2026-10-10 23:11：S3 文件传输最终 Harness release 五项门禁通过，726 项应用测试零失败，其中新增 27 项覆盖条件写、Profile／Region／配置路径隔离、覆盖确认、流式文件变化、下载中断／取消／空文件及本地原文件保护；严格并发相关回归通过，4 张中英文／深浅色上传与覆盖弹窗截图已检查，长 Key 字段可滚动且操作区可见。新增 Provider 测试显式使用隔离 AWS 配置路径；独立源码核验的测试隔离缺口已修正。证据在 `.tmp/s3-transfer/`；真实 AWS 与 Intel／macOS 13 实机尚未验证。
 
 - 2026-10-10 22:25：账户名称移除通过 Harness release 五项门禁，699 项应用测试零失败；将取消功能的 18 项名称用例替换为 7 项 Profile 搜索／身份显示／旧缓存清理回归，原 11 项 SSO 登录与 12 项 Profile 状态及竞态回归保持通过。独立源码核验确认无 Account API、名称模型、SDK 产品依赖和权限提示残留；旧缓存键仅用于精确删除。新 `0.2.0 (4)` Release 构建通过，独立核验切片／最低系统／内嵌库／RPATH、1,370 条双语文案、严格深层签名和 ZIP 解压一致性通过；安装包与构建源全部 33 个节点、14 个文件的路径、类型、权限和 SHA-256 一致。NSWorkspace 确认安装 App 完成启动且未退出，CG 确认可见主窗口 1 个；证据在 `.tmp/remove-account-name/`。未执行真实 AWS 查询，实际界面与账号由用户验收。
 
@@ -66,7 +71,6 @@
 - 2026-10-03 15:02：arm64／x86_64 Release 构建通过，最终通用产物经独立 `lipo`、`vtool`、`plutil`、严格深层 `codesign` 与 ZIP 完整性核验；主程序两切片最低系统均为 13.0，嵌入的 Swift Span 运行库满足两架构的系统下限，无 Xcode 绝对 RPATH，已移除工具生成的冗余备份。ZIP 解压到独立目录后，以空 AWS 配置在 Apple Silicon 上持续运行 8 秒；包内运行库 `dlopen` 成功，启动日志未加载 Xcode 工具链库。使用当前正式 XCTest 产物运行 312 项测试，全部通过；业务源码未修改。Shell 语法、忽略规则及 `git diff --check` 通过。未调用真实 AWS；当前主机无 Rosetta，未执行 Intel 或 macOS 13 实机验收。
 - 2026-10-03 14:00：最终 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，312 项正式测试零失败、无编译警告，覆盖指标定义／分页／缺失与状态、日志共享组隔离／空页续读／上限、取消与完整 Profile 隔离、告警 SNS 导航。1 项临时原生渲染测试通过，72 张 480／900 宽度深浅色截图，抽查指标缺口、UTC 轴、1／2 列、父详情页签、长日志、部分／空／错误／加载／超限及跳转按钮；修复实测横轴误用本地时间并消除该图表 AxisValueLabel 诊断。旧 SNS 不支持断言已按新范围更新，临时渲染入口已移除；独立代码审查无阻断，`git diff --check` 通过。未访问真实 AWS，真实窗口点击、macOS 13 运行时和实际权限／分页仍待验收。
 - 2026-10-03 13:19：严格构建及 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项离线原生渲染测试通过，生成 36 张截图，已核对 960／1200 宽度的深浅色名称、图标、边框、展开详情及隐私显示状态。增强对比 NSAppearance 截图仅作为外观参考，不等同于 SwiftUI 增强对比分支动态验收；减少动态效果和悬停分支仅做代码核验。临时截图工具的只读环境属性注入错误已修正，最终日志无编译诊断；临时入口移除，`git diff --check` 通过。未访问真实 AWS，真实窗口鼠标／键盘操作和 macOS 13 仍待验收。
-- 2026-10-03 13:09：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，258 项正式测试零失败、无编译警告；1 项临时离线原生渲染测试通过，8 种状态在 960／1200 宽度及深浅色生成 32 张截图，已核对默认收起、展开、原始 Endpoint 隐藏／显示及错误布局。临时测试入口已移除，`git diff --check` 通过。改动仅为展示与展开状态；未访问真实 AWS，完整窗口点击、键盘操作和 macOS 13 实机仍待验收。
 
 ## 已完成
 
@@ -99,11 +103,11 @@
 - Lambda Event Source Mapping、异步调用配置、Function URL、Versions、Aliases、Reserved / Provisioned Concurrency 和 Resource Policy 按需加载。
 - Lambda Environment Variable 默认遮罩；部署包保持手动加载，支持文件选择、源码预览和轻量语法高亮。
 - Lambda 增强接口失败时局部降级，切换函数、Profile 或 Region 时取消旧详情与代码请求，并隔离过期结果。
-- S3 Bucket 列表、四项 Public Access Block 状态、对象分页和前缀浏览。
+- S3 Bucket 列表、四项 Public Access Block 状态、对象分页和前缀浏览；当前 Profile 的单文件上传／下载、实际 Region 解析、条件写／覆盖确认、进度／取消及本地文件保护。
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
-- 不提供 Lambda Invoke 或其他 AWS 资源写入操作；SSO 登录只由 CLI 管理本机会话缓存。
+- 不提供 Lambda Invoke；S3 文件上传以外的 AWS 资源保持只读，SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 账号名称／搜索及区域名称的 710 个单元测试。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 事件／详情／状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称与 S3 文件传输的 726 个单元测试。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 进行中
@@ -119,7 +123,8 @@
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。
 - CloudWatch Alarms 真实账号验收：当前 Profile／Region 的 Metric 和 Composite 列表、筛选与刷新、单指标／Math／Insights 配置、30 天历史和标签权限局部降级；验证 ARN 收藏、分页、快速切换／取消、清空 Profile 后不再展示数据，以及切换资源 Region 不触发 Cost 重查。读取 Composite 所需 `DescribeAlarms`／`DescribeAlarmHistory` 必须允许 `Resource: "*"`。
 - Cost 真实账号验收：启用 Cost Explorer 并检查读取与账单权限；对照当前账号、相同 UTC 日期／费用 Region／UnblendedCost 的控制台数据，验证管理账号不包含其他成员账号；验证无权限、数据准备中、分页、取消、退款与实际币种；切换资源 Region 不重新查询费用，切换 Profile 后旧数据清空。真实 API 调用由用户验证，可能产生调用费用。
-- 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 正常路径和权限不足路径。
+- 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 浏览正常路径和权限不足路径。
+- S3 文件传输真实账号验收：由用户在可测试的 Bucket 内确认上传／同名覆盖及并发冲突、空文件／普通文件下载、IAM／KMS 权限、版本控制、取消／切换 Profile 与实际 Bucket Region；自动化不执行真实 S3 写入。
 - 真实窗口中的拖动分栏、键盘导航、源码横向滚动及 macOS 13／Intel 实机运行验收；模拟组件布局与长文本渲染已检查，通用包已完成 Apple Silicon 启动检查。
 - 用户验收重点：先选 session 后点击 SSO 登录，授权成功保持 Profile 为空，手动选 Profile 后才加载；清空 Profile、重新登录、切换 session 后数据清空；取消／拒绝授权及登录中切换 session；终端登录缓存复用；多个 Profile 共用 session 时跨账号／角色切换；`Other profiles` 中仅 credentials 和旧式 SSO；自定义配置路径；快速切换账号／S3 目录；Lambda 部分 GetFunction 无权限。
 - 收藏真实账号验收：EC2、Lambda、S3、CloudWatch 告警和 SNS Topic 的添加／取消／搜索、重启恢复；先手动选择匹配 Profile，再定位收藏 Region；空选项不显示收藏，跨 Profile 点击只提示、不自动选择；快速连续打开、Profile 缺失、账号变更、资源删除和权限不足时保留收藏并提示。
@@ -134,7 +139,7 @@
 - 权限诊断：在现有登录／网络／配置／权限错误分类及局部降级基础上，补充逐接口检查结果、缺少的读取权限和可操作提示。
 - 资源关系后续：按需扫描 S3 Bucket 通知和 Lambda 异步目标，先明确逐资源请求开销、区域及局部失败语义；代码内 Publish 仍不能从配置完整发现。现有 SNS 弹窗已覆盖 CloudWatch 配置上游和订阅下游。
 - 资源跳转后续：扩展其他关系的同 Profile 显式跨 Region 跳转，以及打开对应 AWS 控制台页面；不自动选择其他 Profile。统一关联内 DNS 显式 Region 查询与区域资源跳转、全局记录精确定位已实现；SNS 保留原有同范围跳转。
-- S3 浏览增强：按需分页、逐层可点击面包屑、文本／JSON／图片内容预览和单对象下载。现有前缀浏览、Root 返回、对象元数据与后台全量翻页保留，不重复列为新增功能。
+- S3 浏览增强：按需分页、逐层可点击面包屑、文本／JSON／图片内容预览。现有前缀浏览、Root 返回、对象元数据与后台全量翻页保留，不重复列为新增功能。
 - 跨 Region 搜索：在同一个当前 Profile 下查询用户选定的多个 Region，展示资源所在区域；评估并发上限、取消、部分区域无权限和请求开销。
 - 配置快照：保存与比较资源配置快照，按 Profile 和资源身份隔离；不包含创建 EBS Snapshot 或其他 AWS 资源写入。
 
@@ -151,7 +156,7 @@
 
 ## 阻塞
 
-- 自动化测试不调用真实 AWS；真实账号、Region 和 IAM 权限组合仍需人工只读验收。
+- 自动化测试不调用真实 AWS；真实账号、Region 和 IAM 权限组合仍需用户验收，S3 写入只由用户主动确认发起。
 
 ## 工程与设计治理
 

@@ -96,7 +96,7 @@ struct ServiceSidebarView: View {
             settingsLink
                 .buttonStyle(.plain)
                 .help(L10n.text("Settings (⌘,)", locale: locale))
-            Label(L10n.text("Read only", locale: locale), systemImage: "lock")
+            Label(L10n.text("Browse · S3 transfers", locale: locale), systemImage: "arrow.up.arrow.down")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(10)

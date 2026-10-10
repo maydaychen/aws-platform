@@ -3,7 +3,9 @@ import SwiftUI
 struct S3ObjectListView: View {
     @Environment(\.locale) private var locale
     @ObservedObject var vm: S3ViewModel
+    @ObservedObject var transferVM: S3TransferViewModel
     let bucketName: String
+    let transferContext: S3TransferContext?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,6 +16,17 @@ struct S3ObjectListView: View {
                 onRefresh: { vm.navigateToPrefix(bucket: bucketName, prefix: vm.currentPrefix) },
                 onCancel: { vm.cancelLoading() }
             )
+            HStack {
+                Button {
+                    guard let context = transferContext else { return }
+                    transferVM.chooseUpload(context: context) { await S3FilePanels.openFile(locale: locale) }
+                } label: {
+                    Label(L10n.text("Upload File", locale: locale), systemImage: "arrow.up.doc")
+                }
+                .disabled(!transferVM.canStart || transferContext == nil)
+                Spacer()
+            }.padding(.horizontal, 12).padding(.vertical, 8)
+            S3TransferStatusView(vm: transferVM)
             if !vm.currentPrefix.isEmpty {
                 HStack {
                     Button(L10n.text("Root", locale: locale)) {
@@ -56,6 +69,16 @@ struct S3ObjectListView: View {
                         vm.navigateToPrefix(bucket: bucketName, prefix: object.key)
                     } else {
                         vm.selectedObject = object
+                    }
+                }
+                .contextMenu {
+                    if !object.isPrefix {
+                        Button(L10n.text("Download", locale: locale)) {
+                            guard let context = transferContext else { return }
+                            transferVM.chooseDownload(context: context, object: object) {
+                                await S3FilePanels.saveFile(key: object.key, locale: locale)
+                            }
+                        }.disabled(!transferVM.canStart || transferContext == nil)
                     }
                 }
             }

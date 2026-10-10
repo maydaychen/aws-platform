@@ -25,6 +25,7 @@ struct ContentView: View {
     @StateObject private var ec2VM = EC2ViewModel()
     @StateObject private var lambdaVM = LambdaViewModel()
     @StateObject private var s3VM = S3ViewModel()
+    @StateObject private var s3TransferVM: S3TransferViewModel
 
     @AppStorage("selectedService") private var selectedServiceID = AWSService.ec2.rawValue
     @State private var selectedService: AWSService = .ec2
@@ -38,6 +39,11 @@ struct ContentView: View {
     init() {
         let profiles = ProfileViewModel()
         _profileVM = StateObject(wrappedValue: profiles)
+        let transfers = AWSS3TransferService(provider: profiles.provider)
+        _s3TransferVM = StateObject(wrappedValue: S3TransferViewModel(
+            uploader: { try await transfers.upload($0, progress: $1) },
+            downloader: { try await transfers.download(context: $0, key: $1, destination: $2, progress: $3) }
+        ))
         let metrics = AWSMetricsService(provider: profiles.provider)
         _metricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
             try await metrics.load(scope: scope, target: target, range: range)
@@ -173,6 +179,17 @@ struct ContentView: View {
         .sheet(isPresented: $showsResourceRelationships, onDismiss: { resourceRelationshipsVM.reset() }) {
             ResourceRelationshipsView(vm: resourceRelationshipsVM, onOpen: openResourceRelationship, onClose: closeRelationships)
         }
+        .sheet(item: $s3TransferVM.pendingUpload) { intent in
+            S3UploadConfirmationView(intent: intent, onCancel: { s3TransferVM.dismissUpload() },
+                                     onConfirm: { s3TransferVM.confirmUpload(intent) })
+        }
+        .onChange(of: s3TransferVM.refreshID) { _ in
+            guard let context = s3TransferVM.completedContext, let current = currentS3TransferContext,
+                  context.scope == current.scope, context.bucket == current.bucket,
+                  context.prefix == current.prefix else { return }
+            s3VM.navigateToPrefix(bucket: context.bucket, prefix: context.prefix)
+        }
+        .onChange(of: s3VM.currentPrefix) { _ in s3TransferVM.leaveBrowser() }
         .onChange(of: detailSelectionID) { _ in
             if showsResourceRelationships { closeRelationships() }
         }
@@ -209,6 +226,7 @@ struct ContentView: View {
             reconfigureServices()
         }
         .onChange(of: selectedService) { _ in
+            s3TransferVM.leaveBrowser()
             resetMonitoring()
             closeRelationships()
             if selectedService != .ec2 { membershipsVM.reset() }
@@ -229,6 +247,7 @@ struct ContentView: View {
             loadVisibleSecurityGroups()
         }
         .onChange(of: destination) { selection in
+            if selection != .resources { s3TransferVM.leaveBrowser() }
             resetMonitoring()
             if selection != .resources {
                 closeRelationships()
@@ -246,6 +265,7 @@ struct ContentView: View {
             loadVisibleSecurityGroups()
         }
         .onDisappear {
+            s3TransferVM.reset()
             resetMonitoring()
             closeRelationships()
             relatedNavigation.cancel()
@@ -399,7 +419,8 @@ struct ContentView: View {
             LambdaListView(vm: lambdaVM)
         case .s3:
             if let bucketName = s3BrowsingBucket {
-                S3ObjectListView(vm: s3VM, bucketName: bucketName)
+                S3ObjectListView(vm: s3VM, transferVM: s3TransferVM,
+                                 bucketName: bucketName, transferContext: currentS3TransferContext)
             } else {
                 S3BucketListView(vm: s3VM)
             }
@@ -563,6 +584,19 @@ struct ContentView: View {
         return MonitoringScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
     }
 
+    private var currentS3TransferContext: S3TransferContext? {
+        guard let scope = currentMonitoringScope, let bucket = s3BrowsingBucket else { return nil }
+        return .init(scope: scope, bucket: bucket, prefix: s3VM.currentPrefix,
+                     knownRegion: s3VM.selectedBucket?.name == bucket ? s3VM.selectedBucket?.region : nil)
+    }
+
+    private func downloadS3Object(_ object: S3ObjectModel) {
+        guard let context = currentS3TransferContext else { return }
+        s3TransferVM.chooseDownload(context: context, object: object) {
+            await S3FilePanels.saveFile(key: object.key, locale: locale)
+        }
+    }
+
     private var currentRelationReference: ResourceRelationReference? {
         guard let scope = currentMonitoringScope, let resource = currentResource,
               [.ec2, .loadBalancers, .targetGroups, .securityGroups, .route53].contains(selectedService) else { return nil }
@@ -680,6 +714,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     HStack {
                         Button(L10n.text("Back to Buckets", locale: locale)) {
+                            s3TransferVM.leaveBrowser()
                             s3VM.leaveObjectBrowser()
                             s3BrowsingBucket = nil
                         }
@@ -693,7 +728,8 @@ struct ContentView: View {
                     .padding()
                     Divider()
                     if let object = s3VM.selectedObject {
-                        S3ObjectDetailView(object: object)
+                        S3ObjectDetailView(object: object, canDownload: s3TransferVM.canStart,
+                                           onDownload: { downloadS3Object(object) })
                     } else {
                         EmptyStateView(text: "Select an object or folder", icon: "doc")
                     }
@@ -768,6 +804,7 @@ struct ContentView: View {
         ec2VM.reset()
         lambdaVM.reset()
         s3VM.reset()
+        s3TransferVM.reset()
         alarmsVM.reset()
         snsVM.reset()
         elbVM.reset()
@@ -810,6 +847,7 @@ struct ContentView: View {
             ec2VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .ec2)
             lambdaVM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .lambda)
             s3VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .s3)
+            s3TransferVM.configure(scope: currentMonitoringScope)
             configureAlarms()
             configureSNS()
             configureELB()

@@ -46,7 +46,8 @@ class DistributionTests(unittest.TestCase):
                 return f'  1) {self.identity} "Developer ID Application: Example ({self.team})"'
             if values[0].endswith("build-universal.sh"):
                 output = Path(values[values.index("--output-dir") + 1])
-                self.make_bundle(output / "AWSPlatform.app")
+                self.make_bundle(output / "AWSPlatform.app", values[values.index("--version") + 1],
+                                 values[values.index("--build-number") + 1])
             if values[:3] == ["xcrun", "lipo", "-archs"]:
                 return " ".join(distribution.ARCHITECTURES[architecture])
             if values[:4] == ["ditto", "-c", "-k", "--keepParent"]:
@@ -73,7 +74,7 @@ class DistributionTests(unittest.TestCase):
         required = ["package-distribution.py", "--identity", self.identity, "--team-id", self.team]
         with patch.object(distribution.sys, "argv", required), patch.object(distribution, "package") as package:
             distribution.main()
-            package.assert_called_once_with(self.identity, self.team, "universal", "0.2.0", "2")
+            package.assert_called_once_with(self.identity, self.team, "universal", "0.3.0", "6")
         explicit = required + ["--architecture", "x86_64", "--version", "0.3.1", "--build-number", "4"]
         with patch.object(distribution.sys, "argv", explicit), patch.object(distribution, "package") as package:
             distribution.main()
@@ -83,7 +84,7 @@ class DistributionTests(unittest.TestCase):
         for existing_type in ("directory", "symlink"):
             with self.subTest(existing_type=existing_type), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                destination = root / "dist/AWSPlatform-0.2.0-arm64"
+                destination = root / "dist/AWSPlatform-0.3.0-arm64"
                 destination.parent.mkdir()
                 if existing_type == "directory":
                     destination.mkdir()
@@ -178,17 +179,17 @@ class DistributionTests(unittest.TestCase):
                         patch.object(distribution, "verify_signature"), \
                         patch.object(distribution, "notarize", return_value={"status": "Accepted"}):
                     distribution.package(self.identity, self.team, architecture)
-                stem = f"AWSPlatform-0.2.0-{architecture}"
+                stem = f"AWSPlatform-0.3.0-{architecture}"
                 destination = root / "dist" / stem
                 manifest = json.loads((destination / "distribution.json").read_text())
                 self.assertEqual(manifest["architectures"], sorted(distribution.ARCHITECTURES[architecture]))
-                self.assertEqual((manifest["version"], manifest["build"]), ("0.2.0", "2"))
+                self.assertEqual((manifest["version"], manifest["build"]), ("0.3.0", "6"))
                 self.assertEqual(manifest["sourceCommit"], self.commit)
                 self.assertEqual(set(manifest["sha256"]), {f"{stem}.zip", f"{stem}.dmg"})
                 for filename, digest in manifest["sha256"].items():
                     self.assertEqual(distribution.sha256(destination / filename), digest)
                 build = next(call for call in calls if call[0].endswith("build-universal.sh"))
-                self.assertEqual(build[1:7], ["--architecture", architecture, "--version", "0.2.0", "--build-number", "2"])
+                self.assertEqual(build[1:7], ["--architecture", architecture, "--version", "0.3.0", "--build-number", "6"])
                 self.assertEqual(len([call for call in calls if call[:2] == ["git", "rev-parse"]]), 3)
                 self.assertEqual(len([call for call in calls if call[:3] == ["xcrun", "lipo", "-archs"]]), 2)
                 self.assertEqual(list((root / ".tmp/distribution").iterdir()), [])
@@ -208,7 +209,7 @@ class DistributionTests(unittest.TestCase):
             stages = list((root / ".tmp/distribution").iterdir())
             self.assertEqual(len(stages), 1)
             self.assertTrue((stages[0] / "AWSPlatform-notarization.zip").exists())
-            self.assertFalse((root / "dist/AWSPlatform-0.2.0-arm64").exists())
+            self.assertFalse((root / "dist/AWSPlatform-0.3.0-arm64").exists())
             self.assertEqual((old / "previous.zip").read_bytes(), b"previous release")
 
     def test_signature_requires_developer_id_team_timestamp_and_runtime(self):

@@ -4,6 +4,8 @@ from contextlib import contextmanager
 import importlib.util
 import io
 from pathlib import Path
+import plistlib
+import shutil
 import stat
 import tempfile
 import unittest
@@ -54,6 +56,44 @@ class UpdateTrustTests(unittest.TestCase):
                 self.assertEqual((destination / "bin/sign_update").stat().st_mode & 0o777, 0o500)
                 archive.write_bytes(archive.read_bytes() + b"changed")
                 with self.assertRaises(RuntimeError): updates.extract_verified_archive(archive, destination)
+
+    def test_embed_prepares_only_copied_framework_for_resigning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "artifact"
+            source = artifact / "Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+            binary = source / "Versions/B/Sparkle"
+            resource = source / "Versions/B/_CodeSignature/CodeResources"
+            binary.parent.mkdir(parents=True)
+            resource.parent.mkdir(parents=True)
+            binary.write_bytes(b"verified executable")
+            resource.write_bytes(b"verified signing resources")
+            binary.chmod(0o500)
+            resource.chmod(0o400)
+            (source / "Versions/Current").symlink_to("B")
+            (source / "Sparkle").symlink_to("Versions/Current/Sparkle")
+            app = root / "App.app"
+            (app / "Contents").mkdir(parents=True)
+            (app / "Contents/Info.plist").write_bytes(plistlib.dumps({}))
+            @contextmanager
+            def trusted():
+                yield artifact
+            def copy(*args):
+                self.assertEqual(args[0], "ditto")
+                shutil.copytree(args[1], args[2], symlinks=True)
+            def sign(candidate, identity, run):
+                copied = updates.framework_path(candidate)
+                self.assertEqual(identity, "-")
+                self.assertEqual((copied / "Versions/B/Sparkle").stat().st_mode & 0o777, 0o755)
+                self.assertEqual((copied / "Versions/B/_CodeSignature/CodeResources").stat().st_mode & 0o777, 0o644)
+                self.assertEqual((copied / "Sparkle").read_bytes(), binary.read_bytes())
+                self.assertTrue((copied / "Sparkle").is_symlink())
+                self.assertEqual(binary.stat().st_mode & 0o777, 0o500)
+                self.assertEqual(resource.stat().st_mode & 0o777, 0o400)
+            with patch.object(updates, "trusted_artifact", trusted), \
+                 patch.object(updates, "verify_framework"), patch.object(updates, "sign_framework", side_effect=sign) as signer:
+                updates.embed(app, "arm64", copy)
+            signer.assert_called_once()
 
     def test_authenticated_archive_paths_types_and_links_remain_contained(self):
         for path, data, mode in [("../outside", b"x", stat.S_IFREG), ("/outside", b"x", stat.S_IFREG),

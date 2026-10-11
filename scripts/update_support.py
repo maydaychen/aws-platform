@@ -224,6 +224,11 @@ def embed(app, architecture, run):
     with trusted_artifact() as artifact:
         source = artifact / "Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
         run("ditto", source, framework_path(app))
+    # Keep the authenticated source read-only; the app copy must allow re-signing.
+    framework = framework_path(app)
+    for entry in (framework, *framework.rglob("*")):
+        if not entry.is_symlink():
+            entry.chmod(0o755 if entry.is_dir() or entry.stat().st_mode & 0o111 else 0o644)
     path = app / "Contents/Info.plist"
     info = plistlib.loads(path.read_bytes())
     info.update(SUPublicEDKey=public_key(), SUFeedURL=feed_url(architecture),

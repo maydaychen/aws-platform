@@ -5,6 +5,8 @@
 - `build-universal.sh`：本地 ad-hoc 通用包或单架构包构建。
 - `generate-app-icon.sh`：用 macOS 原生 `sips`／`iconutil` 将 PNG 主图转换为多尺寸 ICNS。
 - `package-distribution.py`：Developer ID 签名、Apple 公证与 ZIP／DMG 分发打包。
+- `update_support.py`／`verify-update-signature.swift`：嵌入 Sparkle、逐层签名以及只用公钥验证最终 ZIP。
+- `generate-update-feed.py`：验证公开附件后生成 ARM／Intel 更新清单，不执行上传或推送。
 - `collect-licenses.py` 与 `licenses/`：按锁定依赖收集完整许可，固定补充许可的来源见 `licenses/README.md`。
 - `tests/`：不调用签名或 Apple 接口的打包保护逻辑测试。
 
@@ -66,3 +68,32 @@ Intel 版本使用同一命令并将 `--architecture arm64` 改为 `--architectu
 bash -n scripts/build-universal.sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
 ```
+
+## 应用更新与发布清单
+
+更新器锁定 Sparkle 2.10.0。构建脚本将其 framework 和 Installer／Downloader XPC、Autoupdate、Updater.app 一并嵌入，保持官方组件的 Universal 架构；单架构包的主程序和 Swift 兼容库仍只有目标切片。所有组件核对目标架构和 macOS 13 兼容性，正式打包依次签内部组件、framework、主 App，Downloader 保留原有 entitlements，不使用 `codesign --deep` 施加签名。
+
+仓库 `updates/public-ed25519-key.txt` 只有 Ed25519 公钥。配套私钥位于本机登录钥匙串的专用 account `aws-platform-updates`；脚本不导出私钥，签名前核对钥匙串公钥与仓库一致，缺少或不匹配即停止，不能重新生成密钥替代现有信任关系。依赖解析后可检查公开验证值：
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/generate_keys --account aws-platform-updates -p
+```
+
+正式打包在 App 公证／装订、最终 ZIP 生成后使用 `sign_update` 签该 ZIP，并以 CryptoKit 仅凭公钥再次验签。`distribution.json` 的 `sparkle` 包含对应公钥、架构清单地址、Ed25519 签名和字节数；最终 ZIP 不得再次压缩或修改。自动检查默认关闭，可在设置开启；自动下载／安装禁用，安装由用户确认，并通过实际 S3 任务租约和 AppKit 终止回调等待传输完成。
+
+先完成两个架构的签名、公证与独立核验，再上传 Release 附件。确认附件可匿名下载后执行以下命令生成本地候选清单，版本与 build 应采用本次发布的实际值：
+
+```bash
+python3 scripts/generate-update-feed.py dist/AWSPlatform-0.3.1-arm64 \
+  --output .tmp/update-feed/appcast-arm64.xml
+python3 scripts/generate-update-feed.py dist/AWSPlatform-0.3.1-x86_64 \
+  --output .tmp/update-feed/appcast-x86_64.xml
+```
+
+脚本只接受单架构、已公证的包，校验清单、最终 ZIP 哈希／字节数、公钥签名、解包 App 与全部更新组件的 Developer ID 签名、票据及 Gatekeeper，再下载 GitHub 上的实际附件比对。新 build 必须递增，语义版本不能倒退；失败保留原清单。审查候选后，将它们放入 `updates/`，通过明确授权的提交／推送发布。脚本不创建 Release、不上传、不推送；清单始终后于附件发布。
+
+应用按正在运行的编译切片选择 ARM／Intel HTTPS 清单，Intel App 在 Rosetta 下仍走 Intel 源；Universal App 按实际运行切片更新为对应架构包。当前空清单不宣告旧包可自动更新。公开 `v0.3.0` 不含更新器，用户需先手动安装带更新器的版本，随后新版本才可在应用内升级。Sparkle 标准窗口遵循系统语言，应用自己的更新菜单和设置遵循应用语言偏好。
+
+首次使用 `sign_update` 时，macOS 可能要求在系统弹窗授权其访问专用签名密钥；密码只在本机系统弹窗输入，不能交给 Agent、写入脚本或通过导出私钥绕过授权。自动化验收仅使用隔离偏好、模拟 S3 任务和本地包，不能为测试进行真实 S3 写入。
+
+传输保护覆盖单个应用进程中的所有窗口。Sparkle 2.10.0 的安装 agent 只监测找到的第一个应用进程，因此更新前应先关闭其他独立启动的实例；直接执行多个 App 二进制、崩溃和强制退出不提供相同保护。SDK 正常退出使用 `NSRunningApplication.terminate()` 并等待实际退出，不能用“自动更新关闭”替代 AppKit 终止保护；用户手动下载后稍后退出安装也需保留该保护。

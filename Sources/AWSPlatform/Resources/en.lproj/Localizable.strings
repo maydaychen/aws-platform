@@ -1447,3 +1447,11 @@
 "Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission." = "Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission.";
 "AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically." = "AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically.";
 "Filter event regions within the selected query scope. Independent of the resource region." = "Filter event regions within the selected query scope. Independent of the resource region.";
+
+/* Application updates */
+"Check for Updates…" = "Check for Updates…";
+"Automatically check for updates" = "Automatically check for updates";
+"Updates" = "Updates";
+"Update checks are available in packaged applications." = "Update checks are available in packaged applications.";
+"Waiting for S3 transfers to finish before restarting. New transfers are paused." = "Waiting for S3 transfers to finish before restarting. New transfers are paused.";
+"Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish." = "Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish.";

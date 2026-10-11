@@ -27,9 +27,15 @@ class DistributionTests(unittest.TestCase):
         (app / "Contents/Resources/AppIcon.icns").write_bytes(b"mock icon")
         (app / "Contents/MacOS/AWSPlatform").write_bytes(b"mock executable")
         (app / "Contents/Frameworks/libswiftMock.dylib").write_bytes(b"mock runtime")
+        for name in distribution.updates.BINARIES:
+            path = distribution.updates.framework_path(app) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"mock Sparkle executable")
         info = {"CFBundleShortVersionString": version, "CFBundleVersion": build,
                 "CFBundleIdentifier": "AWSPlatform", "CFBundleExecutable": "AWSPlatform",
-                "LSMinimumSystemVersion": "13.0", "CFBundleIconFile": "AppIcon.icns"}
+                "LSMinimumSystemVersion": "13.0", "CFBundleIconFile": "AppIcon.icns",
+                "SUPublicEDKey": distribution.updates.public_key(), "SUFeedURL": distribution.updates.feed_url("arm64"),
+                "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": False}
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
 
     def fake_run(self, architecture, calls):
@@ -48,8 +54,20 @@ class DistributionTests(unittest.TestCase):
                 output = Path(values[values.index("--output-dir") + 1])
                 self.make_bundle(output / "AWSPlatform.app", values[values.index("--version") + 1],
                                  values[values.index("--build-number") + 1])
+                path = output / "AWSPlatform.app/Contents/Info.plist"
+                info = plistlib.loads(path.read_bytes())
+                info["SUFeedURL"] = distribution.updates.feed_url(architecture)
+                path.write_bytes(plistlib.dumps(info))
             if values[:3] == ["xcrun", "lipo", "-archs"]:
                 return " ".join(distribution.ARCHITECTURES[architecture])
+            if values[:2] == ["xcrun", "vtool"]:
+                return "platform MACOS\nminos 13.0\n"
+            if values[0].endswith("generate_keys"):
+                return distribution.updates.public_key()
+            if values[0].endswith("sign_update"):
+                import base64
+                signature = base64.b64encode(bytes(64)).decode()
+                return f'sparkle:edSignature="{signature}" length="{Path(values[-1]).stat().st_size}"'
             if values[:4] == ["ditto", "-c", "-k", "--keepParent"]:
                 Path(values[-1]).write_bytes(b"mock ZIP")
             if values[:2] == ["hdiutil", "create"]:
@@ -191,7 +209,7 @@ class DistributionTests(unittest.TestCase):
                 build = next(call for call in calls if call[0].endswith("build-universal.sh"))
                 self.assertEqual(build[1:7], ["--architecture", architecture, "--version", "0.3.0", "--build-number", "6"])
                 self.assertEqual(len([call for call in calls if call[:2] == ["git", "rev-parse"]]), 3)
-                self.assertEqual(len([call for call in calls if call[:3] == ["xcrun", "lipo", "-archs"]]), 2)
+                self.assertEqual(len([call for call in calls if call[:3] == ["xcrun", "lipo", "-archs"]]), 7)
                 self.assertEqual(list((root / ".tmp/distribution").iterdir()), [])
 
     def test_unknown_notarization_retains_staging_and_never_publishes(self):

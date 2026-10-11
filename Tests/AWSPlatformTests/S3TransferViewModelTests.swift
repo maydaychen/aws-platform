@@ -4,6 +4,75 @@ import XCTest
 
 final class S3TransferViewModelTests: XCTestCase {
     @MainActor
+    func testCancelledUploadMustActuallyExitBeforeRestart() async throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try S3TransferFixtures.file(in: directory)
+        let gate = TestGate()
+        let activity = TransferActivity()
+        let vm = S3TransferViewModel(uploader: { _, _ in await gate.wait() }, downloader: { _, _, _, _ in }, activity: activity)
+        let context = S3TransferFixtures.context()
+        vm.configure(scope: context.scope)
+        vm.chooseUpload(context: context) { file.url }
+        await waitFor { vm.pendingUpload != nil }
+        vm.confirmUpload(try XCTUnwrap(vm.pendingUpload))
+        await gate.waitForEntry()
+        vm.cancel()
+        XCTAssertFalse(vm.isBusy)
+        XCTAssertEqual(activity.activeCount, 1)
+        var restarted = false
+        XCTAssertTrue(activity.postponeUpdate { restarted = true })
+        XCTAssertFalse(vm.canStart)
+        XCTAssertFalse(restarted)
+        await gate.open()
+        await waitFor { restarted }
+        XCTAssertEqual(activity.activeCount, 0)
+        XCTAssertNil(vm.refreshID)
+    }
+
+    @MainActor
+    func testProfileResetKeepsDownloadLeaseUntilServiceActuallyReturns() async throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let gate = TestGate()
+        let activity = TransferActivity()
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in await gate.wait() }, activity: activity)
+        let context = S3TransferFixtures.context()
+        let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
+        vm.configure(scope: context.scope)
+        vm.chooseDownload(context: context, object: object) { directory.appendingPathComponent("saved") }
+        await gate.waitForEntry()
+        vm.configure(scope: S3TransferFixtures.context(profileName: "next").scope)
+        var restarted = false
+        XCTAssertTrue(activity.postponeTermination { restarted = true })
+        XCTAssertFalse(vm.canStart)
+        XCTAssertFalse(restarted)
+        await gate.open()
+        await waitFor { restarted }
+        XCTAssertNil(vm.error)
+        XCTAssertNil(vm.status)
+    }
+
+    @MainActor
+    func testPendingRestartPreventsDownloadAfterSavePanelReturns() async throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let gate = TestGate()
+        let activity = TransferActivity()
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in XCTFail("Restart must block download") }, activity: activity)
+        let context = S3TransferFixtures.context()
+        let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
+        vm.configure(scope: context.scope)
+        vm.chooseDownload(context: context, object: object) { await gate.wait(); return directory.appendingPathComponent("saved") }
+        await gate.waitForEntry()
+        XCTAssertFalse(activity.postponeUpdate { XCTFail("No active transfer to postpone") })
+        await gate.open()
+        await waitFor { !vm.isBusy }
+        XCTAssertEqual(activity.activeCount, 0)
+        XCTAssertNil(vm.error)
+    }
+
+    @MainActor
     private func waitFor(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
         for _ in 0..<1000 {
             if condition() { return }

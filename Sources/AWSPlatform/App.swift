@@ -7,6 +7,7 @@ struct AWSPlatformApp: App {
     @StateObject private var favoritesVM = FavoritesViewModel()
     @StateObject private var recentsVM = RecentResourcesViewModel()
     @StateObject private var languageSettings = LanguageSettings()
+    @StateObject private var updates = AppUpdateController.shared
 
     var body: some Scene {
         WindowGroup {
@@ -23,9 +24,17 @@ struct AWSPlatformApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button(L10n.text("Check for Updates…", locale: languageSettings.locale)) {
+                    updates.checkForUpdates()
+                }
+                .disabled(!updates.canCheckForUpdates)
+            }
+        }
 
         Settings {
-            SettingsView(settings: languageSettings)
+            SettingsView(settings: languageSettings, updates: updates, transfers: updates.transfers)
                 .environment(\.locale, languageSettings.locale)
         }
     }
@@ -35,5 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        AppUpdateController.shared.start()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        TransferActivity.shared.postponeTermination {
+            sender.reply(toApplicationShouldTerminate: true)
+        } ? .terminateLater : .terminateNow
     }
 }

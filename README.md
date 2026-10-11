@@ -50,6 +50,7 @@ The following component previews use mock resources:
 - Swift 6.2+ / SwiftUI (toolchain required to build from source)
 - macOS 13+, supporting Intel (x86_64) and Apple Silicon (arm64)
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
+- [Sparkle 2](https://sparkle-project.org/) - Signed application updates
 
 ## Quick Start
 
@@ -107,6 +108,12 @@ Packaged apps include the cloud resource icon from `Assets/AppIcon/AppIcon.icns`
 These local builds use ad-hoc signing. Both packaging scripts accept `--architecture arm64` for Apple Silicon, `--architecture x86_64` for Intel, or `--architecture universal` (the default) for both. Single-architecture builds contain only that architecture, including embedded Swift runtime libraries. Use separate `--output-dir` directories when keeping multiple local builds. Version and build number can be set with `--version` and `--build-number`.
 
 For distribution, use `scripts/package-distribution.py` with the same architecture/version options to sign with a local Developer ID Application identity, notarize with Apple, and staple the tickets. It produces versioned ZIP and DMG files named `AWSPlatform-<version>-<architecture>`, checksums, and notarization records. A valid signing identity and configured `asc` authentication are required; see the [distribution packaging instructions (Chinese)](scripts/README.md#正式签名与公证). A regular `swift build` still builds only for the current machine's architecture.
+
+### Application Updates
+
+Packaged source builds provide **AWSPlatform → Check for Updates…** and an **Updates** section in Settings. Automatic checks are off by default; enabling them checks for new releases without automatically downloading or installing them. Installation requires confirmation and waits for S3 transfers across the app's windows to actually finish, including tasks whose cancellation was requested. New transfers are paused while a restart is pending. Close any separately launched app instances before updating.
+
+Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates verify the final ZIP with Ed25519 and retain the existing bundle identity and local preferences. The currently published `v0.3.0` installer predates this updater and needs a manual installation of an updater-enabled version first. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
 
 ### Interface Language
 

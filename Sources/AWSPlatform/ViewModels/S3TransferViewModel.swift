@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class S3TransferViewModel: ObservableObject {
@@ -18,18 +19,24 @@ final class S3TransferViewModel: ObservableObject {
     private(set) var scope: MonitoringScope?
     private let uploader: Uploader
     private let downloader: Downloader
+    private let activity: TransferActivity
+    private var activityObservation: AnyCancellable?
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private var accessedURL: URL?
     private var uploading = false
     private var lastProgressTime = Date.distantPast
 
-    init(uploader: @escaping Uploader, downloader: @escaping Downloader) {
+    init(uploader: @escaping Uploader, downloader: @escaping Downloader, activity: TransferActivity? = nil) {
         self.uploader = uploader
         self.downloader = downloader
+        self.activity = activity ?? .shared
+        activityObservation = self.activity.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
     }
 
-    var canStart: Bool { scope?.isValid == true && !isBusy && pendingUpload == nil }
+    var canStart: Bool { scope?.isValid == true && !isBusy && pendingUpload == nil && !activity.isRestartPending }
 
     func configure(scope: MonitoringScope?) {
         reset()
@@ -100,11 +107,13 @@ final class S3TransferViewModel: ObservableObject {
     }
 
     func confirmUpload(_ intent: S3UploadIntent) {
-        guard !isBusy, pendingUpload == intent, accepts(intent.context) else { return }
+        guard !isBusy, pendingUpload == intent, accepts(intent.context), let lease = activity.begin() else { return }
         pendingUpload = nil
         let token = begin(key: intent.key, uploading: true, status: "Uploading")
         let uploader = self.uploader
+        let activity = self.activity
         task = Task { [weak self] in
+            defer { activity.finish(lease) }
             do {
                 try await uploader(intent) { [weak self] value in
                     await self?.update(value, token: token, context: intent.context)
@@ -143,6 +152,8 @@ final class S3TransferViewModel: ObservableObject {
             do {
                 acquireAccess(url)
                 let destination = try S3DownloadDestination(url: url)
+                guard let lease = activity.begin() else { finishSelection(); releaseAccess(); return }
+                defer { activity.finish(lease) }
                 status = "Downloading"
                 try await downloader(context, object.key, destination) { [weak self] value in
                     await self?.update(value, token: token, context: context)

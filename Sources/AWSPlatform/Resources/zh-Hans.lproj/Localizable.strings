@@ -1447,3 +1447,11 @@
 "Organization affected resources could not be read. Check health:DescribeAffectedEntitiesForOrganization permission." = "无法读取组织受影响资源。请检查 health:DescribeAffectedEntitiesForOrganization 权限。";
 "AWS Health organizational view is unavailable. Enable it from your organization's management account, then refresh. This app does not enable it automatically." = "AWS Health 组织视图不可用。请从组织管理账号启用后刷新。应用不会自动启用组织视图。";
 "Filter event regions within the selected query scope. Independent of the resource region." = "在所选查询范围内筛选事件区域，与资源区域无关。";
+
+/* Application updates */
+"Check for Updates…" = "检查更新…";
+"Automatically check for updates" = "自动检查更新";
+"Updates" = "更新";
+"Update checks are available in packaged applications." = "检查更新功能仅在打包后的应用中可用。";
+"Waiting for S3 transfers to finish before restarting. New transfers are paused." = "等待 S3 传输任务结束后重启，暂时不能开始新传输。";
+"Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish." = "通过 GitHub 获取更新。安装需要您确认，并会等待 S3 传输任务结束。";

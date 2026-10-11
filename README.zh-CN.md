@@ -50,6 +50,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - Swift 6.2+ / SwiftUI（源码构建工具链）
 - macOS 13+，支持 Intel（x86_64）和 Apple Silicon（arm64）
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
+- [Sparkle 2](https://sparkle-project.org/) - 签名校验的应用更新
 
 ## 快速开始
 
@@ -107,6 +108,12 @@ open Package.swift
 上述本地包使用 ad-hoc 签名。两个打包脚本均支持 `--architecture arm64`（Apple Silicon）、`--architecture x86_64`（Intel）和 `--architecture universal`（默认，两种架构）。单架构包的主程序和内嵌 Swift 运行库只包含目标架构；保留多个本地包时请使用不同的 `--output-dir`。可通过 `--version` 和 `--build-number` 指定版本与构建号。
 
 正式分发入口为 `scripts/package-distribution.py`，使用相同的架构／版本参数、本机 Developer ID Application 签名、Apple 公证和票据附加，输出以 `AWSPlatform-<版本>-<架构>` 命名的 ZIP、DMG、校验值及公证记录；需要有效签名身份和已配置的 `asc` 认证，详见 [正式打包说明](scripts/README.md#正式签名与公证)。普通 `swift build` 仍只构建当前机器架构。
+
+### 应用更新
+
+源码打包的应用提供「AWSPlatform → 检查更新…」菜单和设置中的「更新」分组。自动检查默认关闭；开启后只检查新版本，不自动下载或安装。安装需要确认，并等待应用各窗口中的 S3 任务实际退出，包括已经请求取消的任务；等待重启期间暂停新传输。更新前请先关闭另行启动的其他应用实例。
+
+Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架构选择。更新通过 Ed25519 校验最终 ZIP，延续现有 Bundle ID 和本地偏好。当前公开的 `v0.3.0` 安装包尚未集成更新器，需要先手动安装包含更新器的版本。签名、打包和清单生成见 [打包说明](scripts/README.md#应用更新与发布清单) 。
 
 ### 界面语言
 

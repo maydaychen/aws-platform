@@ -2,12 +2,13 @@
 
 本项目原创代码采用 [MIT License](LICENSE)。第三方依赖及其包含的组件保留各自的版权、许可证和 NOTICE；项目的 MIT 许可证不替代这些条款。
 
-下表依据 [Package.resolved](Package.resolved) 中锁定的 26 个 Swift Package，核对相同 revision 的仓库根目录许可证。链接固定到对应提交；“未提供”仅表示该版本仓库根目录没有单独的 NOTICE 文件。
+下表依据 [Package.resolved](Package.resolved) 中锁定的 27 个 Swift Package，核对相同 revision 的仓库根目录许可证。链接固定到对应提交；“未提供”仅表示该版本仓库根目录没有单独的 NOTICE 文件。
 
 “Apache-2.0 with Swift Runtime Library Exception”表示许可证包含 Swift Runtime Library Exception。表中列出包级主要许可，包内部分组件可能另有许可，详见相应 NOTICE 和上游源码内的许可证。
 
 | 依赖 | 版本 | 包级主要许可 | LICENSE | NOTICE |
 | --- | --- | --- | --- | --- |
+| sparkle | 2.10.0 | MIT and bundled third-party licenses | [LICENSE](https://github.com/sparkle-project/Sparkle/blob/eef1a539a373c1f1a320624b1130fc5de7b2e100/LICENSE) | 包含在 LICENSE 中 |
 | async-http-client | 1.34.0 | Apache-2.0 | [LICENSE.txt](https://github.com/swift-server/async-http-client/blob/7744c2a035c68ec14726c709f031835e3e30bde1/LICENSE.txt) | [NOTICE.txt](https://github.com/swift-server/async-http-client/blob/7744c2a035c68ec14726c709f031835e3e30bde1/NOTICE.txt) |
 | jmespath.swift | 1.0.3 | Apache-2.0 | [LICENSE](https://github.com/jmespath/jmespath.swift/blob/3877a5060e85ae33e3b9fe51ab581784f65ec80e/LICENSE) | 未提供 |
 | soto | 7.14.0 | Apache-2.0 | [LICENSE](https://github.com/soto-project/soto/blob/f732b562bb5e0202470157a6041aa754229e777e/LICENSE) | [NOTICE.txt](https://github.com/soto-project/soto/blob/f732b562bb5e0202470157a6041aa754229e777e/NOTICE.txt) |

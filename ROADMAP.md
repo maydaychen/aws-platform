@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`。最新正式分发为 [v0.3.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.0) ，build 为 `6`、安装包源提交为 `9167963`；本轮全部项目源码已推送，双语 README 提供新版本下载入口，旧 `v0.2.0` Release 保留。
+源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`。最新正式分发为 [v0.3.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.0) ，build 为 `6`、安装包源提交为 `9167963`；该版本对应源码已推送，双语 README 提供下载入口，旧 `v0.2.0` Release 保留。
 
 面向 macOS 13+ 的 Apple Silicon `arm64`／Intel `x86_64` 各提供独立 ZIP 和 DMG，附统一 `SHA256SUMS.txt`。两套 App／DMG 已完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 与独立实物核验，Apple Silicon 隔离离线启动通过；公开 Release 的五个附件均已独立匿名下载，字节数与 SHA-256 匹配本地产物。固定发布前五项门禁、784 项应用测试、24 项打包测试及发布前 12 个提交的秘密扫描通过。
 
@@ -15,6 +15,10 @@ S3 单文件上传／下载、列表拖拽上传、逐层可点击面包屑与�
 Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过当前已验证 Profile，支持账号筛选与受影响账号分页，真实组织配置、权限及 Support 计划验收待完成。图标使用深蓝底座、橙色云与资源节点，PNG 主图及 10 个标准尺寸 ICNS 已接入两套分发包；资产与生成说明见 [App Icon](Assets/AppIcon/README.md) 。
 
 本轮未替换 `/Applications/AWSPlatform.app`；此前本机安装记录为源提交 `c1fad8b` 的 `arm64` 预览版 `0.2.0 (4)`，采用本地 ad-hoc 签名，原安装备份与 `0.1.0 (1)` Universal 本地产物保留。用户已确认真实账号日常使用验收通过；新功能的真实分页、拖拽、写入及异常路径，以及 Intel／macOS 13 实机运行仍保留专项验收清单，不能由整体反馈或发布核验推断为逐项完成。
+
+## 进行中
+
+- 应用内更新：已接入 Sparkle 2.10.0、菜单／设置入口、可选自动检查、ARM／Intel 分源、实际 S3 任务退出保护、嵌套签名与最终 ZIP 公钥验签逻辑。793 项应用测试、33 项打包／清单测试、完整工程门禁和双架构构建通过；最终 ZIP 的真实 Ed25519 签名核验等待用户在 macOS 钥匙串授权 `sign_update` 使用专用密钥，不能以模拟验证代替。当前更新清单为空，源码未推送、未发布新版本，现有公开 `v0.3.0` 与本机安装保留；首次更新器版本仍需手动安装，后续才能应用内升级。
 
 ## 最近完成
 
@@ -54,6 +58,8 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 最近验证
 
+- 2026-10-11 11:07：应用内更新通过完整 Harness release 五项门禁、793 项应用测试（严格并发／警告视为错误）及 33 项离线打包／清单测试。双架构 `0.3.1 (7)` 本地测试包的目标切片、macOS 13 最低系统、Sparkle 组件、内嵌库、许可及 Developer ID 嵌套签名通过；该版本仅为隔离验证参数，不代表已发布。隔离偏好下原生更新器启动、默认关闭自动检查、开关往返及中英文／深浅色／等待状态共 8 张渲染通过，既有应用偏好未变。公钥验签程序以仅在内存中的临时密钥完成真实字节测试，合法签名通过、单字节篡改与错误公钥被拒绝；staged Gitleaks 未发现泄露。独立复核源码与两套稳定签名 App 为有条件通过，未发现剩余源码阻断；唯一当前分发门禁是正式发布密钥的 ZIP Ed25519 验签，仍等待 macOS 钥匙串授权；未公证、安装、推送、发布或调用真实 AWS，真实下载／安装／重启及 Intel／macOS 13 实机尚未验收。证据在 `.tmp/app-updates/`。
+
 - 2026-10-11 08:44：`v0.3.0 (6)` 固定发布／pre-push 五项门禁、784 项应用测试、24 项打包测试通过，发布前 12 个提交的 Gitleaks 无泄露。独立核验两架构的源码／图标／双语资源／依赖许可、切片／最低系统／RPATH、严格签名、公证 Accepted、票据及 Gatekeeper；ZIP 和只读 DMG 内 App 的 155 个节点一致，arm64 ZIP 副本在空 AWS 配置、隔离偏好与禁用网络下持续运行 8 秒。草稿附件完整下载通过；公开发布后五附件独立匿名下载，字节数和 SHA-256 均匹配，实际 tag 与源提交 `9167963` 一致，stable Latest 与旧版保留已回读确认。证据在 `.tmp/release-0.3.0/`；未调用真实 AWS，Intel／macOS 13 实机仍未验收。
 
 - 2026-10-11 01:40：新图标通过 1,024 × 1,024 RGBA／透明四角、32／64／128 像素视觉、ICNS 结构及 10 个标准尺寸检查。24 项离线打包测试、Shell 语法、静态 Harness 三项门禁和四份 README 引用审计通过；新增失败测试覆盖图标缺失、空文件、错误名称与缺引用。隔离构建 `0.2.0 (5)` arm64 本地 App／ZIP，独立复核源／包／解包图标字节、完整解包内容、架构／运行库及 ad-hoc 签名一致，沙箱外 `NSWorkspace` 离屏读取正确显示新图标。证据在 `.tmp/app-icon/`；未安装或启动新包，未验证安装后的 Finder／Dock 缓存、Intel／macOS 13 实机或正式公证发布，未调用真实 AWS。
@@ -81,12 +87,16 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 2026-10-04 15:40：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，620 项正式测试及 3 项临时渲染共 623 项成功，无编译警告。16 项本地化测试覆盖系统回退、偏好恢复、英文／中文词条与占位符、原始参数、嵌套及多行消息、大写 Health 状态；34 张离线模拟截图覆盖各服务、深浅色、窄宽布局及长文案，同一挂载窗口切换后状态不变且模拟身份验证仍只调用一次。独立源码／日志与关键截图复核通过；将临时关联夹具对齐生产词条后，单项渲染测试再次通过。双语 README 各 27 个引用、11 项打包脚本测试、语言资源 plist、源码／测试 Gitleaks 与 `git diff --check` 通过；临时测试入口移除。未调用真实 AWS，未生成新分发包，原生 Settings 入口／真实多窗口及 Intel／macOS 13 实机仍待验收；既有 Charts anchor 运行时警告保留。
 
 - 2026-10-04 14:54：推送范围 `3d51d19..59626f8` 的 Gitleaks 扫描未发现秘密，`git diff --check` 通过；GitHub `main` 实时回读与功能提交 `59626f8` 一致。业务源码及测试与此前已验证提交一致，本轮仅推送并同步进度文档，未重复运行 Swift 测试或访问真实 AWS。
+
 - 2026-10-04 11:33：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，604 项正式测试与 1 项临时渲染测试成功，无编译警告；新增 87 项覆盖安全组完整分页／结构化规则／附加网卡、关系匹配／4 并发及部分失败、Profile／身份／Region 隔离、精确导航、取消与迟到结果。修正同 owner 搜索测试预期；渲染发现 DNS 长卡片自动滚动不稳定，最终采用精确记录置顶展开并移除失败滚动代码，36 项相关正式测试与临时渲染再次通过。42 张模拟组件截图覆盖深浅色、窄宽布局、错误／部分结果及长列表精确记录；已抽查关键图。独立源码与证据复核、Gitleaks、双语 README 引用和 `git diff --check` 通过；临时入口已移除。未调用真实 AWS；真实权限、账号、完整窗口交互、macOS 13 与 Intel 待验收。
+
 - 2026-10-04 09:55：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，517 项正式测试与 1 项临时渲染测试全部成功，无编译警告。本次新增 86 项正式测试覆盖 ELB 分页／字段映射／认证白名单／范围与父资源校验、4 并发反查及部分失败、取消与共享请求竞态、精确导航和收藏／历史隔离。109 张离线截图覆盖深浅色、280／420 列表、480／900 详情、176 宽侧栏及错误／空／加载／部分结果；抽查发现并修正端口千位分组后，86 项相关测试与临时渲染重新通过，实例 ID 换行边界同时加固。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用和 `git diff --check` 通过；临时测试入口已移除。未调用真实 AWS；真实 IAM／分页、完整窗口交互、macOS 13 与 Intel 运行待验收。
+
 - 2026-10-04 09:17：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，431 项正式测试及 1 项临时渲染测试全部通过，无编译警告。新增 52 项正式测试覆盖三元记录游标／空页／重复与缺失游标／页数保护、Alias 与路由字段、私有 Zone 可选 NS、权限错误脱敏、取消／迟到响应、全局分区端点及 Profile／账号隔离、收藏／历史精确导航与缓存列表失败回归。47 张离线截图覆盖 280／420 列表与 480／900 详情、深浅色、三页签、展开记录、长值、空／错误／加载态；补充实际列表宽度后重新严格渲染通过，临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用及 `git diff --check` 通过。未调用真实 AWS；完整窗口交互、真实 IAM／分页、macOS 13 与 Intel 运行仍待验收。
+
 - 2026-10-04 09:01：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，379 项正式测试及 1 项临时渲染测试全部通过；新增 17 项正式测试覆盖最近访问持久化、去重／上限、Profile／账号隔离、搜索／删除／清空、损坏保护、导航失败及收藏不变。22 张离线组件截图覆盖 280／420 宽度深浅色、搜索、空态和存储异常；统一英文相对时间后重新严格编译、渲染并回读关键截图通过，临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用检查和 `git diff --check` 通过。未调用真实 AWS；完整窗口点击、跨窗口操作、真实资源重新打开及 macOS 13／Intel 运行仍待验收。
+
 - 2026-10-04 00:56：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，362 项正式测试及 1 项临时渲染测试全部通过。新增 50 项正式测试覆盖当前账号／分区校验、公共事件过滤、完整分页、未来事件、失败／取消、空 Profile 零调用、切换 Profile 迟到响应隔离和 Region 不重建全局客户端。修正 catch 属性遮蔽、可选枚举歧义及测试样例 ARN；搜索文案完善后重新严格编译与渲染通过。15 张离线截图覆盖 720／1000 宽度深浅色、空／错误／加载、独立详情失败和完整受影响资源，已抽查关键状态；临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用检查和 `git diff --check` 通过。未调用真实 AWS，实际 Support／IAM／分页和 macOS 13／Intel 实机运行仍待验收。
-- 2026-10-03 23:39：待推送 3 个提交的 Gitleaks 扫描及 `git diff --check` 通过；GitHub `main` 提交回读一致，两份远端 README 与本地提交内容逐字节相同，语言互链有效。官方 CLI 安装包的 AWS Developer ID Installer 签名和 Gatekeeper 通过，安装器报告升级成功，安装收据为 `2.37.9`；显式 `arch -arm64` 启动返回 `exe/arm64`，双架构检查通过。已有 Hardened Runtime 签名诊断程序中的原生 Process 和实际 `AWSSSOLoginService.run` 执行 `--version` 均成功，合成配置解析通过；安装前后 AWS config／credentials 的内容哈希一致。此验收不包含真实 SSO 授权和 AWS 查询。
 
 ## 已完成
 
@@ -123,13 +133,14 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke；S3 文件上传以外的 AWS 资源保持只读，SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 当前账号／组织事件与状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称与 S3 文件传输／拖拽上传／分页的 784 项离线测试，含原生组件交互与渲染。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 当前账号／组织事件与状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称、S3 文件传输／拖拽上传／分页与更新重启保护的 793 项离线测试，含原生组件交互与渲染。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 专项验收清单
 
 用户已确认真实账号日常使用验收通过。以下保留为后续针对平台、权限、数据量与失败路径的专项检查清单，不再作为整体使用验收的阻塞；本次反馈未逐项说明这些场景的覆盖情况。
 
+- 应用内更新专项验收：先发布并手动安装包含更新器的签名／公证版本，再通过真实 ARM／Intel 清单验证检查、下载、确认安装和重启，以及断网／错误清单／错误签名／版本回退。验证有 S3 上传或下载、取消后任务尚未退出、切换 Profile 和同进程多窗口时等待实际任务退出并禁用新传输；验证稍后退出安装及保留本地偏好。更新前关闭其他独立启动的应用实例；跨进程传输保护、强制退出、Intel／macOS 13 实机与真实安装轮次尚未验收。当前空清单不宣告任何可升级版本。
 - 工作台易用性真实窗口与账号验收：大量 Profile 的配置名称／账号 ID 搜索与角色区分。用实际资源数据量检查侧栏快速切换、整行点击、短窗口滚动及宽窄窗口顶部／EC2 对齐；当前鼠标与渲染证据来自离线 NSHostingView，不代表真实账号下全部 CPU 卡顿已排除。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。

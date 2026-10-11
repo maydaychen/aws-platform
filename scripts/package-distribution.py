@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,9 +16,14 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parent.parent
+support_spec = importlib.util.spec_from_file_location("update_support", ROOT / "scripts/update_support.py")
+updates = importlib.util.module_from_spec(support_spec)
+support_spec.loader.exec_module(updates)
 ARCHITECTURES = {"universal": ["arm64", "x86_64"], "arm64": ["arm64"], "x86_64": ["x86_64"]}
 REQUIRED_INPUTS = ("Package.swift", "Package.resolved", "scripts/build-universal.sh",
                    "scripts/package-distribution.py", "scripts/collect-licenses.py",
+                   "scripts/update_support.py", "updates/public-ed25519-key.txt",
+                   "scripts/verify-update-signature.swift",
                    "scripts/generate-app-icon.sh", "Assets/AppIcon/AppIcon.png", "Assets/AppIcon/AppIcon.icns",
                    "scripts/licenses/sources.json", "LICENSE", "THIRD_PARTY_NOTICES.md")
 DISTRIBUTION_INPUTS = ("Sources", "Tests", "scripts/licenses", *REQUIRED_INPUTS)
@@ -103,6 +109,8 @@ def verify_bundle(app, architecture, version, build_number):
             raise RuntimeError(f"Unexpected architectures in {binary.name}: expected {architecture}")
         if binary == executable:
             actual = sorted(detected)
+    updates.verify_config(info, architecture)
+    updates.verify_framework(app, architecture, run)
     return info, actual
 
 
@@ -172,6 +180,7 @@ def package(identity, team, architecture="universal", version="0.3.0", build_num
             app / "Contents" / "Resources" / "Licenses")
 
         # Sign from the inside out; do not use --deep to apply signatures.
+        updates.sign_framework(app, identity, run, lambda target: verify_signature(target, team, runtime=True))
         for library in sorted((app / "Contents" / "Frameworks").glob("*.dylib")):
             run("codesign", "--force", "--sign", identity, "--timestamp", "--options", "runtime", library)
             verify_signature(library, team, runtime=True)
@@ -205,11 +214,13 @@ def package(identity, team, architecture="universal", version="0.3.0", build_num
             "--verbose=2", dmg_path)
         source_snapshot(source_commit)
         checksums = {path.name: sha256(path) for path in (zip_path, dmg_path)}
+        update_signature = updates.sign_archive(zip_path, run)
+        update_signature["feedURL"] = updates.feed_url(architecture)
         (output / "SHA256SUMS.txt").write_text("".join(f"{value}  {name}\n" for name, value in checksums.items()))
         manifest = {"version": version, "build": build_number, "bundleID": info["CFBundleIdentifier"],
                     "sourceCommit": source_commit, "architectures": actual_architectures,
                     "minimumMacOS": info["LSMinimumSystemVersion"], "teamID": team, "appNotarization": app_notary,
-                    "dmgNotarization": dmg_notary, "sha256": checksums}
+                    "dmgNotarization": dmg_notary, "sha256": checksums, "sparkle": update_signature}
         (output / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n")
         shutil.move(str(app), output / "AWSPlatform.app")
         publish_distribution(output, destination)

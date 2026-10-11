@@ -206,6 +206,7 @@ done
 # Include Swift back-deployment libraries before removing build-machine search paths.
 frameworks_dir="$app_path/Contents/Frameworks"
 mkdir -p "$frameworks_dir"
+python3 "$project_root/scripts/update_support.py" "$app_path" "$architecture"
 xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$executable" \
     --destination "$frameworks_dir" --sign -
 # The tool may retain a backup when re-signing copied libraries.

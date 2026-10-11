@@ -6,8 +6,8 @@ app_name="AWSPlatform"
 icon_source="$project_root/Assets/AppIcon/AppIcon.icns"
 dist_dir="$project_root/dist"
 architecture=universal
-version=0.3.0
-build_number=6
+version=0.3.1
+build_number=9
 usage() {
     printf 'Usage: %s [--output-dir DIRECTORY] [--architecture universal|arm64|x86_64] [--version VERSION] [--build-number NUMBER]\n' "$0"
 }

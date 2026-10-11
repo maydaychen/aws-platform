@@ -33,7 +33,7 @@
 
 可用 `--output-dir DIRECTORY` 将本次构建输出到指定目录，正式打包使用这个入口隔离暂存产物。
 
-两个脚本均接受 `--architecture universal|arm64|x86_64`、`--version VERSION` 和 `--build-number NUMBER`，默认值为 `universal`、`0.3.0` 和 `6`。版本使用三段数字，build 使用正整数。单架构模式仅构建指定架构，将内嵌 Swift 运行库裁为相同架构后重新签名；本地 ZIP 名称相应为 `AWSPlatform-arm64.zip` 或 `AWSPlatform-x86_64.zip`。保留多个本地架构包时使用不同 `--output-dir`，避免共用 `AWSPlatform.app` 输出位置。
+两个脚本均接受 `--architecture universal|arm64|x86_64`、`--version VERSION` 和 `--build-number NUMBER`，默认值为 `universal`、`0.3.1` 和 `9`。版本使用三段数字，build 使用正整数。单架构模式仅构建指定架构，将内嵌 Swift 运行库裁为相同架构后重新签名；本地 ZIP 名称相应为 `AWSPlatform-arm64.zip` 或 `AWSPlatform-x86_64.zip`。保留多个本地架构包时使用不同 `--output-dir`，避免共用 `AWSPlatform.app` 输出位置。
 
 ## 正式签名与公证
 
@@ -45,7 +45,7 @@ asc notarization list --limit 1 --output table
 python3 scripts/package-distribution.py \
   --identity "$SIGNING_IDENTITY" \
   --team-id "$DEVELOPMENT_TEAM" \
-  --architecture arm64 --version 0.3.0 --build-number 6
+  --architecture arm64 --version 0.3.1 --build-number 9
 ```
 
 Intel 版本使用同一命令并将 `--architecture arm64` 改为 `--architecture x86_64`。两个正式目录和 ZIP／DMG 文件名均标明架构；Universal 模式仍可单独使用。

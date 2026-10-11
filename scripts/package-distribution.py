@@ -149,7 +149,7 @@ def notarize(path, evidence, name):
     return record
 
 
-def package(identity, team, architecture="universal", version="0.3.0", build_number="6"):
+def package(identity, team, architecture="universal", version="0.3.1", build_number="9"):
     validate_options(identity, team, architecture, version, build_number)
     identity = identity.upper()
     stem = f"AWSPlatform-{version}-{architecture}"
@@ -240,8 +240,8 @@ def main():
     parser.add_argument("--team-id", required=True, help="Apple Developer team identifier")
     parser.add_argument("--architecture", choices=ARCHITECTURES, default="universal",
                         help="Target architecture (default: universal)")
-    parser.add_argument("--version", default="0.3.0", help="Release version (default: 0.3.0)")
-    parser.add_argument("--build-number", default="6", help="Positive build number (default: 6)")
+    parser.add_argument("--version", default="0.3.1", help="Release version (default: 0.3.1)")
+    parser.add_argument("--build-number", default="9", help="Positive build number (default: 9)")
     args = parser.parse_args()
     try:
         validate_options(args.identity, args.team_id, args.architecture, args.version, args.build_number)

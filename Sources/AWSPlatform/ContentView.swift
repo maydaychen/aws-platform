@@ -42,7 +42,7 @@ struct ContentView: View {
         let transfers = AWSS3TransferService(provider: profiles.provider)
         _s3TransferVM = StateObject(wrappedValue: S3TransferViewModel(
             uploader: { try await transfers.upload($0, progress: $1) },
-            downloader: { try await transfers.download(context: $0, key: $1, destination: $2, progress: $3) }
+            downloader: { try await transfers.download(context: $0, object: $1, destination: $2, progress: $3) }
         ))
         let metrics = AWSMetricsService(provider: profiles.provider)
         _metricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
@@ -212,6 +212,12 @@ struct ContentView: View {
             cancelFavoriteIfScopeChanged()
             if profileVM.isSigningIn { clearResources() }
             else { reconfigureServices() }
+        }
+        .onChange(of: profileVM.identityFailureID) { _ in
+            costVM.reset()
+            healthVM.reset()
+            route53VM.reset()
+            clearResources()
         }
         .onChange(of: profileVM.profileSource) { _ in
             costVM.reset()
@@ -845,9 +851,10 @@ struct ContentView: View {
                 if favoriteNavigation.relationshipReference != nil,
                    !favoriteNavigation.validateRelationshipScope(currentMonitoringScope) { return }
             }
-            ec2VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .ec2)
-            lambdaVM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .lambda)
-            s3VM.configure(provider: profileVM.provider, refreshImmediately: target?.service != .s3)
+            guard let scope = currentMonitoringScope else { return }
+            ec2VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .ec2)
+            lambdaVM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .lambda)
+            s3VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .s3)
             s3TransferVM.configure(scope: currentMonitoringScope)
             configureAlarms()
             configureSNS()

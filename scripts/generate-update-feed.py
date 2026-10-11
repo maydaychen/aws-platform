@@ -130,10 +130,11 @@ def generate(directory, output):
     channel.insert(0, item)
     ET.indent(tree, space="  ")
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=output.parent, delete=False) as candidate:
+    with tempfile.NamedTemporaryFile(dir=output.parent, suffix=".xml", delete=False) as candidate:
         candidate_path = Path(candidate.name)
     try:
         tree.write(candidate_path, encoding="utf-8", xml_declaration=True)
+        updates.sign_feed(candidate_path, distribution.run)
         candidate_path.replace(output)
     finally:
         candidate_path.unlink(missing_ok=True)

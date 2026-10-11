@@ -49,13 +49,14 @@ struct AWSS3TransferService: Sendable {
     }
 
     func upload(_ intent: S3UploadIntent, progress: @escaping S3ProgressHandler) async throws {
+        guard let checksum = intent.file.checksumSHA256 else { throw S3TransferError.fileChanged }
         let target = try await target(context: intent.context, key: intent.key, region: intent.resolvedRegion)
         let reader = try S3UploadReader(file: intent.file, progress: progress)
         do {
             try Task.checkCancellation()
             let request = S3.PutObjectRequest(
                 body: .init(asyncSequence: S3UploadReader.Chunks(reader: reader), length: Int(intent.file.size)),
-                bucket: target.context.bucket, contentLength: intent.file.size,
+                bucket: target.context.bucket, checksumAlgorithm: .sha256, checksumSHA256: checksum, contentLength: intent.file.size,
                 contentType: UTType(filenameExtension: intent.file.url.pathExtension)?.preferredMIMEType ?? "application/octet-stream",
                 expectedBucketOwner: target.context.scope.accountID,
                 ifMatch: intent.overwriteETag, ifNoneMatch: intent.overwriteETag == nil ? "*" : nil,
@@ -82,25 +83,27 @@ struct AWSS3TransferService: Sendable {
         }
     }
 
-    func download(context: S3TransferContext, key: String, destination: S3DownloadDestination,
+    func download(context: S3TransferContext, object: S3ObjectModel, destination: S3DownloadDestination,
                   progress: @escaping S3ProgressHandler) async throws {
+        guard !object.isPrefix, let size = object.size, size >= 0,
+              let etag = object.eTag, !etag.isEmpty else { throw S3TransferError.objectChanged }
+        let key = object.key
         let target = try await target(context: context, key: key)
-        let writer = try S3DownloadWriter(destination: destination)
+        let writer = try S3DownloadWriter(destination: destination, expectedLength: size)
         defer { writer.cleanup() }
         do {
             let response = try await get(target, .init(
-                bucket: context.bucket, expectedBucketOwner: context.scope.accountID, key: key
+                bucket: context.bucket, expectedBucketOwner: context.scope.accountID, ifMatch: etag, key: key
             ))
             try Task.checkCancellation()
-            guard response.contentLength == nil || response.contentLength! >= 0 else {
-                throw S3TransferError.incompleteDownload
+            guard response.contentLength == size, response.eTag == etag else {
+                throw S3TransferError.objectChanged
             }
             for try await buffer in response.body {
                 try writer.write(Data(buffer.readableBytesView))
-                if let length = response.contentLength, writer.bytes > length { throw S3TransferError.incompleteDownload }
                 await progress(.init(bytes: writer.bytes, total: response.contentLength))
             }
-            try writer.commit(expectedLength: response.contentLength)
+            try writer.commit(expectedLength: size)
         } catch {
             try Task.checkCancellation()
             throw Self.map(error)
@@ -148,6 +151,7 @@ struct AWSS3TransferService: Sendable {
         case "PreconditionFailed", "ConditionalRequestConflict": return S3TransferError.objectChanged
         case "AccessDenied", "Forbidden", "403": return S3TransferError.accessDenied
         case "InvalidObjectState": return S3TransferError.archivedObject
+        case "BadDigest", "InvalidDigest": return S3TransferError.fileChanged
         case "NoSuchBucket", "NoSuchKey", "NotFound", "404": return S3TransferError.notFound
         default: return S3TransferError.failed
         }

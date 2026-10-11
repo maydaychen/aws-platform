@@ -91,21 +91,21 @@ final class EC2ViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
+    func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         instanceLoader = {
-            let client = try await provider.ec2Client()
+            let client = try await provider.ec2Client(scope: scope)
             return try await Self.fetchInstances(client: client)
         }
         imageNameLoader = { ids in
-            let client = try await provider.ec2Client()
+            let client = try await provider.ec2Client(scope: scope)
             return try await Self.fetchImageNames(ids: ids, client: client)
         }
         healthLoader = { ids in
-            let client = try await provider.ec2Client()
+            let client = try await provider.ec2Client(scope: scope)
             return try await Self.fetchHealth(instanceIds: ids, client: client)
         }
         detailLoader = { instanceId in
-            let client = try await provider.ec2Client()
+            let client = try await provider.ec2Client(scope: scope)
             return try await Self.fetchDetail(instanceId: instanceId, client: client)
         }
         reset()

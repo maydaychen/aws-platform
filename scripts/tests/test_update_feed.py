@@ -47,10 +47,13 @@ class UpdateFeedTests(unittest.TestCase):
 
     def test_update_configuration_rejects_wrong_key_feed_or_automatic_install_defaults(self):
         valid = {"SUPublicEDKey": feed.updates.public_key(), "SUFeedURL": feed.updates.feed_url("arm64"),
-                 "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": False}
+                 "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": False,
+                 "SURequireSignedFeed": True, "SUVerifyUpdateBeforeExtraction": True, "SUSignedFeedFailureExpirationInterval": 0}
         feed.updates.verify_config(valid, "arm64")
         for key, value in (("SUPublicEDKey", "wrong"), ("SUFeedURL", feed.updates.feed_url("x86_64")),
-                           ("SUEnableAutomaticChecks", True), ("SUAutomaticallyUpdate", True), ("SUAllowsAutomaticUpdates", True)):
+                           ("SUEnableAutomaticChecks", True), ("SUAutomaticallyUpdate", True), ("SUAllowsAutomaticUpdates", True),
+                           ("SURequireSignedFeed", False), ("SUVerifyUpdateBeforeExtraction", False),
+                           ("SUSignedFeedFailureExpirationInterval", 1728000)):
             with self.subTest(key=key), self.assertRaises(RuntimeError):
                 feed.updates.verify_config({**valid, key: value}, "arm64")
 
@@ -95,10 +98,11 @@ class UpdateFeedTests(unittest.TestCase):
                 with patch.object(feed, "ROOT", root), \
                      patch.object(feed.updates, "verify_archive", side_effect=lambda *args: calls.append("signature")), \
                      patch.object(feed, "verify_zip", side_effect=lambda *args: calls.append("bundle")), \
+                     patch.object(feed.updates, "sign_feed", side_effect=lambda *args: calls.append("feed-signature")), \
                      patch.object(feed, "verify_public_download", side_effect=lambda *args: calls.append("public")) as public:
                     output = root / "candidate.xml"
                     self.assertEqual(feed.generate(package, output), architecture)
-                self.assertEqual(calls, ["signature", "bundle", "public"])
+                self.assertEqual(calls, ["signature", "bundle", "public", "feed-signature"])
                 enclosure = ET.parse(output).find("channel/item/enclosure")
                 self.assertIn(f"v0.3.1/{archive.name}", enclosure.attrib["url"])
                 self.assertEqual(enclosure.attrib["length"], str(manifest["sparkle"]["length"]))
@@ -126,7 +130,7 @@ class UpdateFeedTests(unittest.TestCase):
                 self.assertEqual(output.read_bytes(), b"previous feed")
 
     def test_signature_failure_public_mismatch_and_downgrade_preserve_previous_feed(self):
-        for case in ("signature", "public", "downgrade", "version-downgrade"):
+        for case in ("signature", "public", "downgrade", "version-downgrade", "feed-signature"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 package, _, _ = self.fixture(root)
@@ -140,6 +144,7 @@ class UpdateFeedTests(unittest.TestCase):
                         f'<rss xmlns:sparkle="{feed.SPARKLE}"><channel><item><sparkle:version>6</sparkle:version>'
                         '<sparkle:shortVersionString>0.4.0</sparkle:shortVersionString></item></channel></rss>')
                 with patch.object(feed, "ROOT", root), patch.object(feed, "verify_zip"), \
+                     patch.object(feed.updates, "sign_feed", side_effect=ValueError("bad feed signature") if case == "feed-signature" else None), \
                      patch.object(feed.updates, "verify_archive", side_effect=ValueError("bad signature") if case == "signature" else None), \
                      patch.object(feed, "verify_public_download", side_effect=ValueError("bad download") if case == "public" else None):
                     with self.assertRaises(ValueError): feed.generate(package, output)

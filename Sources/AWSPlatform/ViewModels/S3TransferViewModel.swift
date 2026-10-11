@@ -4,7 +4,8 @@ import Combine
 @MainActor
 final class S3TransferViewModel: ObservableObject {
     typealias Uploader = @Sendable (S3UploadIntent, @escaping S3ProgressHandler) async throws -> Void
-    typealias Downloader = @Sendable (S3TransferContext, String, S3DownloadDestination, @escaping S3ProgressHandler) async throws -> Void
+    typealias Downloader = @Sendable (S3TransferContext, S3ObjectModel, S3DownloadDestination, @escaping S3ProgressHandler) async throws -> Void
+    typealias FilePreparer = @Sendable (URL) async throws -> S3LocalFile
     typealias Picker = @MainActor () async -> URL?
     typealias DropLoader = @MainActor () async throws -> URL
 
@@ -19,6 +20,7 @@ final class S3TransferViewModel: ObservableObject {
     private(set) var scope: MonitoringScope?
     private let uploader: Uploader
     private let downloader: Downloader
+    private let filePreparer: FilePreparer
     private let activity: TransferActivity
     private var activityObservation: AnyCancellable?
     private var task: Task<Void, Never>?
@@ -27,9 +29,11 @@ final class S3TransferViewModel: ObservableObject {
     private var uploading = false
     private var lastProgressTime = Date.distantPast
 
-    init(uploader: @escaping Uploader, downloader: @escaping Downloader, activity: TransferActivity? = nil) {
+    init(uploader: @escaping Uploader, downloader: @escaping Downloader, activity: TransferActivity? = nil,
+         filePreparer: @escaping FilePreparer = { try await S3LocalFile.prepare(url: $0) }) {
         self.uploader = uploader
         self.downloader = downloader
+        self.filePreparer = filePreparer
         self.activity = activity ?? .shared
         activityObservation = self.activity.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
@@ -75,7 +79,7 @@ final class S3TransferViewModel: ObservableObject {
             guard current(token, context), !Task.isCancelled else { return }
             guard let url else { finishSelection(); return }
             do {
-                try prepareUpload(url, context: context)
+                try await prepareUpload(url, context: context, token: token)
             } catch { fail(error, token: token, context: context) }
         }
     }
@@ -95,7 +99,7 @@ final class S3TransferViewModel: ObservableObject {
             do {
                 let url = try await loader()
                 guard current(token, context), !Task.isCancelled else { return }
-                try prepareUpload(url, context: context)
+                try await prepareUpload(url, context: context, token: token)
             } catch { fail(error, token: token, context: context) }
         }
         return true
@@ -155,7 +159,7 @@ final class S3TransferViewModel: ObservableObject {
                 guard let lease = activity.begin() else { finishSelection(); releaseAccess(); return }
                 defer { activity.finish(lease) }
                 status = "Downloading"
-                try await downloader(context, object.key, destination) { [weak self] value in
+                try await downloader(context, object, destination) { [weak self] value in
                     await self?.update(value, token: token, context: context)
                 }
                 guard current(token, context), !Task.isCancelled else { return }
@@ -217,10 +221,12 @@ final class S3TransferViewModel: ObservableObject {
         task = nil
     }
 
-    private func prepareUpload(_ url: URL, context: S3TransferContext) throws {
+    private func prepareUpload(_ url: URL, context: S3TransferContext, token: UUID) async throws {
         guard url.isFileURL else { throw S3TransferError.invalidFile }
         acquireAccess(url)
-        let file = try S3LocalFile(url: url)
+        status = "Preparing upload"
+        let file = try await filePreparer(url)
+        guard current(token, context), !Task.isCancelled else { return }
         let key = try context.key(filename: url.lastPathComponent)
         pendingUpload = .init(context: context, file: file, key: key)
         isBusy = false

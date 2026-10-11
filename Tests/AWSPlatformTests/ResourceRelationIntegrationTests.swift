@@ -15,8 +15,8 @@ final class ResourceRelationIntegrationTests: XCTestCase {
     }
 
     func testExplicitRegionalRelationshipClientsReuseIdentityWithoutChangingWorkspaceRegion() async throws {
-        let provider = AWSServiceProvider()
-        await provider.configure(profile: profile, region: "us-east-1", paths: paths)
+        let provider = AWSServiceProvider.testProvider()
+        try await provider.configureVerified(profile: profile, region: "us-east-1", paths: paths)
         let workspace = try await provider.elbClient(scope: scope())
         let foreignRegion = scope("eu-west-1")
         let relation = try await provider.relationshipELBClient(scope: foreignRegion)
@@ -35,9 +35,9 @@ final class ResourceRelationIntegrationTests: XCTestCase {
         await provider.shutdown()
     }
 
-    func testRelationshipClientsRejectDifferentProfilePathsPartitionAndClearedIdentity() async {
-        let provider = AWSServiceProvider()
-        await provider.configure(profile: profile, region: "us-east-1", paths: paths)
+    func testRelationshipClientsRejectDifferentProfilePathsPartitionAndClearedIdentity() async throws {
+        let provider = AWSServiceProvider.testProvider()
+        try await provider.configureVerified(profile: profile, region: "us-east-1", paths: paths)
         let other = AWSProfile(name: "other", region: "us-east-1", ssoStartURL: nil,
                                ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)
         let invalid = [
@@ -47,7 +47,7 @@ final class ResourceRelationIntegrationTests: XCTestCase {
             scope("cn-north-1"), scope("global"), scope("eu-west-1\n")
         ]
         for value in invalid { await assertRejected(provider, scope: value) }
-        await provider.configure(profile: nil, region: "us-east-1", paths: paths)
+        try await provider.configureVerified(profile: nil, region: "us-east-1", paths: paths)
         await assertRejected(provider, scope: scope())
     }
 

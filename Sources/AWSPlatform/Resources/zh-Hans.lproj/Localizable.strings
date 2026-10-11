@@ -1380,7 +1380,6 @@
 "The local destination changed. Choose a save location again." = "本地目标文件发生变化，请重新选择保存位置。";
 "The download was incomplete. The original local file was preserved." = "下载不完整，原有本地文件已保留。";
 "An object with this key already exists. Confirm before overwriting it." = "此 Key 已存在对象，覆盖前需要确认。";
-"The S3 object changed during upload. Review it and start again." = "S3 对象在上传期间发生变化，请检查后重新发起上传。";
 "S3 denied this transfer. Check s3:PutObject or s3:GetObject and any required KMS permissions." = "S3 拒绝了此次传输，请检查 s3:PutObject、s3:GetObject 及所需的 KMS 权限。";
 "This object is archived. Restore it in AWS before downloading." = "此对象已归档，请先在 AWS 中恢复后再下载。";
 "The Bucket or object no longer exists. Refresh and try again." = "Bucket 或对象已不存在，请刷新后重试。";
@@ -1455,3 +1454,8 @@
 "Update checks are available in packaged applications." = "检查更新功能仅在打包后的应用中可用。";
 "Waiting for S3 transfers to finish before restarting. New transfers are paused." = "等待 S3 传输任务结束后重启，暂时不能开始新传输。";
 "Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish." = "通过 GitHub 获取更新。安装需要您确认，并会等待 S3 传输任务结束。";
+
+"The Profile credentials changed account or role, or could not be verified. Use Retry Connection to verify the Profile again." = "Profile 凭据的账号或角色发生变化，或无法验证。请点击“重试连接”重新验证 Profile。";
+"Could not verify the Profile credentials. Use Retry Connection to verify the Profile again." = "无法验证 Profile 凭据，请点击“重试连接”重新验证 Profile。";
+"There is not enough local disk space. Free some space and try again." = "本地磁盘空间不足，请释放空间后重试。";
+"The S3 object changed or its metadata is incomplete. Refresh the list and start again." = "S3 对象发生变化或其元数据不完整，请刷新列表后重试。";

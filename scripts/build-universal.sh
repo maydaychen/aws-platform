@@ -98,6 +98,7 @@ build_architecture() {
     local bundle_count=0
     local swift_args=(
         --package-path "$project_root"
+        --scratch-path "$stage_dir/swift-build"
         --configuration release
         --build-system "$build_system"
         --arch "$architecture"

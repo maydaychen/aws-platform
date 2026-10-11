@@ -29,6 +29,7 @@ final class LambdaViewModel: ObservableObject {
     @Published var packageFilter = "All"
 
     private var provider: AWSServiceProvider?
+    private var scope: MonitoringScope?
     private var loadTask: Task<Void, Never>?
     private var detailTask: Task<Void, Never>?
     private var codeLoadTask: Task<Void, Never>?
@@ -83,15 +84,16 @@ final class LambdaViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
+    func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         reset()
         self.provider = provider
+        self.scope = scope
         functionLoader = {
-            let client = try await provider.lambdaClient()
+            let client = try await provider.lambdaClient(scope: scope)
             return try await Self.fetchFunctions(client: client)
         }
         summaryLoader = { name in
-            let client = try await provider.lambdaClient()
+            let client = try await provider.lambdaClient(scope: scope)
             let response = try await client.getFunction(.init(functionName: name))
             guard let configuration = response.configuration else {
                 throw LambdaDetailError.missingConfiguration
@@ -103,7 +105,7 @@ final class LambdaViewModel: ObservableObject {
             )
         }
         detailLoader = { functionName in
-            let client = try await provider.lambdaClient()
+            let client = try await provider.lambdaClient(scope: scope)
             return try await Self.fetchDetail(functionName: functionName, client: client)
         }
         if refreshImmediately { refresh() }
@@ -126,6 +128,7 @@ final class LambdaViewModel: ObservableObject {
     func reset() {
         cancelLoading()
         provider = nil
+        scope = nil
         functions = []
         selectedFunction = nil
         functionDetail = nil
@@ -306,7 +309,8 @@ final class LambdaViewModel: ObservableObject {
             if let codeLoader {
                 updated = try await codeLoader(function)
             } else if let provider {
-                updated = try await Self.fetchCode(for: function, provider: provider)
+                guard let scope else { throw AWSServiceError.notConfigured }
+                updated = try await Self.fetchCode(for: function, provider: provider, scope: scope)
             } else {
                 return
             }
@@ -328,9 +332,10 @@ final class LambdaViewModel: ObservableObject {
 
     private static func fetchCode(
         for function: LambdaFunctionModel,
-        provider: AWSServiceProvider
+        provider: AWSServiceProvider,
+        scope: MonitoringScope
     ) async throws -> LambdaFunctionModel {
-        let client = try await provider.lambdaClient()
+        let client = try await provider.lambdaClient(scope: scope)
         let response = try await client.getFunction(.init(functionName: function.functionName))
         try Task.checkCancellation()
         var updated = function

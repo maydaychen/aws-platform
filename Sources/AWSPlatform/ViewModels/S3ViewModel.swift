@@ -23,6 +23,7 @@ final class S3ViewModel: ObservableObject {
     @Published var objectSearchText = ""
 
     private var provider: AWSServiceProvider?
+    private var scope: MonitoringScope?
     private var loadTask: Task<Void, Never>?
     private var detailLoadTask: Task<Void, Never>?
     private var objectLoadTask: Task<Void, Never>?
@@ -68,15 +69,16 @@ final class S3ViewModel: ObservableObject {
         }
     }
 
-    func configure(provider: AWSServiceProvider, refreshImmediately: Bool = true) {
+    func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         reset()
         self.provider = provider
+        self.scope = scope
         bucketLoader = {
-            let client = try await provider.s3Client()
+            let client = try await provider.s3Client(scope: scope)
             return try await Self.fetchBuckets(client: client)
         }
         detailLoader = { bucket in
-            try await Self.fetchBucketDetails(bucket: bucket, provider: provider)
+            try await Self.fetchBucketDetails(bucket: bucket, provider: provider, scope: scope)
         }
         objectLoader = nil
         if refreshImmediately { refresh() }
@@ -100,6 +102,8 @@ final class S3ViewModel: ObservableObject {
 
     func reset() {
         cancelLoading()
+        provider = nil
+        scope = nil
         buckets = []
         selectedBucket = nil
         clearObjectBrowser()
@@ -163,27 +167,34 @@ final class S3ViewModel: ObservableObject {
 
     private static func fetchBucketDetails(
         bucket: S3BucketModel,
-        provider: AWSServiceProvider
+        provider: AWSServiceProvider,
+        scope: MonitoringScope
     ) async throws -> S3BucketModel {
         let name = bucket.name
 
         var updated = bucket
+        updated.region = nil
+        updated.versioningEnabled = nil
+        updated.encryptionEnabled = nil
+        updated.publicAccessBlock = nil
+        updated.tags = [:]
         var warnings: [String] = []
         do {
-            let baseClient = try await provider.s3Client()
+            let baseClient = try await provider.s3Client(scope: scope)
             do {
-                let location = try await baseClient.getBucketLocation(.init(bucket: name))
+                let location = try await baseClient.getBucketLocation(.init(bucket: name, expectedBucketOwner: scope.accountID))
                 updated.region = normalizedRegion(location.locationConstraint?.rawValue)
             } catch {
                 try Task.checkCancellation()
                 if error is CancellationError { throw error }
+                if Self.invalidatesBucket(error) { throw error }
                 warnings.append("Region: \(UserFacingError.message(for: error))")
             }
 
-            let bucketClient = try await provider.s3Client(region: updated.region)
+            let bucketClient = try await provider.s3Client(scope: scope, region: updated.region)
 
             do {
-                let versioning = try await bucketClient.getBucketVersioning(.init(bucket: name))
+                let versioning = try await bucketClient.getBucketVersioning(.init(bucket: name, expectedBucketOwner: scope.accountID))
                 updated.versioningEnabled = versioning.status?.rawValue == "Enabled"
             } catch {
                 try Task.checkCancellation()
@@ -192,7 +203,7 @@ final class S3ViewModel: ObservableObject {
             }
 
             do {
-                _ = try await bucketClient.getBucketEncryption(.init(bucket: name))
+                _ = try await bucketClient.getBucketEncryption(.init(bucket: name, expectedBucketOwner: scope.accountID))
                 updated.encryptionEnabled = true
             } catch {
                 try Task.checkCancellation()
@@ -205,7 +216,7 @@ final class S3ViewModel: ObservableObject {
             }
 
             do {
-                let response = try await bucketClient.getPublicAccessBlock(.init(bucket: name))
+                let response = try await bucketClient.getPublicAccessBlock(.init(bucket: name, expectedBucketOwner: scope.accountID))
                 updated.publicAccessBlock = Self.publicAccessBlock(
                     from: response.publicAccessBlockConfiguration
                 )
@@ -225,7 +236,7 @@ final class S3ViewModel: ObservableObject {
             }
 
             do {
-                let response = try await bucketClient.getBucketTagging(.init(bucket: name))
+                let response = try await bucketClient.getBucketTagging(.init(bucket: name, expectedBucketOwner: scope.accountID))
                 updated.tags = Dictionary<String, String>(
                     uniqueKeysWithValues: response.tagSet.map { tag in
                         (tag.key, tag.value)
@@ -312,10 +323,11 @@ final class S3ViewModel: ObservableObject {
             let page: S3ObjectPage
             if let objectLoader {
                 page = try await objectLoader(bucket, prefix, token)
-            } else if let provider {
-                let client = try await s3Client(forBucket: bucket, provider: provider)
+            } else if let provider, let scope {
+                let client = try await s3Client(forBucket: bucket, provider: provider, scope: scope)
                 try Task.checkCancellation()
-                let response = try await client.listObjectsV2(S3ObjectListing.request(bucket: bucket, prefix: prefix, token: token))
+                let response = try await client.listObjectsV2(S3ObjectListing.request(bucket: bucket, prefix: prefix, token: token,
+                    accountID: scope.accountID))
                 page = try S3ObjectListing.page(from: response, prefix: prefix)
             } else {
                 return
@@ -339,6 +351,13 @@ final class S3ViewModel: ObservableObject {
         } catch {
             guard generation == objectGeneration, !Task.isCancelled,
                   !(error is CancellationError) else { return }
+            if Self.invalidatesBucket(error) {
+                objects = []
+                selectedObject = nil
+                nextObjectToken = nil
+                consumedObjectTokens = []
+                hasLoadedObjectPage = false
+            }
             if append {
                 objectPageError = UserFacingError.message(for: error)
             } else {
@@ -367,15 +386,20 @@ final class S3ViewModel: ObservableObject {
         isLoadingMoreObjects = false
     }
 
-    private func s3Client(forBucket name: String, provider: AWSServiceProvider) async throws -> S3 {
+    private func s3Client(forBucket name: String, provider: AWSServiceProvider, scope: MonitoringScope) async throws -> S3 {
         if let bucket = buckets.first(where: { $0.name == name }), let region = bucket.region {
-            return try await provider.s3Client(region: region)
+            return try await provider.s3Client(scope: scope, region: region)
         }
 
-        let baseClient = try await provider.s3Client()
-        let location = try? await baseClient.getBucketLocation(.init(bucket: name))
+        let baseClient = try await provider.s3Client(scope: scope)
+        let location = try await baseClient.getBucketLocation(.init(bucket: name, expectedBucketOwner: scope.accountID))
         try Task.checkCancellation()
-        return try await provider.s3Client(region: Self.normalizedRegion(location?.locationConstraint?.rawValue))
+        return try await provider.s3Client(scope: scope, region: Self.normalizedRegion(location.locationConstraint?.rawValue))
+    }
+
+    private static func invalidatesBucket(_ error: Error) -> Bool {
+        ["AccessDenied", "Forbidden", "403", "NoSuchBucket", "NotFound", "404"]
+            .contains(AWSS3TransferService.code(error) ?? "")
     }
 
     private static func normalizedRegion(_ value: String?) -> String {

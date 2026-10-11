@@ -53,7 +53,7 @@ struct S3TransferProgress: Sendable {
 
 enum S3TransferError: Error, Equatable, LocalizedError {
     case invalidScope, invalidFilename, invalidFile, multipleFiles, fileChanged, tooLarge
-    case regionUnavailable, destinationChanged, incompleteDownload
+    case regionUnavailable, destinationChanged, incompleteDownload, insufficientSpace
     case objectExists(etag: String, region: String)
     case objectChanged, accessDenied, archivedObject, notFound, failed
 
@@ -68,8 +68,9 @@ enum S3TransferError: Error, Equatable, LocalizedError {
         case .regionUnavailable: return "Could not determine the Bucket region. Check s3:GetBucketLocation permission and retry."
         case .destinationChanged: return "The local destination changed. Choose a save location again."
         case .incompleteDownload: return "The download was incomplete. The original local file was preserved."
+        case .insufficientSpace: return "There is not enough local disk space. Free some space and try again."
         case .objectExists: return "An object with this key already exists. Confirm before overwriting it."
-        case .objectChanged: return "The S3 object changed during upload. Review it and start again."
+        case .objectChanged: return "The S3 object changed or its metadata is incomplete. Refresh the list and start again."
         case .accessDenied: return "S3 denied this transfer. Check s3:PutObject or s3:GetObject and any required KMS permissions."
         case .archivedObject: return "This object is archived. Restore it in AWS before downloading."
         case .notFound: return "The Bucket or object no longer exists. Refresh and try again."

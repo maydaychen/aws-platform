@@ -4,8 +4,8 @@ import SotoS3
 enum S3ObjectListing {
     static let pageSize = 1_000
 
-    static func request(bucket: String, prefix: String, token: String?) -> S3.ListObjectsV2Request {
-        .init(bucket: bucket, continuationToken: token, delimiter: "/", maxKeys: pageSize,
+    static func request(bucket: String, prefix: String, token: String?, accountID: String) -> S3.ListObjectsV2Request {
+        .init(bucket: bucket, continuationToken: token, delimiter: "/", expectedBucketOwner: accountID, maxKeys: pageSize,
               prefix: prefix.isEmpty ? nil : prefix)
     }
 
@@ -27,7 +27,7 @@ enum S3ObjectListing {
         for object in response.contents ?? [] {
             guard let key = object.key, Data(key.utf8) != Data(prefix.utf8) else { continue }
             rows.append(.init(key: key, size: object.size, lastModified: object.lastModified,
-                              storageClass: object.storageClass?.rawValue, isPrefix: false))
+                              storageClass: object.storageClass?.rawValue, isPrefix: false, eTag: object.eTag))
         }
         return .init(objects: rows, nextContinuationToken: nextToken)
     }

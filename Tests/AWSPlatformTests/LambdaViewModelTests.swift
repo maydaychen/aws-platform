@@ -386,7 +386,7 @@ final class LambdaViewModelTests: XCTestCase {
         let request = Task { await vm.loadCode(for: oldFunction.functionName) }
         await gate.waitForEntry()
 
-        vm.configure(provider: AWSServiceProvider(), refreshImmediately: false)
+        vm.configure(provider: AWSServiceProvider(), scope: S3TransferFixtures.context().scope, refreshImmediately: false)
         var currentFunction = oldFunction
         currentFunction.arn = "arn:aws:lambda:us-east-1:222222222222:function:example"
         vm.functions = [currentFunction]

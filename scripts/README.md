@@ -71,13 +71,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
 
 ## 应用更新与发布清单
 
-更新器锁定 Sparkle 2.10.0。构建脚本将其 framework 和 Installer／Downloader XPC、Autoupdate、Updater.app 一并嵌入，保持官方组件的 Universal 架构；单架构包的主程序和 Swift 兼容库仍只有目标切片。所有组件核对目标架构和 macOS 13 兼容性，正式打包依次签内部组件、framework、主 App，Downloader 保留原有 entitlements，不使用 `codesign --deep` 施加签名。
+更新器锁定 Sparkle 2.10.0 及其上游 revision／归档 SHA-256。框架复制、重新签名和工具执行前，`update_support.py` 下载官方归档到权限为 `0700` 的私有目录，校验固定 SHA-256 后才解包；不用共享 `.build/artifacts` 中的框架或签名工具。正式构建使用独立 SwiftPM scratch 目录。升级 Sparkle 时必须同时审查版本、revision 与上游校验和。构建脚本将其 framework 和 Installer／Downloader XPC、Autoupdate、Updater.app 一并嵌入，保持官方组件的 Universal 架构；单架构包的主程序和 Swift 兼容库仍只有目标切片。所有组件核对目标架构和 macOS 13 兼容性，正式打包依次签内部组件、framework、主 App，Downloader 保留原有 entitlements，不使用 `codesign --deep` 施加签名。
 
-仓库 `updates/public-ed25519-key.txt` 只有 Ed25519 公钥。配套私钥位于本机登录钥匙串的专用 account `aws-platform-updates`；脚本不导出私钥，签名前核对钥匙串公钥与仓库一致，缺少或不匹配即停止，不能重新生成密钥替代现有信任关系。依赖解析后可检查公开验证值：
-
-```bash
-.build/artifacts/sparkle/Sparkle/bin/generate_keys --account aws-platform-updates -p
-```
+仓库 `updates/public-ed25519-key.txt` 只有 Ed25519 公钥。配套私钥位于本机登录钥匙串的专用 account `aws-platform-updates`；脚本不导出私钥，签名前核对钥匙串公钥与仓库一致，缺少或不匹配即停止，不能重新生成密钥替代现有信任关系。所有公钥读取和签名工具均通过上述已校验归档执行。
 
 正式打包在 App 公证／装订、最终 ZIP 生成后使用 `sign_update` 签该 ZIP，并以 CryptoKit 仅凭公钥再次验签。`distribution.json` 的 `sparkle` 包含对应公钥、架构清单地址、Ed25519 签名和字节数；最终 ZIP 不得再次压缩或修改。自动检查默认关闭，可在设置开启；自动下载／安装禁用，安装由用户确认，并通过实际 S3 任务租约和 AppKit 终止回调等待传输完成。
 
@@ -90,9 +86,9 @@ python3 scripts/generate-update-feed.py dist/AWSPlatform-0.3.1-x86_64 \
   --output .tmp/update-feed/appcast-x86_64.xml
 ```
 
-脚本只接受单架构、已公证的包，校验清单、最终 ZIP 哈希／字节数、公钥签名、解包 App 与全部更新组件的 Developer ID 签名、票据及 Gatekeeper，再下载 GitHub 上的实际附件比对。新 build 必须递增，语义版本不能倒退；失败保留原清单。审查候选后，将它们放入 `updates/`，通过明确授权的提交／推送发布。脚本不创建 Release、不上传、不推送；清单始终后于附件发布。
+脚本只接受单架构、已公证的包，校验清单、最终 ZIP 哈希／字节数、公钥签名、解包 App 与全部更新组件的 Developer ID 签名、票据及 Gatekeeper，再下载 GitHub 上的实际附件比对。新 build 必须递增，语义版本不能倒退；候选 XML 再由同一专用密钥签名，通过独立公钥验签后才原子替换输出；任何失败都保留原清单。审查候选后，将它们放入 `updates/`，通过明确授权的提交／推送发布。脚本不创建 Release、不上传、不推送；清单始终后于附件发布。
 
-应用按正在运行的编译切片选择 ARM／Intel HTTPS 清单，Intel App 在 Rosetta 下仍走 Intel 源；Universal App 按实际运行切片更新为对应架构包。当前空清单不宣告旧包可自动更新。公开 `v0.3.0` 不含更新器，用户需先手动安装带更新器的版本，随后新版本才可在应用内升级。Sparkle 标准窗口遵循系统语言，应用自己的更新菜单和设置遵循应用语言偏好。
+应用按正在运行的编译切片选择 ARM／Intel HTTPS 清单，Intel App 在 Rosetta 下仍走 Intel 源；Universal App 按实际运行切片更新为对应架构包。应用启用 `SURequireSignedFeed` 和 `SUVerifyUpdateBeforeExtraction`，并将 `SUSignedFeedFailureExpirationInterval` 设为 `0`，不允许签名失败后自动放宽检查。当前空清单仅为未发布占位，首次使用前同样需要签名。签名不证明清单新鲜度，也不能防止服务端停止提供更新；签名私钥丢失时，必须手动安装经审查的新公钥版本，不通过未签名清单恢复。公开 `v0.3.0` 不含更新器，用户需先手动安装带更新器的版本，随后新版本才可在应用内升级。Sparkle 标准窗口遵循系统语言，应用自己的更新菜单和设置遵循应用语言偏好。
 
 首次使用 `sign_update` 时，macOS 可能要求在系统弹窗授权其访问专用签名密钥；密码只在本机系统弹窗输入，不能交给 Agent、写入脚本或通过导出私钥绕过授权。自动化验收仅使用隔离偏好、模拟 S3 任务和本地包，不能为测试进行真实 S3 写入。
 

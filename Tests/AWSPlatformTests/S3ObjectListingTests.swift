@@ -6,15 +6,16 @@ final class S3ObjectListingTests: XCTestCase {
     func testRequestKeepsOpaqueTokenAndLiteralPrefixWithFixedPageSize() {
         let prefix = "/中文//../a%2Fb + #/"
         let token = "opaque+/=%2F token"
-        let request = S3ObjectListing.request(bucket: "example", prefix: prefix, token: token)
+        let request = S3ObjectListing.request(bucket: "example", prefix: prefix, token: token, accountID: "111122223333")
         XCTAssertEqual(request.bucket, "example")
+        XCTAssertEqual(request.expectedBucketOwner, "111122223333")
         XCTAssertEqual(request.prefix, prefix)
         XCTAssertEqual(request.continuationToken, token)
         XCTAssertEqual(request.delimiter, "/")
         XCTAssertEqual(request.maxKeys, 1_000)
         XCTAssertNil(request.startAfter)
         XCTAssertNil(request.encodingType)
-        XCTAssertNil(S3ObjectListing.request(bucket: "example", prefix: "", token: nil).prefix)
+        XCTAssertNil(S3ObjectListing.request(bucket: "example", prefix: "", token: nil, accountID: "111122223333").prefix)
     }
 
     func testFolderOnlyAndFilteredMarkerPagesStillHaveMore() throws {
@@ -35,11 +36,12 @@ final class S3ObjectListingTests: XCTestCase {
     func testFinalAndEmptyPagesDoNotInventAContinuation() throws {
         let date = Date(timeIntervalSince1970: 100)
         let page = try S3ObjectListing.page(from: .init(
-            contents: [.init(key: "literal%20+中文", lastModified: date, size: 0, storageClass: .standard)],
+            contents: [.init(eTag: "listed-etag", key: "literal%20+中文", lastModified: date, size: 0, storageClass: .standard)],
             isTruncated: false, nextContinuationToken: "ignored"), prefix: "")
         XCTAssertEqual(page.objects.first?.key, "literal%20+中文")
         XCTAssertEqual(page.objects.first?.lastModified, date)
         XCTAssertEqual(page.objects.first?.size, 0)
+        XCTAssertEqual(page.objects.first?.eTag, "listed-etag")
         XCTAssertEqual(page.objects.first?.storageClass, "STANDARD")
         XCTAssertNil(page.nextContinuationToken)
         XCTAssertTrue(try S3ObjectListing.page(from: .init(isTruncated: false), prefix: "").objects.isEmpty)

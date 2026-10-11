@@ -8,30 +8,31 @@ final class Route53IntegrationTests: XCTestCase {
     private let identity = AWSIdentity(account: "111122223333", arn: "arn:aws:iam::111122223333:user/test", userID: "test")
 
     func testGlobalClientSurvivesResourceRegionChangeAndUsesPartitionEndpoints() async throws {
-        let provider = AWSServiceProvider()
         let paths = AWSConfigurationPaths(environment: [:])
         for (partition, endpoint, signingRegion) in [
             ("aws", "https://route53.amazonaws.com", "us-east-1"),
             ("aws-cn", "https://route53.amazonaws.com.cn", "cn-northwest-1"),
             ("aws-us-gov", "https://route53.us-gov.amazonaws.com", "us-gov-west-1")
         ] {
+            let provider = AWSServiceProvider.testProvider(identity: .init(account: identity.account,
+                arn: "arn:\(partition):iam::111122223333:user/test", userID: "test"))
             let scope = Route53Scope(profile: profile, identity: AWSIdentity(account: identity.account,
                 arn: "arn:\(partition):iam::111122223333:user/test", userID: "test"), paths: paths)
-            await provider.configure(profile: profile, region: "eu-west-1", paths: paths)
+            try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
             let first = try await provider.route53Client(scope: scope)
-            await provider.configure(profile: profile, region: "ap-northeast-1", paths: paths)
+            try await provider.configureVerified(profile: profile, region: "ap-northeast-1", paths: paths)
             let second = try await provider.route53Client(scope: scope)
             XCTAssertTrue(first.client === second.client)
             XCTAssertEqual(second.config.endpoint, endpoint)
             XCTAssertEqual(second.config.region.rawValue, signingRegion)
+            await provider.shutdown()
         }
-        await provider.shutdown()
     }
 
     func testClientRejectsStaleProfilePathsInvalidIdentityAndClearedProfile() async throws {
-        let provider = AWSServiceProvider()
+        let provider = AWSServiceProvider.testProvider()
         let paths = AWSConfigurationPaths(environment: [:])
-        await provider.configure(profile: profile, region: "eu-west-1", paths: paths)
+        try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
         let other = AWSProfile(name: "other", region: profile.region, ssoStartURL: nil,
                                ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)
         let invalidScopes = [
@@ -43,7 +44,7 @@ final class Route53IntegrationTests: XCTestCase {
             do { _ = try await provider.route53Client(scope: scope); XCTFail("Invalid scope must not borrow a client") }
             catch { XCTAssertEqual(error as? Route53Error, .invalidScope) }
         }
-        await provider.configure(profile: nil, region: "eu-west-1", paths: paths)
+        try await provider.configureVerified(profile: nil, region: "eu-west-1", paths: paths)
         do {
             _ = try await provider.route53Client(scope: Route53Scope(profile: profile, identity: identity, paths: paths))
             XCTFail("No Profile must mean no client")
@@ -69,7 +70,7 @@ final class Route53IntegrationTests: XCTestCase {
         XCTAssertNil(nav.target)
     }
 
-    func testFavoriteAndRecentOpenExactZoneAndClearFilters() async {
+    func testFavoriteAndRecentOpenExactZoneAndClearFilters() async throws {
         let zone = Route53HostedZone(id: "ZEXAMPLE", name: "example.test.", isPrivate: false)
         let vm = makeVM(zones: [zone])
         vm.configure(scope: Route53Scope(profile: profile, identity: identity))

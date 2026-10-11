@@ -20,18 +20,28 @@ struct S3PublicAccessBlockModel: Hashable {
     let restrictPublicBuckets: Bool
 }
 
-struct S3ObjectModel: Identifiable, Hashable {
+struct S3ObjectModel: Identifiable, Hashable, Sendable {
     let key: String
     let size: Int64?
     let lastModified: Date?
     let storageClass: String?
     let isPrefix: Bool
+    let eTag: String?
+
+    init(key: String, size: Int64?, lastModified: Date?, storageClass: String?, isPrefix: Bool, eTag: String? = nil) {
+        self.key = key
+        self.size = size
+        self.lastModified = lastModified
+        self.storageClass = storageClass
+        self.isPrefix = isPrefix
+        self.eTag = eTag
+    }
 
     var id: Data { Data(key.utf8) }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id && lhs.size == rhs.size && lhs.lastModified == rhs.lastModified
-            && lhs.storageClass == rhs.storageClass && lhs.isPrefix == rhs.isPrefix
+            && lhs.storageClass == rhs.storageClass && lhs.isPrefix == rhs.isPrefix && lhs.eTag == rhs.eTag
     }
 
     func hash(into hasher: inout Hasher) {
@@ -40,5 +50,6 @@ struct S3ObjectModel: Identifiable, Hashable {
         hasher.combine(lastModified)
         hasher.combine(storageClass)
         hasher.combine(isPrefix)
+        hasher.combine(eTag)
     }
 }

@@ -3,11 +3,11 @@ import XCTest
 
 final class S3TransferProviderTests: XCTestCase {
     func testTransfersUseBucketRegionWithSelectedProfileClient() async throws {
-        let provider = AWSServiceProvider()
+        let provider = AWSServiceProvider.testProvider()
         let context = S3TransferFixtures.context()
         let scope = context.scope
-        await provider.configure(profile: scope.profile, region: scope.region, paths: scope.paths)
-        let workspace = try await provider.s3Client()
+        try await provider.configureVerified(profile: scope.profile, region: scope.region, paths: scope.paths)
+        let workspace = try await provider.s3Client(scope: scope)
         let transfer = try await provider.transferS3Client(scope: scope, region: "ap-southeast-1")
         XCTAssertTrue(workspace.client === transfer.client)
         XCTAssertEqual(transfer.config.region.rawValue, "ap-southeast-1")
@@ -17,10 +17,10 @@ final class S3TransferProviderTests: XCTestCase {
     }
 
     func testTransfersRejectChangedProfileRegionPathsAndClearedClient() async throws {
-        let provider = AWSServiceProvider()
+        let provider = AWSServiceProvider.testProvider()
         let context = S3TransferFixtures.context()
         let original = context.scope
-        await provider.configure(profile: original.profile, region: original.region, paths: original.paths)
+        try await provider.configureVerified(profile: original.profile, region: original.region, paths: original.paths)
         let identity = AWSIdentity(account: original.accountID, arn: original.principalARN, userID: "test")
         let invalid = [
             S3TransferFixtures.context(profileName: "other").scope,

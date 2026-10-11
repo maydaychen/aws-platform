@@ -17,6 +17,7 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var isSigningIn = false
     @Published private(set) var loginMessage: String?
     @Published private(set) var requiresSSOLogin = false
+    @Published private(set) var identityFailureID = UUID()
 
     private let savedSessionKey = "selectedSSOSessionID"
     private var hasLoadedConfiguration = false
@@ -26,8 +27,9 @@ final class ProfileViewModel: ObservableObject {
     private let profileValidator: ProfileValidator?
     private let ssoLogin: SSOLogin
     private var configurationGeneration = 0
+    private var identityTask: Task<Void, Never>?
 
-    let provider = AWSServiceProvider()
+    let provider: AWSServiceProvider
 
     private static let knownRegions: [Region] = [
         .afsouth1, .apeast1, .apeast2, .apnortheast1, .apnortheast2, .apnortheast3,
@@ -67,15 +69,37 @@ final class ProfileViewModel: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
+        provider: AWSServiceProvider = AWSServiceProvider(),
         profileValidator: ProfileValidator? = nil,
         ssoLogin: @escaping SSOLogin = { session, paths in
             try await AWSSSOLoginService().login(session: session, paths: paths)
         }
     ) {
         self.defaults = defaults
+        self.provider = provider
         self.profileValidator = profileValidator
         self.ssoLogin = ssoLogin
         defaults.removeObject(forKey: "profileAccountNames.v1")
+        identityTask = Task { [weak self, weak provider] in
+            guard let provider else { return }
+            for await token in provider.identityInvalidations {
+                guard !Task.isCancelled else { return }
+                await self?.handleIdentityFailure(token)
+            }
+        }
+    }
+
+    deinit { identityTask?.cancel() }
+
+    private func handleIdentityFailure(_ token: UUID) async {
+        let expected = configurationGeneration
+        guard await provider.isCurrentIdentityFailure(token), expected == configurationGeneration,
+              isProfileReady else { return }
+        configurationGeneration += 1
+        validatedProfileID = nil
+        validatedRegion = nil
+        profileStatus = .failed(AWSServiceError.identityChanged.localizedDescription)
+        identityFailureID = UUID()
     }
 
     var selectedSession: AWSSOSession? {

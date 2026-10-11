@@ -12,16 +12,16 @@ final class ELBIntegrationTests: XCTestCase {
     ])
 
     func testClientFollowsRegionWhileReusingTheSelectedProfilesAWSClient() async throws {
-        let provider = AWSServiceProvider()
+        let provider = AWSServiceProvider.testProvider()
         let firstScope = makeScope()
-        await provider.configure(profile: profile, region: firstScope.region, paths: paths)
+        try await provider.configureVerified(profile: profile, region: firstScope.region, paths: paths)
         let first = try await provider.elbClient(scope: firstScope)
         let cost = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
         XCTAssertEqual(first.config.region.rawValue, "eu-west-1")
         XCTAssertEqual(first.config.endpoint, "https://elasticloadbalancing.eu-west-1.amazonaws.com")
 
         let nextScope = makeScope(region: "ap-northeast-1")
-        await provider.configure(profile: profile, region: nextScope.region, paths: paths)
+        try await provider.configureVerified(profile: profile, region: nextScope.region, paths: paths)
         let next = try await provider.elbClient(scope: nextScope)
         XCTAssertTrue(first.client === next.client)
         XCTAssertTrue(cost.client === next.client)
@@ -31,9 +31,9 @@ final class ELBIntegrationTests: XCTestCase {
         await provider.shutdown()
     }
 
-    func testClientRejectsStaleProfilePathsRegionInvalidIdentityAndClearedProfile() async {
-        let provider = AWSServiceProvider()
-        await provider.configure(profile: profile, region: "eu-west-1", paths: paths)
+    func testClientRejectsStaleProfilePathsRegionInvalidIdentityAndClearedProfile() async throws {
+        let provider = AWSServiceProvider.testProvider()
+        try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
         let other = AWSProfile(name: "elb-other", region: profile.region, ssoStartURL: nil,
                                ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)
         let staleScopes = [
@@ -49,32 +49,32 @@ final class ELBIntegrationTests: XCTestCase {
             makeScope(region: "global")
         ]
         for scope in staleScopes { await assertClientRejected(provider, scope: scope) }
-        await provider.configure(profile: nil, region: "eu-west-1", paths: paths)
+        try await provider.configureVerified(profile: nil, region: "eu-west-1", paths: paths)
         await assertClientRejected(provider, scope: makeScope())
     }
 
     func testForcedRefreshAndChangedConfigurationReplaceSameNamedProfileClient() async throws {
-        let provider = AWSServiceProvider()
+        let provider = AWSServiceProvider.testProvider()
         let scope = makeScope()
-        await provider.configure(profile: profile, region: scope.region, paths: paths)
+        try await provider.configureVerified(profile: profile, region: scope.region, paths: paths)
         let first = try await provider.elbClient(scope: scope)
-        await provider.configure(profile: profile, region: scope.region, paths: paths)
+        try await provider.configureVerified(profile: profile, region: scope.region, paths: paths)
         let reused = try await provider.elbClient(scope: scope)
         XCTAssertTrue(first.client === reused.client)
-        await provider.configure(profile: profile, region: scope.region, forceRefresh: true, paths: paths)
+        try await provider.configureVerified(profile: profile, region: scope.region, forceRefresh: true, paths: paths)
         let refreshed = try await provider.elbClient(scope: scope)
         XCTAssertFalse(first.client === refreshed.client)
 
         let changed = AWSProfile(name: profile.name, region: "ap-northeast-1", ssoStartURL: nil,
                                  ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)
-        await provider.configure(profile: changed, region: scope.region, paths: paths)
+        try await provider.configureVerified(profile: changed, region: scope.region, paths: paths)
         let changedClient = try await provider.elbClient(scope: makeScope(profile: changed))
         XCTAssertFalse(refreshed.client === changedClient.client)
         await assertClientRejected(provider, scope: scope)
         await provider.shutdown()
     }
 
-    func testFavoritesAndRecentsOpenExactLoadBalancerARNAndResetFilters() async {
+    func testFavoritesAndRecentsOpenExactLoadBalancerARNAndResetFilters() async throws {
         let saved = savedResource(service: .loadBalancers)
         let expected = ELBLoadBalancer(arn: saved.resourceID, name: "renamed", kind: "application")
         let sameName = ELBLoadBalancer(arn: savedResource(service: .loadBalancers, suffix: "other").resourceID,
@@ -100,7 +100,7 @@ final class ELBIntegrationTests: XCTestCase {
         }
     }
 
-    func testFavoritesAndRecentsOpenExactTargetGroupARNAndResetFilters() async {
+    func testFavoritesAndRecentsOpenExactTargetGroupARNAndResetFilters() async throws {
         let saved = savedResource(service: .targetGroups)
         let expected = ELBTargetGroup(arn: saved.resourceID, name: "renamed", targetType: "instance")
         let sameName = ELBTargetGroup(arn: savedResource(service: .targetGroups, suffix: "other").resourceID,
@@ -126,7 +126,7 @@ final class ELBIntegrationTests: XCTestCase {
         }
     }
 
-    func testMissingResourcesAndMissingViewModelNeverSelectAnotherDestination() async {
+    func testMissingResourcesAndMissingViewModelNeverSelectAnotherDestination() async throws {
         let lb = ELBLoadBalancer(arn: savedResource(service: .loadBalancers, suffix: "other").resourceID,
                                  name: "other", kind: "application")
         let group = ELBTargetGroup(arn: savedResource(service: .targetGroups, suffix: "other").resourceID,
@@ -216,7 +216,7 @@ final class ELBIntegrationTests: XCTestCase {
         }
     }
 
-    func testSavedLoadBalancingResourcesRequireExplicitProfileAndMatchingAccountAndRegion() async {
+    func testSavedLoadBalancingResourcesRequireExplicitProfileAndMatchingAccountAndRegion() async throws {
         let lb = ELBLoadBalancer(arn: savedResource(service: .loadBalancers).resourceID,
                                  name: "saved", kind: "application")
         let group = ELBTargetGroup(arn: savedResource(service: .targetGroups).resourceID,

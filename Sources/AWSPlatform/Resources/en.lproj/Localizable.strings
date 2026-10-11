@@ -1380,7 +1380,6 @@
 "The local destination changed. Choose a save location again." = "The local destination changed. Choose a save location again.";
 "The download was incomplete. The original local file was preserved." = "The download was incomplete. The original local file was preserved.";
 "An object with this key already exists. Confirm before overwriting it." = "An object with this key already exists. Confirm before overwriting it.";
-"The S3 object changed during upload. Review it and start again." = "The S3 object changed during upload. Review it and start again.";
 "S3 denied this transfer. Check s3:PutObject or s3:GetObject and any required KMS permissions." = "S3 denied this transfer. Check s3:PutObject or s3:GetObject and any required KMS permissions.";
 "This object is archived. Restore it in AWS before downloading." = "This object is archived. Restore it in AWS before downloading.";
 "The Bucket or object no longer exists. Refresh and try again." = "The Bucket or object no longer exists. Refresh and try again.";
@@ -1455,3 +1454,8 @@
 "Update checks are available in packaged applications." = "Update checks are available in packaged applications.";
 "Waiting for S3 transfers to finish before restarting. New transfers are paused." = "Waiting for S3 transfers to finish before restarting. New transfers are paused.";
 "Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish." = "Updates use GitHub. Installation requires your confirmation and waits for S3 transfers to finish.";
+
+"The Profile credentials changed account or role, or could not be verified. Use Retry Connection to verify the Profile again." = "The Profile credentials changed account or role, or could not be verified. Use Retry Connection to verify the Profile again.";
+"Could not verify the Profile credentials. Use Retry Connection to verify the Profile again." = "Could not verify the Profile credentials. Use Retry Connection to verify the Profile again.";
+"There is not enough local disk space. Free some space and try again." = "There is not enough local disk space. Free some space and try again.";
+"The S3 object changed or its metadata is incomplete. Refresh the list and start again." = "The S3 object changed or its metadata is incomplete. Refresh the list and start again.";

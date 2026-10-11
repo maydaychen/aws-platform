@@ -1,6 +1,7 @@
 """Offline checks for distribution safety gates; no signing or Apple requests."""
 
 import importlib.util
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import plistlib
@@ -35,7 +36,8 @@ class DistributionTests(unittest.TestCase):
                 "CFBundleIdentifier": "AWSPlatform", "CFBundleExecutable": "AWSPlatform",
                 "LSMinimumSystemVersion": "13.0", "CFBundleIconFile": "AppIcon.icns",
                 "SUPublicEDKey": distribution.updates.public_key(), "SUFeedURL": distribution.updates.feed_url("arm64"),
-                "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": False}
+                "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": False,
+                "SURequireSignedFeed": True, "SUVerifyUpdateBeforeExtraction": True, "SUSignedFeedFailureExpirationInterval": 0}
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
 
     def fake_run(self, architecture, calls):
@@ -195,6 +197,7 @@ class DistributionTests(unittest.TestCase):
                 with patch.object(distribution, "ROOT", root), \
                         patch.object(distribution, "run", side_effect=self.fake_run(architecture, calls)), \
                         patch.object(distribution, "verify_signature"), \
+                        patch.object(distribution.updates, "trusted_artifact", return_value=nullcontext(root / "verified-tools")), \
                         patch.object(distribution, "notarize", return_value={"status": "Accepted"}):
                     distribution.package(self.identity, self.team, architecture)
                 stem = f"AWSPlatform-0.3.0-{architecture}"

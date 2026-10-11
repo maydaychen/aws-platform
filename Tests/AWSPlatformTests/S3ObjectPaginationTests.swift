@@ -1,8 +1,27 @@
+import SotoCore
 import XCTest
 @testable import AWSPlatform
 
 @MainActor
 final class S3ObjectPaginationTests: XCTestCase {
+    func testOwnerRejectionOrDeletedBucketClearsPreviouslyVisiblePages() async {
+        for code in ["AccessDenied", "Forbidden", "NoSuchBucket"] {
+            let vm = S3ViewModel(objectLoader: { _, _, token in
+                if token != nil { throw AWSResponseError(errorCode: code) }
+                return .init(objects: [self.object("old-owner/file")], nextContinuationToken: "next")
+            })
+            await vm.loadObjects(bucket: "example")
+            XCTAssertFalse(vm.objects.isEmpty)
+            vm.loadMoreObjects(bucket: "example")
+            await settle(vm)
+            XCTAssertTrue(vm.objects.isEmpty)
+            XCTAssertNil(vm.selectedObject)
+            XCTAssertNil(vm.nextObjectToken)
+            XCTAssertFalse(vm.hasLoadedObjectPage)
+            XCTAssertNotNil(vm.objectPageError)
+        }
+    }
+
     func testInitialLoadFetchesOnePageAndMorePreservesSelectionAndLocalSearch() async {
         var requests: [String?] = []
         let vm = S3ViewModel(objectLoader: { bucket, prefix, token in

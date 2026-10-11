@@ -4,6 +4,32 @@ import XCTest
 
 final class S3TransferViewModelTests: XCTestCase {
     @MainActor
+    func testChangingProfileDuringPreparationDropsLateSnapshotAndConfirmation() async throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try S3TransferFixtures.file(in: directory)
+        let gate = TestGate()
+        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No unconfirmed upload") }, downloader: { _, _, _, _ in },
+            filePreparer: { url in
+                let file = try await S3LocalFile.prepare(url: url, temporaryRoot: directory)
+                await gate.wait()
+                return file
+            })
+        let context = S3TransferFixtures.context()
+        vm.configure(scope: context.scope)
+        vm.chooseUpload(context: context) { source.url }
+        await gate.waitForEntry()
+        XCTAssertTrue(vm.isBusy)
+        XCTAssertEqual(vm.status, "Preparing upload")
+        vm.configure(scope: S3TransferFixtures.context(profileName: "next").scope)
+        await gate.open()
+        await waitFor { (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) == ["file.txt"] }
+        XCTAssertNil(vm.pendingUpload)
+        XCTAssertFalse(vm.isBusy)
+        XCTAssertNil(vm.error)
+    }
+
+    @MainActor
     func testCancelledUploadMustActuallyExitBeforeRestart() async throws {
         let directory = try S3TransferFixtures.directory()
         defer { try? FileManager.default.removeItem(at: directory) }

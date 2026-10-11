@@ -71,7 +71,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -v
 
 ## 应用更新与发布清单
 
-更新器锁定 Sparkle 2.10.0 及其上游 revision／归档 SHA-256。框架复制、重新签名和工具执行前，`update_support.py` 下载官方归档到权限为 `0700` 的私有目录，校验固定 SHA-256 后才解包；不用共享 `.build/artifacts` 中的框架或签名工具。正式构建使用独立 SwiftPM scratch 目录。升级 Sparkle 时必须同时审查版本、revision 与上游校验和。构建脚本将其 framework 和 Installer／Downloader XPC、Autoupdate、Updater.app 一并嵌入，保持官方组件的 Universal 架构；单架构包的主程序和 Swift 兼容库仍只有目标切片。所有组件核对目标架构和 macOS 13 兼容性，正式打包依次签内部组件、framework、主 App，Downloader 保留原有 entitlements，不使用 `codesign --deep` 施加签名。
+更新器锁定 Sparkle 2.10.0 及其上游 revision／归档 SHA-256。框架复制、重新签名和工具执行前，`update_support.py` 下载官方归档到权限为 `0700` 的私有目录，校验固定 SHA-256 后才解包；不用共享 `.build/artifacts` 中的框架或签名工具。校验后的原始组件／工具保持只读，只有 App 内副本在重新签名前恢复标准 `755`／`644` 权限，符号链接保持原样。正式构建使用独立 SwiftPM scratch 目录。升级 Sparkle 时必须同时审查版本、revision 与上游校验和。构建脚本将其 framework 和 Installer／Downloader XPC、Autoupdate、Updater.app 一并嵌入，保持官方组件的 Universal 架构；单架构包的主程序和 Swift 兼容库仍只有目标切片。所有组件核对目标架构和 macOS 13 兼容性，正式打包依次签内部组件、framework、主 App，Downloader 保留原有 entitlements，不使用 `codesign --deep` 施加签名。
 
 仓库 `updates/public-ed25519-key.txt` 只有 Ed25519 公钥。配套私钥位于本机登录钥匙串的专用 account `aws-platform-updates`；脚本不导出私钥，签名前核对钥匙串公钥与仓库一致，缺少或不匹配即停止，不能重新生成密钥替代现有信任关系。所有公钥读取和签名工具均通过上述已校验归档执行。
 

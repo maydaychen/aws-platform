@@ -72,6 +72,17 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 - 下载由用户选择本地目标，使用同目录临时文件，完整成功后提交；失败或取消清理临时文件并保留原文件。云端 Key 不直接作为本地路径拼接。
 - 自动化验证只使用模拟传输和任务临时文件；不得为测试向真实 S3 写入、覆盖或删除数据。
 
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->
+
 <!-- HARNESS_VERIFICATION_START -->
 
 ## Harness 验证

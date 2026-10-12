@@ -1,9 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
+    <item>
+      <title>AWSPlatform 0.3.1</title>
+      <pubDate>Mon, 12 Oct 2026 13:12:49 +0000</pubDate>
+      <sparkle:version>9</sparkle:version>
+      <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <link>https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1</link>
+      <enclosure url="https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-x86_64.zip" length="33261399" type="application/octet-stream" sparkle:edSignature="9vwEShIdZZ76mt7oXWfVFiNYioPGWcsC3zWxf2pMkwFvITMo0cvWi5w82l+RWdR4ejNnWfYkIbhRBE3hLVbMBQ=="></enclosure>
+    </item>
     <title>AWSPlatform -- Intel</title>
     <link>https://github.com/maydaychen/aws-platform/releases</link>
     <description>AWSPlatform application updates for x86_64</description>
     <language>en</language>
   </channel>
-</rss>
+</rss><!-- sparkle-signatures:
+edSignature: 8WvrpyUmeqZvuxunfVtAGqvUj06g1t/kuJmZaJC5/xrJYSgwzhhyj3TKDwpdrslNsAcCKjHEdi23ybVmXl75Ag==
+length: 1300
+-->

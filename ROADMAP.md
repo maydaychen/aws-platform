@@ -2,9 +2,9 @@
 
 ## 当前阶段
 
-源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`。最新正式分发为 [v0.3.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.0) ，build 为 `6`、安装包源提交为 `9167963`；该版本对应源码已推送，双语 README 提供下载入口，旧 `v0.2.0` Release 保留。
+源码已按 MIT 许可证公开至 [maydaychen/aws-platform](https://github.com/maydaychen/aws-platform) ，默认分支为 `main`。最新正式分发为 [v0.3.1](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1) ，build 为 `9`、安装包源提交为 `643a220`，包含应用内更新与凭据／S3／更新签名安全加固；该版本对应源码已推送，双语 README 提供下载入口，旧 `v0.3.0`／`v0.2.0` Release 保留。
 
-面向 macOS 13+ 的 Apple Silicon `arm64`／Intel `x86_64` 各提供独立 ZIP 和 DMG，附统一 `SHA256SUMS.txt`。两套 App／DMG 已完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 与独立实物核验，Apple Silicon 隔离离线启动通过；公开 Release 的五个附件均已独立匿名下载，字节数与 SHA-256 匹配本地产物。固定发布前五项门禁、784 项应用测试、24 项打包测试及发布前 12 个提交的秘密扫描通过。
+面向 macOS 13+ 的 Apple Silicon `arm64`／Intel `x86_64` 各提供独立 ZIP 和 DMG，附统一 `SHA256SUMS.txt`。两套 App／DMG 已完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 与产物核验，Apple Silicon 隔离离线启动通过；最终 ZIP 均以真实发布密钥完成 Ed25519 签名并通过纯公钥验签。公开 Release 的五个附件均已匿名下载，字节数与 SHA-256 匹配本地产物。固定发布前五项门禁、806 项应用测试、40 项打包测试及发布源提交的秘密扫描通过。
 
 只读资源浏览、本地收藏与最近访问、按 Session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号／组织事件、Route 53、ELBv2 负载均衡与目标组、独立安全组、统一资源关联、中英文界面及 Lambda 源码预览加固均已纳入正式分发。登录后保持 Profile 为空，只有手动选择并验证 Profile 才加载数据，不因共用 Session 自动聚合 Profile。
 
@@ -18,11 +18,11 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 进行中
 
-- `v0.3.1` 正式发布：build 为 `9`，包含应用内更新与安全修复；已确认 GitHub 最新正式版为 `v0.3.0`，开发者证书、公证认证与仓库写权限可用。版本默认值及既有打包回归已同步，完整发布前五项门禁、806 项应用测试及 40 项打包测试通过。ARM／Intel 签名公证、最终 ZIP／Feed 签名、源码推送和附件上传待完成。本机 `0.3.1 (8)` 预览与旧 Release 保留，过程证据放在 `.tmp/release-0.3.1/`。
-
-- 应用内更新：已接入 Sparkle 2.10.0、菜单／设置入口、可选自动检查、ARM／Intel 分源、实际 S3 任务退出保护、嵌套签名、已校验官方 Sparkle 组件、签名 Feed 与解包前 ZIP 公钥验签逻辑。806 项应用测试、40 项打包／清单测试通过，更新器接入时完整工程门禁和双架构构建通过；最新安全修复后的 ARM 本地预览包构建、安装与启动通过，Intel 包尚未重新验证。正式分发 ZIP 的真实 Ed25519 签名核验等待用户在 macOS 钥匙串授权 `sign_update` 使用专用密钥，不能以模拟验证代替。当前更新清单为空，源码未推送、未发布新版本，现有公开 `v0.3.0` 保留；首次正式更新器版本仍需手动安装，后续才能应用内升级。
+- 应用内更新清单发布：ARM／Intel 的 `0.3.1 (9)` 候选清单已完成真实密钥签名、纯公钥验签、公开 ZIP 比对及条目审查，原始签名字节已复制到 `updates/`。待提交／推送并回读应用实际使用的两个 Feed 地址；真实检查／下载／安装／重启仍见专项验收清单。正式包与过程证据分别在 `dist/AWSPlatform-0.3.1-{arm64,x86_64}/` 和 `.tmp/release-0.3.1/`，本机 `0.3.1 (8)` 预览保留。
 
 ## 最近完成
+
+- 2026-10-12 21:15：推送源提交 `643a220` 并发布 [v0.3.1](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1) 为 Latest，build 为 `9`；包含应用内更新、凭据身份隔离、S3 传输与更新信任链加固。ARM／Intel 各提供 Developer ID 签名、Apple 公证及装订票据的 ZIP／DMG，附统一 SHA-256 校验文件；两份最终 ZIP 的真实 Ed25519 签名通过公钥验签，五个公开附件已匿名下载核对。同步双语下载入口和首次手动安装更新器的说明，旧 Release 与本机预览安装保留。
 
 - 2026-10-11 14:44：修复重新安装时发现的 Sparkle 签名权限问题：仅将 App 内已校验副本规范为可重新签名的权限，私有原始组件／工具继续只读。源提交 `b85981d` 构建为 `arm64` 本地预览版 `0.3.1 (8)`，正常退出旧应用、原子备份／替换至 `/Applications/AWSPlatform.app` 并打开。App／ZIP、完整安装清单及旧 `0.2.0 (4)` 备份保存在 `dist/local-preview-arm64-security-b85981d/`；未操作真实 AWS、推送或发布。
 
@@ -58,9 +58,10 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 2026-10-04 11:33：新增独立 Security Groups 页面，支持所属账号／VPC／标签／入出站规则、搜索筛选、收藏与最近访问；统一关联弹框连接 Route 53 记录、LB、Target Group、EC2 与安全组，名称优先、展开详情、单层 Explore、缓存 Back 及精确 Open。DNS 只匹配显式 Region 的直接 Alias／CNAME，Alias 同时核对 canonical zone；反向扫描需手动触发，最多 4 个 Zone 并发并保留部分失败。区域资源跳转重新核验当前 Profile 身份，全局记录保留资源 Region，按完整复合 ID 置顶展开。中英文 README、读取权限及三张模拟截图已同步。
 - 2026-10-04 09:55：新增当前 Profile／账号／Region 的 ALB／NLB／GWLB、Target Groups 和目标健康状态只读浏览；监听器默认动作、ALB 规则／条件／变换／加权转发可展开查看，同范围精确打开目标组及 EC2／Lambda／ALB。EC2 新增手动反查目标组页签，最多 4 个并发，保留多个注册端口及部分失败；IP 不推断实例，Lambda qualifier 保留并说明函数级跳转。完整分页、独立错误、取消／迟到隔离、ARN 收藏／最近访问接入，服务侧栏可滚动；中英文 README、五项权限说明及三张模拟组件截图已同步。
 - 2026-10-04 09:17：新增 Route 53 公有／私有 Hosted Zones 只读浏览，按当前已验证 Profile／账号全局加载，不随资源 Region 重查。提供 Overview／Records／Tags、搜索与公私／记录类型筛选、Alias／TTL／完整路由配置、委派 NS 与 VPC 关联；列表和记录完整分页，详情／记录／标签独立失败、手动刷新／取消及迟到结果隔离。Hosted Zone 以 canonical ID 和 `global` 接入收藏／最近访问，打开保留资源 Region 并重新验证账号；修复刷新失败后误选缓存 Zone 的导航路径。中英文 README、权限说明与两张模拟组件截图已同步。
-- 2026-10-04 09:01：新增侧栏 Recent 和 `Cmd+Shift+R` 入口，仅记录当前已验证 Profile／账号实际显示详情的 EC2、Lambda、S3 Bucket、CloudWatch 告警和 SNS Topic；按资源及浏览 Region 去重，每个 Profile／账号最多 50 条，重复访问置顶并更新名称与时间。支持本地持久化、搜索、单条删除和当前账号清空确认；跨窗口共享存储但按窗口范围筛选，损坏数据保留并禁用编辑。复用资源导航恢复 Region、重新核验账号，失败保留记录且不改收藏；中英文 README 和两张模拟组件截图已同步。
 
 ## 最近验证
+
+- 2026-10-12 21:15：`v0.3.1 (9)` 通过 Harness release 及源码推送 hook 的五项门禁、806 项离线应用测试、40 项打包测试与发布源提交秘密扫描。两套最终包核验实际切片、最低系统、资源／许可、嵌套签名、Apple Accepted 状态、票据、Gatekeeper、ZIP／DMG 内容一致性和 Ed25519 归档签名；ARM 副本在空 AWS 配置、隔离偏好与禁止出站 IP 网络下运行 8 秒。公开 Release／Latest／标签目标回读通过，五个匿名下载的实际字节与 SHA-256 匹配；两份 Feed 候选公钥验签与归档引用核对通过，双语 README 各 31／29 个本地引用审计零问题。过程证据在 `.tmp/release-0.3.1/`，未操作真实 AWS 或安装新版；公开 Feed 回读及完整更新安装仍待完成。
 
 - 2026-10-11 14:44：签名权限回归修复前失败、修复后通过，40 项打包测试及 Harness task 三项静态门禁通过；已校验官方 Sparkle 组件实际复现只读签名失败，修复后内部组件／framework 的深层签名验证通过且原始组件权限和内容保持不变。完整 ARM Release 构建与主程序 macOS 13 最低系统、双语资源、内嵌库、更新安全配置、严格深层签名及 ZIP 校验通过；ZIP 解压包、构建包与安装包全部 185 个条目的类型／权限／内容哈希／链接一致，旧安装备份匹配原包。NSWorkspace 确认新进程完成启动并持续运行 8 秒，CGWindowList 确认可见主窗口 1 个；Gitleaks 未发现秘密，证据在 `.tmp/security-local-install/`。未执行真实 AWS 或更新下载安装验收，Intel／macOS 13 实机未验证。
 
@@ -100,10 +101,9 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 - 2026-10-04 09:55：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，517 项正式测试与 1 项临时渲染测试全部成功，无编译警告。本次新增 86 项正式测试覆盖 ELB 分页／字段映射／认证白名单／范围与父资源校验、4 并发反查及部分失败、取消与共享请求竞态、精确导航和收藏／历史隔离。109 张离线截图覆盖深浅色、280／420 列表、480／900 详情、176 宽侧栏及错误／空／加载／部分结果；抽查发现并修正端口千位分组后，86 项相关测试与临时渲染重新通过，实例 ID 换行边界同时加固。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用和 `git diff --check` 通过；临时测试入口已移除。未调用真实 AWS；真实 IAM／分页、完整窗口交互、macOS 13 与 Intel 运行待验收。
 
-- 2026-10-04 09:17：`swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 严格构建通过，431 项正式测试及 1 项临时渲染测试全部通过，无编译警告。新增 52 项正式测试覆盖三元记录游标／空页／重复与缺失游标／页数保护、Alias 与路由字段、私有 Zone 可选 NS、权限错误脱敏、取消／迟到响应、全局分区端点及 Profile／账号隔离、收藏／历史精确导航与缓存列表失败回归。47 张离线截图覆盖 280／420 列表与 480／900 详情、深浅色、三页签、展开记录、长值、空／错误／加载态；补充实际列表宽度后重新严格渲染通过，临时入口已移除。独立源码审查、Gitleaks 源码／测试扫描、双语 README 引用及 `git diff --check` 通过。未调用真实 AWS；完整窗口交互、真实 IAM／分页、macOS 13 与 Intel 运行仍待验收。
-
 ## 已完成
 
+- 应用内更新入口、Sparkle 2.10.0 与 ARM／Intel 分源；可选自动检查默认关闭，下载／安装由用户确认，等待同进程各窗口的实际 S3 任务退出。官方组件固定 SHA-256 验证、嵌套签名、最终 ZIP 与 Feed 的 Ed25519 签名／公钥校验已接入正式分发；完整安装轮次保留专项验收。
 - Profile 按配置名称、角色和已知账号 ID 多词搜索；不查询或缓存账户名称。顶部 Session／Profile 同行，区域含地点名，侧栏统一滚动与整行点击、导航立即切换，EC2 概览字段按组对齐。
 - 应用内中英文与跟随系统设置，偏好本地持久化、现存提示即时切换、日期语言适配及原始 AWS 内容保留；语言切换不重建数据状态或查询 AWS。实现约定见 [本地化说明](docs/localization.md) 。
 
@@ -137,14 +137,14 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 独立读取 `sso-session` 配置节并按关联过滤 Profile；普通凭据与旧式 SSO 位于 `Other profiles`，`services` 等辅助节不作为 Profile。
 - 不提供 Lambda Invoke；S3 文件上传以外的 AWS 资源保持只读，SSO 登录只由 CLI 管理本机会话缓存。
 - 修复 Profile 快速切换时 AWSClient 被覆盖但未关闭的 actor 重入竞态。
-- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 当前账号／组织事件与状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称、S3 文件传输／拖拽上传／分页与更新重启保护的 793 项离线测试，含原生组件交互与渲染。
+- ConfigReader、AWSServiceProvider、Profile、EC2、Lambda、S3、CloudWatch Alarms／指标／日志、SNS／配置关系、Health 当前账号／组织事件与状态流、Route 53 全局查询、ELBv2 分页／映射／状态流／目标关系、安全组／统一资源关联与精确导航、收藏／最近访问存储与导航、SSO 登录、自定义凭据桥接及 Cost 日期／服务／状态流、中英文显示与偏好持久化、Lambda 源码预览限制及竞态隔离、Profile 搜索／区域名称、S3 文件传输／拖拽上传／分页、凭据续期身份与更新重启保护的 806 项离线测试，含原生组件交互与渲染。
 - Swift Package 依赖锁文件纳入版本控制。
 
 ## 专项验收清单
 
 用户已确认真实账号日常使用验收通过。以下保留为后续针对平台、权限、数据量与失败路径的专项检查清单，不再作为整体使用验收的阻塞；本次反馈未逐项说明这些场景的覆盖情况。
 
-- 应用内更新专项验收：先发布并手动安装包含更新器的签名／公证版本，再通过真实 ARM／Intel 清单验证检查、下载、确认安装和重启，以及断网／错误清单／错误签名／版本回退。验证有 S3 上传或下载、取消后任务尚未退出、切换 Profile 和同进程多窗口时等待实际任务退出并禁用新传输；验证稍后退出安装及保留本地偏好。更新前关闭其他独立启动的应用实例；跨进程传输保护、强制退出、Intel／macOS 13 实机与真实安装轮次尚未验收。当前空清单不宣告任何可升级版本。
+- 应用内更新专项验收：`v0.3.1 (9)` 是已发布的首个正式更新器版本，`v0.3.0` 及更早版本需先手动安装，再通过真实 ARM／Intel 清单验证检查、下载、确认安装和重启，以及断网／错误清单／错误签名／版本回退。验证有 S3 上传或下载、取消后任务尚未退出、切换 Profile 和同进程多窗口时等待实际任务退出并禁用新传输；验证稍后退出安装及保留本地偏好。更新前关闭其他独立启动的应用实例；跨进程传输保护、强制退出、Intel／macOS 13 实机与真实安装轮次尚未验收。当前候选签名清单宣告 `0.3.1 (9)`，同 build 的正式包不应提示升级，后续更高 build 的完整安装仍需真实验收。
 - 工作台易用性真实窗口与账号验收：大量 Profile 的配置名称／账号 ID 搜索与角色区分。用实际资源数据量检查侧栏快速切换、整行点击、短窗口滚动及宽窄窗口顶部／EC2 对齐；当前鼠标与渲染证据来自离线 NSHostingView，不代表真实账号下全部 CPU 卡顿已排除。
 - 安全组与统一资源关联真实账号／窗口验收：对照当前 Profile 的 SG 规则／共享 owner／附加网卡绑定，验证直接 Alias／CNAME、canonical zone、加权记录与显式 LB 查询 Region；核对手动反查请求范围、实际权限与部分失败。验证 Explore／Back／Open、同名记录按路由标识置顶展开、跨 Region 资源重验身份、全局记录保留 Region，以及切换或清空 Profile／Session 后无旧数据。当前只展示配置关系，不证明实际流量或网络连通。
 - ELBv2 真实账号与窗口验收：对照当前 Profile／Region 的 ALB／NLB／GWLB、监听器默认动作／ALB 规则、全部加权目标组与实际注册健康状态；检查五项 Describe 权限局部失败、分页及 EC2 手动扫描部分失败。验证 LB → TG → EC2／Lambda／ALB 精确跳转、IP 不跳实例、目标缺失不选首项、收藏／历史恢复 Region、切换或清空 Profile／Region 后旧数据不可见。首版仅包含 ELBv2，未包含 Classic ELB、Auto Scaling 或流量追踪。

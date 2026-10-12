@@ -88,7 +88,7 @@ python3 scripts/generate-update-feed.py dist/AWSPlatform-0.3.1-x86_64 \
 
 脚本只接受单架构、已公证的包，校验清单、最终 ZIP 哈希／字节数、公钥签名、解包 App 与全部更新组件的 Developer ID 签名、票据及 Gatekeeper，再下载 GitHub 上的实际附件比对。新 build 必须递增，语义版本不能倒退；候选 XML 再由同一专用密钥签名，通过独立公钥验签后才原子替换输出；任何失败都保留原清单。审查候选后，将它们放入 `updates/`，通过明确授权的提交／推送发布。脚本不创建 Release、不上传、不推送；清单始终后于附件发布。
 
-应用按正在运行的编译切片选择 ARM／Intel HTTPS 清单，Intel App 在 Rosetta 下仍走 Intel 源；Universal App 按实际运行切片更新为对应架构包。应用启用 `SURequireSignedFeed` 和 `SUVerifyUpdateBeforeExtraction`，并将 `SUSignedFeedFailureExpirationInterval` 设为 `0`，不允许签名失败后自动放宽检查。当前空清单仅为未发布占位，首次使用前同样需要签名。签名不证明清单新鲜度，也不能防止服务端停止提供更新；签名私钥丢失时，必须手动安装经审查的新公钥版本，不通过未签名清单恢复。公开 `v0.3.0` 不含更新器，用户需先手动安装带更新器的版本，随后新版本才可在应用内升级。Sparkle 标准窗口遵循系统语言，应用自己的更新菜单和设置遵循应用语言偏好。
+应用按正在运行的编译切片选择 ARM／Intel HTTPS 清单，Intel App 在 Rosetta 下仍走 Intel 源；Universal App 按实际运行切片更新为对应架构包。应用启用 `SURequireSignedFeed` 和 `SUVerifyUpdateBeforeExtraction`，并将 `SUSignedFeedFailureExpirationInterval` 设为 `0`，不允许签名失败后自动放宽检查。仓库 `updates/` 已包含 `0.3.1 (9)` 的两份 Ed25519 签名清单；修改后必须重新签名，发布时保留完整签名字节。签名不证明清单新鲜度，也不能防止服务端停止提供更新；签名私钥丢失时，必须手动安装经审查的新公钥版本，不通过未签名清单恢复。公开 `v0.3.0` 及更早版本不含更新器，用户需先手动安装 `v0.3.1`，随后新版本才可在应用内升级。Sparkle 标准窗口遵循系统语言，应用自己的更新菜单和设置遵循应用语言偏好。
 
 首次使用 `sign_update` 时，macOS 可能要求在系统弹窗授权其访问专用签名密钥；密码只在本机系统弹窗输入，不能交给 Agent、写入脚本或通过导出私钥绕过授权。自动化验收仅使用隔离偏好、模拟 S3 任务和本地包，不能为测试进行真实 S3 写入。
 

@@ -1,5 +1,17 @@
 import Foundation
 
+enum EC2CPUCreditMode: String, Hashable {
+    case standard = "Standard"
+    case unlimited = "Unlimited"
+    case unknown = "Unknown"
+    case permissionDenied = "Permission denied: ec2:DescribeInstanceCreditSpecifications"
+    case readFailed = "Unable to read CPU Credit mode."
+
+    static func applies(to instanceType: String) -> Bool {
+        instanceType.range(of: "^t[0-9]+[a-z]*\\.[a-z0-9]+$", options: .regularExpression) != nil
+    }
+}
+
 struct EC2InstanceHealth: Hashable {
     let systemStatus: String?
     let instanceStatus: String?
@@ -67,6 +79,7 @@ struct EC2InstanceDetailModel: Hashable {
     let securityGroups: [EC2SecurityGroupModel]
     let health: EC2InstanceHealth?
     let warnings: [String]
+    var cpuCreditMode: EC2CPUCreditMode? = nil
 }
 
 struct EC2NetworkInterfaceModel: Identifiable, Hashable {

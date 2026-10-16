@@ -40,6 +40,17 @@ struct EC2DetailView: View {
         return vm.instanceDetail
     }
 
+    var cpuCreditFields: [(String, String)] {
+        guard EC2CPUCreditMode.applies(to: instance.instanceType) else { return [] }
+        let value: String
+        if let detail {
+            value = (detail.cpuCreditMode ?? .unknown).rawValue
+        } else {
+            value = vm.detailError == nil ? "Loading…" : EC2CPUCreditMode.readFailed.rawValue
+        }
+        return [("CPU Credit mode", value)]
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -179,7 +190,8 @@ struct EC2DetailView: View {
                     ("Virtualization", detail?.virtualizationType ?? "-"),
                     ("Hypervisor", detail?.hypervisor ?? "-"),
                     ("CPU Cores", number(detail?.cpuCoreCount)),
-                    ("Threads per Core", number(detail?.threadsPerCore)),
+                    ("Threads per Core", number(detail?.threadsPerCore))
+                ] + cpuCreditFields.map { ($0.0, L10n.text($0.1, locale: locale)) } + [
                     ("EBS Optimized", boolean(detail?.ebsOptimized)),
                     ("ENA Support", boolean(detail?.enaSupport)),
                     ("Capacity Reservation", detail?.capacityReservationId ?? "-"),

@@ -20,6 +20,8 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 最近完成
 
+- 2026-10-17 00:45：完成 [GitHub issue #1](https://github.com/maydaychen/aws-platform/issues/1) 的 EC2 CPU Credit 模式展示：仅对 T 系列详情使用同一 Profile／Region 客户端和精确实例 ID 调用 `DescribeInstanceCreditSpecifications`，映射 Standard／Unlimited；未知、权限不足和读取失败分开提示，失败保留其他详情，非 T 系列不查询或展示。复用现有字段行并同步中英文文案及 README；本轮仅本地源码变更，未操作真实 AWS、安装或发布。
+
 - 2026-10-17 00:42：侧栏设置下方的操作范围提示改为版本号及构建号，复用设置页的应用包版本读取逻辑并支持复制；移除旧提示词条，同步设计规范与双语 README。未修改版本号、安装包或线上更新源。
 
 - 2026-10-12 21:23：推送源提交 `643a220` 并发布 [v0.3.1](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1) 为 Latest，build 为 `9`；包含应用内更新、凭据身份隔离、S3 传输与更新信任链加固。ARM／Intel 各提供 Developer ID 签名、Apple 公证及装订票据的 ZIP／DMG，附统一 SHA-256 校验文件；两份最终 ZIP 的真实 Ed25519 签名通过公钥验签，五个公开附件已匿名下载核对。提交 `62a4695` 发布两份签名更新清单并同步双语下载入口、打包与首次手动安装说明，线上 Feed 内容和公钥验签通过；旧 Release 与本机预览安装保留。
@@ -55,10 +57,12 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 2026-10-04 15:40：新增「跟随系统／简体中文／English」语言偏好及侧栏设置入口；即时切换所有窗口文案，保留 Session／Profile／Region、筛选及资源状态，不触发 AWS 查询。现有页面、帮助、错误及空态使用 1,316 条双语文案，资源名称、ARN、标签、日志及 AWS 说明保留原文；现存异步错误在显示时解析，DNS 部分失败分离资源标识与错误正文。SwiftPM 语言资源及 Universal 打包检查、双语 README 与本地化开发说明同步。本轮仅本地源码，未推送、签名或重新分发。
 
 - 2026-10-04 14:54：按用户授权将 Health、最近访问、Route 53、ELBv2 与统一资源关联的 5 个功能提交推送至 GitHub `main`，功能提交为 `59626f8`；同步源码交付状态。原私有远端及既有未提交 `AGENTS.md` 改动保持不变；未重新打包或发布二进制 Release。
+
 - 2026-10-04 11:33：新增独立 Security Groups 页面，支持所属账号／VPC／标签／入出站规则、搜索筛选、收藏与最近访问；统一关联弹框连接 Route 53 记录、LB、Target Group、EC2 与安全组，名称优先、展开详情、单层 Explore、缓存 Back 及精确 Open。DNS 只匹配显式 Region 的直接 Alias／CNAME，Alias 同时核对 canonical zone；反向扫描需手动触发，最多 4 个 Zone 并发并保留部分失败。区域资源跳转重新核验当前 Profile 身份，全局记录保留资源 Region，按完整复合 ID 置顶展开。中英文 README、读取权限及三张模拟截图已同步。
-- 2026-10-04 09:55：新增当前 Profile／账号／Region 的 ALB／NLB／GWLB、Target Groups 和目标健康状态只读浏览；监听器默认动作、ALB 规则／条件／变换／加权转发可展开查看，同范围精确打开目标组及 EC2／Lambda／ALB。EC2 新增手动反查目标组页签，最多 4 个并发，保留多个注册端口及部分失败；IP 不推断实例，Lambda qualifier 保留并说明函数级跳转。完整分页、独立错误、取消／迟到隔离、ARN 收藏／最近访问接入，服务侧栏可滚动；中英文 README、五项权限说明及三张模拟组件截图已同步。
 
 ## 最近验证
+
+- 2026-10-17 00:45：CPU Credit 新增 12 项离线测试，相关 EC2／本地化共 37 项及全量 `swift test --disable-sandbox` 共 818 项全部通过；SwiftPM 缓存／配置／安全与模块缓存显式放在 `.tmp/ec2-cpu-credit/`。覆盖请求精确实例 ID、响应按 ID 映射、Standard／Unlimited、缺失／未知响应、权限／网络失败、取消及迟到成功、非 T 系列跳过查询和隐藏字段、详情加载／失败与快速切换实例；`swift build`、Harness task 三项静态门禁和双语资源 plist 检查通过。过程日志位于 `.tmp/ec2-cpu-credit/`；未调用真实 AWS，控制台一致性及真实 IAM 路径未验证。
 
 - 2026-10-17 00:42：侧栏版本显示通过 SwiftPM Debug 构建；Harness task 文件规模、差异及设计 lint 检查通过，两种语言资源的 plist 语法检查通过。未执行真实窗口视觉验收、安装或发布。
 
@@ -97,8 +101,6 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 2026-10-04 15:40：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，620 项正式测试及 3 项临时渲染共 623 项成功，无编译警告。16 项本地化测试覆盖系统回退、偏好恢复、英文／中文词条与占位符、原始参数、嵌套及多行消息、大写 Health 状态；34 张离线模拟截图覆盖各服务、深浅色、窄宽布局及长文案，同一挂载窗口切换后状态不变且模拟身份验证仍只调用一次。独立源码／日志与关键截图复核通过；将临时关联夹具对齐生产词条后，单项渲染测试再次通过。双语 README 各 27 个引用、11 项打包脚本测试、语言资源 plist、源码／测试 Gitleaks 与 `git diff --check` 通过；临时测试入口移除。未调用真实 AWS，未生成新分发包，原生 Settings 入口／真实多窗口及 Intel／macOS 13 实机仍待验收；既有 Charts anchor 运行时警告保留。
 
 - 2026-10-04 14:54：推送范围 `3d51d19..59626f8` 的 Gitleaks 扫描未发现秘密，`git diff --check` 通过；GitHub `main` 实时回读与功能提交 `59626f8` 一致。业务源码及测试与此前已验证提交一致，本轮仅推送并同步进度文档，未重复运行 Swift 测试或访问真实 AWS。
-
-- 2026-10-04 11:33：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，604 项正式测试与 1 项临时渲染测试成功，无编译警告；新增 87 项覆盖安全组完整分页／结构化规则／附加网卡、关系匹配／4 并发及部分失败、Profile／身份／Region 隔离、精确导航、取消与迟到结果。修正同 owner 搜索测试预期；渲染发现 DNS 长卡片自动滚动不稳定，最终采用精确记录置顶展开并移除失败滚动代码，36 项相关正式测试与临时渲染再次通过。42 张模拟组件截图覆盖深浅色、窄宽布局、错误／部分结果及长列表精确记录；已抽查关键图。独立源码与证据复核、Gitleaks、双语 README 引用和 `git diff --check` 通过；临时入口已移除。未调用真实 AWS；真实权限、账号、完整窗口交互、macOS 13 与 Intel 待验收。
 
 ## 已完成
 
@@ -155,7 +157,7 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - SNS 真实账号验收：Standard／FIFO Topic、配置策略和订阅列表、跨账号订阅 Owner、待确认／已删除状态、三项详情权限局部降级、Endpoint 显示／隐藏与切换重置、实际分页与取消；验证空 Profile 不查询，切换 Profile／Region 清除旧详情，SNS 访问不触发 Cost 重查。
 - CloudWatch Alarms 真实账号验收：当前 Profile／Region 的 Metric 和 Composite 列表、筛选与刷新、单指标／Math／Insights 配置、30 天历史和标签权限局部降级；验证 ARN 收藏、分页、快速切换／取消、清空 Profile 后不再展示数据，以及切换资源 Region 不触发 Cost 重查。读取 Composite 所需 `DescribeAlarms`／`DescribeAlarmHistory` 必须允许 `Resource: "*"`。
 - Cost 真实账号验收：启用 Cost Explorer 并检查读取与账单权限；对照当前账号、相同 UTC 日期／费用 Region／UnblendedCost 的控制台数据，验证管理账号不包含其他成员账号；验证无权限、数据准备中、分页、取消、退款与实际币种；切换资源 Region 不重新查询费用，切换 Profile 后旧数据清空。真实 API 调用由用户验证，可能产生调用费用。
-- 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 浏览正常路径和权限不足路径。
+- 使用真实只读 AWS Profile 验证 EC2、Lambda、S3 浏览正常路径和权限不足路径。EC2 CPU Credit 专项保留：对照 T 系列 Standard／Unlimited 与 AWS 控制台，检查缺少 `ec2:DescribeInstanceCreditSpecifications` 时的明确提示，并确认非 T 系列不展示；本轮未执行。
 - S3 新增浏览功能真实账号／窗口验收：大目录首屏与手动加载更多、只筛选已加载项目、空显示页继续分页、续页失败／取消后重试、逐层返回与特殊 Key。确认上传后重新加载第一页，新对象位于后续页时可继续查看；快速切换 Bucket／前缀／Profile 后不显示旧页，长路径祖先横向滚动且 Root／当前位置可见。
 - S3 文件传输真实窗口与账号验收：由用户从 Finder 拖入单文件到根目录／嵌套目录及空列表，确认目标路径与取消／切换 Profile 后旧拖拽失效；在可测试的 Bucket 内确认上传／同名覆盖及并发冲突、空文件／普通文件下载、IAM／KMS 权限、版本控制与实际 Bucket Region。自动化不执行真实 S3 写入。
 - 真实窗口中的拖动分栏、键盘导航、源码横向滚动及 macOS 13／Intel 实机运行验收；模拟组件布局与长文本渲染已检查，通用包已完成 Apple Silicon 启动检查。

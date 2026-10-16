@@ -1331,6 +1331,10 @@
 "Cape Town" = "开普敦";
 "Clear profile selection" = "清空 Profile 选择";
 "Compute and capacity" = "计算与容量";
+"CPU Credit mode" = "CPU 积分模式";
+"Unlimited" = "Unlimited（无限）";
+"Permission denied: ec2:DescribeInstanceCreditSpecifications" = "权限不足：ec2:DescribeInstanceCreditSpecifications";
+"Unable to read CPU Credit mode." = "CPU 积分模式读取失败。";
 "Frankfurt" = "法兰克福";
 "Germany (Sovereign Cloud)" = "德国（主权云）";
 "GovCloud US East" = "GovCloud 美国东部";

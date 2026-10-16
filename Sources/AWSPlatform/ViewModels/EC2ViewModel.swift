@@ -1,4 +1,5 @@
 import Foundation
+import SotoCore
 import SotoEC2
 
 @MainActor
@@ -388,6 +389,12 @@ final class EC2ViewModel: ObservableObject {
             warnings.append("Security groups: \(UserFacingError.message(for: error))")
         }
 
+        let cpuCreditMode = try await fetchCPUCreditMode(
+            instanceId: instanceId,
+            instanceType: instance.instanceType?.rawValue ?? "",
+            request: { try await client.describeInstanceCreditSpecifications($0) }
+        )
+
         return EC2InstanceDetailModel(
             instanceId: instanceId,
             privateDNSName: instance.privateDnsName,
@@ -416,8 +423,36 @@ final class EC2ViewModel: ObservableObject {
             volumes: volumes,
             securityGroups: securityGroups,
             health: status,
-            warnings: warnings
+            warnings: warnings,
+            cpuCreditMode: cpuCreditMode
         )
+    }
+
+    static func fetchCPUCreditMode(
+        instanceId: String,
+        instanceType: String,
+        request: (EC2.DescribeInstanceCreditSpecificationsRequest) async throws -> EC2.DescribeInstanceCreditSpecificationsResult
+    ) async throws -> EC2CPUCreditMode? {
+        guard EC2CPUCreditMode.applies(to: instanceType) else { return nil }
+        try Task.checkCancellation()
+        do {
+            let response = try await request(.init(instanceIds: [instanceId]))
+            try Task.checkCancellation()
+            let credits = response.instanceCreditSpecifications?.first { $0.instanceId == instanceId }?.cpuCredits
+            switch credits {
+            case "standard": return .standard
+            case "unlimited": return .unlimited
+            default: return .unknown
+            }
+        } catch {
+            try Task.checkCancellation()
+            if error is CancellationError { throw error }
+            let code = (error as? AWSErrorType)?.errorCode ?? ""
+            if ["UnauthorizedOperation", "AccessDenied", "AccessDeniedException", "Forbidden", "ForbiddenException"].contains(code) {
+                return .permissionDenied
+            }
+            return .readFailed
+        }
     }
 
     private static func fetchVolumes(

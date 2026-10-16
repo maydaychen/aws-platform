@@ -1331,6 +1331,10 @@
 "Cape Town" = "Cape Town";
 "Clear profile selection" = "Clear profile selection";
 "Compute and capacity" = "Compute and capacity";
+"CPU Credit mode" = "CPU Credit mode";
+"Unlimited" = "Unlimited";
+"Permission denied: ec2:DescribeInstanceCreditSpecifications" = "Permission denied: ec2:DescribeInstanceCreditSpecifications";
+"Unable to read CPU Credit mode." = "Unable to read CPU Credit mode.";
 "Frankfurt" = "Frankfurt";
 "Germany (Sovereign Cloud)" = "Germany (Sovereign Cloud)";
 "GovCloud US East" = "GovCloud US East";

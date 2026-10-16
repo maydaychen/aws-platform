@@ -162,7 +162,7 @@ final class EC2ViewModelTests: XCTestCase {
                     if instanceId == first.instanceId {
                         try? await Task.sleep(nanoseconds: 150_000_000)
                     }
-                    return Self.makeDetail(instanceId: instanceId)
+                    return Self.makeDetail(instanceId: instanceId, cpuCreditMode: instanceId == first.instanceId ? .standard : .unlimited)
                 }
             )
         }
@@ -175,6 +175,7 @@ final class EC2ViewModelTests: XCTestCase {
 
         await MainActor.run {
             XCTAssertEqual(vm.instanceDetail?.instanceId, second.instanceId)
+            XCTAssertEqual(vm.instanceDetail?.cpuCreditMode, .unlimited)
             XCTAssertNil(vm.detailError)
             XCTAssertFalse(vm.isDetailLoading)
         }
@@ -227,7 +228,7 @@ final class EC2ViewModelTests: XCTestCase {
         )
     }
 
-    private static func makeDetail(instanceId: String) -> EC2InstanceDetailModel {
+    private static func makeDetail(instanceId: String, cpuCreditMode: EC2CPUCreditMode? = nil) -> EC2InstanceDetailModel {
         EC2InstanceDetailModel(
             instanceId: instanceId,
             privateDNSName: nil,
@@ -256,7 +257,8 @@ final class EC2ViewModelTests: XCTestCase {
             volumes: [],
             securityGroups: [],
             health: nil,
-            warnings: []
+            warnings: [],
+            cpuCreditMode: cpuCreditMode
         )
     }
 }

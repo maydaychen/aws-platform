@@ -125,6 +125,10 @@ Changing the language preserves the selected Session, Profile, Region, filters, 
 
 For contributor guidance on display strings and resource packaging, see [Localization](docs/localization.md).
 
+### EC2 CPU Credit Mode
+
+The `Compute and capacity` section of a T-series instance's overview shows its current `Standard` or `Unlimited` CPU Credit mode. This requires `ec2:DescribeInstanceCreditSpecifications` in the selected Profile and Region. Permission denial and read failure are shown separately from an unknown or missing response; other instance families do not query or display this field. The app only reads the mode. See the [AWS API reference](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html).
+
 ### S3 Object Browsing
 
 Open a Bucket to load the first page of objects and folders (up to 1,000 entries per request). Click `Load more` to request the next page; the app does not automatically enumerate the whole directory. The footer counts loaded entries, and search only filters those entries in the current directory, not unloaded pages or subdirectories. A page with no visible entries can still have more pages.

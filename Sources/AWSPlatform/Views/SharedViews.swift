@@ -96,14 +96,10 @@ struct ListToolbar: View {
                     .font(.headline)
                 Spacer()
                 if isLoading {
-                    HStack(spacing: 6) {
-                        if reduceMotion {
-                            Text(L10n.text("Loading…", locale: locale)).font(.caption).foregroundColor(.secondary)
-                        } else {
-                            ProgressView().controlSize(.small).accessibilityLabel(L10n.format("Refreshing %@", L10n.text(title, locale: locale), locale: locale))
-                        }
+                    if reduceMotion {
+                        Text(L10n.text("Loading…", locale: locale)).font(.caption).foregroundColor(.secondary)
+                            .transition(.opacity)
                     }
-                    .transition(.opacity)
                     Button(action: onCancel) {
                         Image(systemName: "xmark.circle")
                     }
@@ -112,10 +108,18 @@ struct ListToolbar: View {
                 }
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
+                        .opacity(isLoading && !reduceMotion ? 0 : 1)
                 }
                 .disabled(isLoading)
-                .help(L10n.text("Refresh", locale: locale))
-                .accessibilityLabel(L10n.format("Refresh %@", L10n.text(title, locale: locale), locale: locale))
+                .overlay {
+                    if isLoading && !reduceMotion {
+                        ProgressView().controlSize(.small)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .help(L10n.text(isLoading ? "Loading…" : "Refresh", locale: locale))
+                .accessibilityLabel(L10n.format(isLoading ? "Refreshing %@" : "Refresh %@", L10n.text(title, locale: locale), locale: locale))
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isLoading)
             ResourceSearchField(text: $searchText, placeholder: searchPlaceholder)

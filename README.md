@@ -35,7 +35,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Interface language** - Follow the system language, or choose Simplified Chinese or English; switch instantly without reloading AWS data
-- **Native desktop layout** - Compact Session/Profile controls, Region names with codes, a shared scrolling workspace/service sidebar, aligned EC2 overview fields, and system-aware light and dark themes
+- **Native desktop layout** - A full-width Session/Profile/Region bar gives extra space to Profile and moves Region to a second row when space is limited; Region names include codes, with a shared scrolling workspace/service sidebar, aligned EC2 overview fields, and system-aware light and dark themes
 
 The app does not create, modify, or delete resources, or invoke Lambda functions.
 
@@ -44,6 +44,12 @@ The following component previews use mock resources:
 ![EC2 overview in light mode](docs/ui-overview-light.png)
 
 ![Lambda code view in dark mode](docs/ui-code-dark.png)
+
+The following header previews use mock profiles and show the wide and narrow window layouts:
+
+![Full-width Session/Profile bar](docs/ui-profile-header-wide-dark.png)
+
+![Region moves to a second row in a narrow window](docs/ui-profile-header-narrow-dark.png)
 
 ## Technology Stack
 

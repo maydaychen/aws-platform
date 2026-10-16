@@ -39,6 +39,7 @@ struct ProfileBarView: View {
                 Text(L10n.text(vm.selectionPrompt, locale: locale)).font(.caption).foregroundColor(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
         .padding(.vertical, WorkspaceLayout.controlSpacing)
         .background(.bar)
@@ -47,6 +48,7 @@ struct ProfileBarView: View {
     private var sessionAndProfileControls: some View {
         HStack(spacing: WorkspaceLayout.controlSpacing) {
             Text(L10n.text("Session", locale: locale)).font(.caption).foregroundColor(.secondary)
+                .fixedSize()
             Picker(L10n.text("SSO Session", locale: locale), selection: Binding(
                 get: { vm.profileSource }, set: { vm.selectSource($0) }
             )) {
@@ -61,14 +63,17 @@ struct ProfileBarView: View {
             .frame(minWidth: WorkspaceLayout.sessionMinimum, maxWidth: WorkspaceLayout.sessionMaximum)
             if vm.isSigningIn {
                 Button(L10n.text("Cancel Login", locale: locale), action: onCancelLogin)
+                    .fixedSize()
             } else if vm.selectedSession != nil {
                 Button(L10n.text("SSO Login", locale: locale), action: onLogin)
+                    .fixedSize()
                     .disabled(!vm.canSignIn)
                     .help(L10n.text("Sign in to this session. Choose a profile afterwards to load resources.", locale: locale))
             }
             Text(L10n.text("Profile", locale: locale)).font(.caption).foregroundColor(.secondary)
+                .fixedSize()
             ProfilePickerView(vm: vm)
-                .frame(minWidth: WorkspaceLayout.profileMinimum, maxWidth: WorkspaceLayout.profileMaximum)
+                .frame(minWidth: WorkspaceLayout.profileMinimum, maxWidth: .infinity)
         }
     }
 
@@ -96,6 +101,7 @@ struct ProfileBarView: View {
     private var resourceRegionControls: some View {
         HStack(spacing: WorkspaceLayout.controlSpacing) {
             Text(L10n.text("Region", locale: locale)).font(.caption).foregroundColor(.secondary)
+                .fixedSize()
             Picker(L10n.text("Region", locale: locale), selection: $vm.selectedRegion) {
                 ForEach(vm.availableRegions, id: \.self) { region in
                     Text(AWSRegionCatalog.displayName(for: region, locale: locale)).tag(region)

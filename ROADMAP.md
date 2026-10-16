@@ -20,6 +20,8 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 最近完成
 
+- 2026-10-17 00:56：顶部 SSO 上下文栏填满窗口可用宽度并左对齐，Profile 移除最大宽度、吸收剩余空间，Session 与区域保持紧凑；窄窗口延续区域组自动换行，标签与登录按钮保持可读宽度。同步设计规范、双语 README 和宽／窄模拟截图；未改变登录、Profile 选择及查询行为，未安装或发布。
+
 - 2026-10-17 00:45：完成 [GitHub issue #1](https://github.com/maydaychen/aws-platform/issues/1) 的 EC2 CPU Credit 模式展示：仅对 T 系列详情使用同一 Profile／Region 客户端和精确实例 ID 调用 `DescribeInstanceCreditSpecifications`，映射 Standard／Unlimited；未知、权限不足和读取失败分开提示，失败保留其他详情，非 T 系列不查询或展示。复用现有字段行并同步中英文文案及 README；本轮仅本地源码变更，未操作真实 AWS、安装或发布。
 
 - 2026-10-17 00:42：侧栏设置下方的操作范围提示改为版本号及构建号，复用设置页的应用包版本读取逻辑并支持复制；移除旧提示词条，同步设计规范与双语 README。未修改版本号、安装包或线上更新源。
@@ -58,9 +60,9 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 - 2026-10-04 14:54：按用户授权将 Health、最近访问、Route 53、ELBv2 与统一资源关联的 5 个功能提交推送至 GitHub `main`，功能提交为 `59626f8`；同步源码交付状态。原私有远端及既有未提交 `AGENTS.md` 改动保持不变；未重新打包或发布二进制 Release。
 
-- 2026-10-04 11:33：新增独立 Security Groups 页面，支持所属账号／VPC／标签／入出站规则、搜索筛选、收藏与最近访问；统一关联弹框连接 Route 53 记录、LB、Target Group、EC2 与安全组，名称优先、展开详情、单层 Explore、缓存 Back 及精确 Open。DNS 只匹配显式 Region 的直接 Alias／CNAME，Alias 同时核对 canonical zone；反向扫描需手动触发，最多 4 个 Zone 并发并保留部分失败。区域资源跳转重新核验当前 Profile 身份，全局记录保留资源 Region，按完整复合 ID 置顶展开。中英文 README、读取权限及三张模拟截图已同步。
-
 ## 最近验证
+
+- 2026-10-17 00:56：SwiftPM 的 100 项 Profile 相关回归通过；新增原生组件渲染与控件几何检查覆盖英文浅色／中文深色的 960、1440、2200 pt，以及全局服务、空选择与长 Profile 名称。宽窗口 Profile 扩展、右侧操作贴边，960 pt 区域换行且控件不溢出；缩放不自动选择 Profile、不登录或查询 AWS。Harness task 文件规模、diff 与设计 lint 通过；未执行真实 AWS 或已安装应用窗口验收。
 
 - 2026-10-17 00:45：CPU Credit 新增 12 项离线测试，相关 EC2／本地化共 37 项及全量 `swift test --disable-sandbox` 共 818 项全部通过；SwiftPM 缓存／配置／安全与模块缓存显式放在 `.tmp/ec2-cpu-credit/`。覆盖请求精确实例 ID、响应按 ID 映射、Standard／Unlimited、缺失／未知响应、权限／网络失败、取消及迟到成功、非 T 系列跳过查询和隐藏字段、详情加载／失败与快速切换实例；`swift build`、Harness task 三项静态门禁和双语资源 plist 检查通过。过程日志位于 `.tmp/ec2-cpu-credit/`；未调用真实 AWS，控制台一致性及真实 IAM 路径未验证。
 
@@ -99,8 +101,6 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 - 2026-10-05 01:04：`swift test --disable-sandbox -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors`（缓存／配置／安全目录显式设在任务临时目录）通过，691 项正式测试零失败、无编译警告。新增 71 项覆盖下载真实／声明限额、HTTPS、错误脱敏、ZIP CRC／路径／条目范围、实际解压中取消和超时、临时目录清理、同名请求隔离及双语错误；竞态修复前 2 项测试稳定产生 5 个断言失败，修复后通过。独立源码与日志复核、arm64／x86_64 的 macOS 13 SDK zlib 头文件检查、双语 README 各 27 个链接、语言资源 plist 及 `git diff --check` 通过。未调用真实 AWS，未验证新版安装包或 Intel／macOS 13 实机。
 
 - 2026-10-04 15:40：严格命令 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 通过，620 项正式测试及 3 项临时渲染共 623 项成功，无编译警告。16 项本地化测试覆盖系统回退、偏好恢复、英文／中文词条与占位符、原始参数、嵌套及多行消息、大写 Health 状态；34 张离线模拟截图覆盖各服务、深浅色、窄宽布局及长文案，同一挂载窗口切换后状态不变且模拟身份验证仍只调用一次。独立源码／日志与关键截图复核通过；将临时关联夹具对齐生产词条后，单项渲染测试再次通过。双语 README 各 27 个引用、11 项打包脚本测试、语言资源 plist、源码／测试 Gitleaks 与 `git diff --check` 通过；临时测试入口移除。未调用真实 AWS，未生成新分发包，原生 Settings 入口／真实多窗口及 Intel／macOS 13 实机仍待验收；既有 Charts anchor 运行时警告保留。
-
-- 2026-10-04 14:54：推送范围 `3d51d19..59626f8` 的 Gitleaks 扫描未发现秘密，`git diff --check` 通过；GitHub `main` 实时回读与功能提交 `59626f8` 一致。业务源码及测试与此前已验证提交一致，本轮仅推送并同步进度文档，未重复运行 Swift 测试或访问真实 AWS。
 
 ## 已完成
 

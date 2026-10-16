@@ -35,7 +35,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
 - **最近访问** - 查看并重新打开当前 Profile／账号最近浏览的资源，支持本地历史、搜索和按范围删除
 - **界面语言**：跟随系统，或选择简体中文／English；即时切换，不重新加载 AWS 数据
-- **原生桌面布局** - 紧凑的 Session／Profile 控件、地点与代码并列的区域选择、统一滚动的工作区／服务侧栏、对齐的 EC2 概览字段，以及跟随系统的深浅色界面
+- **原生桌面布局** - 顶部 Session／Profile／区域栏填满窗口宽度，Profile 吸收剩余空间，空间不足时区域组自动换行；区域并列显示地点与代码，工作区／服务侧栏统一滚动，EC2 概览字段对齐，界面跟随系统深浅色
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
 
@@ -44,6 +44,12 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 ![浅色 EC2 概览](docs/ui-overview-light.png)
 
 ![深色 Lambda 代码页](docs/ui-code-dark.png)
+
+以下顶部栏预览使用模拟 Profile，分别展示宽窗口与窄窗口布局：
+
+![填满宽度的 Session／Profile 栏](docs/ui-profile-header-wide-dark.png)
+
+![窄窗口中区域组自动换行](docs/ui-profile-header-narrow-dark.png)
 
 ## 技术栈
 

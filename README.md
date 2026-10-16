@@ -117,6 +117,8 @@ Apple Silicon and Intel use separate HTTPS feeds selected by the running app arc
 
 ### Interface Language
 
+The sidebar footer displays the running application's version and build number, using the same bundle information as Settings.
+
 Open `Settings` at the bottom of the sidebar or press `Cmd+,`. Choose `Follow System`, `简体中文`, or `English`. The choice is saved locally and applies immediately to every open app window. Unsupported system languages fall back to English.
 
 Changing the language preserves the selected Session, Profile, Region, filters, resources, and loaded results. It does not log in, validate credentials, or send AWS requests. Service names, resource names, IDs, ARNs, AWS tags, logs, and event descriptions retain their original content. Native macOS menu labels follow the system language.

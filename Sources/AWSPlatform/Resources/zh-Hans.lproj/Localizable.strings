@@ -1406,7 +1406,6 @@
 "Local File" = "本地文件";
 "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version." = "上传不会复制原对象的元数据、标签或 ACL，将使用 Bucket 默认设置。若已启用版本控制，AWS 会保留上一版本。";
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "这将使用上方显示的 Profile 向 AWS 写入文件。同名对象需要再次确认后才能覆盖。";
-"Browse · S3 transfers" = "资源浏览 · S3 传输";
 
 // S3 directory navigation and pagination
 "Directory %@" = "目录 %@";

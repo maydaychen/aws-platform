@@ -1406,7 +1406,6 @@
 "Local File" = "Local File";
 "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version." = "Existing object metadata, tags and ACLs are not copied. This upload uses Bucket defaults. If versioning is enabled, AWS keeps the previous version.";
 "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation." = "This writes a file to AWS using the displayed Profile. An existing object will require a separate overwrite confirmation.";
-"Browse · S3 transfers" = "Browse · S3 transfers";
 
 // S3 directory navigation and pagination
 "Directory %@" = "Directory %@";

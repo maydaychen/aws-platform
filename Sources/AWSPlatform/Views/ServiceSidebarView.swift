@@ -96,9 +96,10 @@ struct ServiceSidebarView: View {
             settingsLink
                 .buttonStyle(.plain)
                 .help(L10n.text("Settings (⌘,)", locale: locale))
-            Label(L10n.text("Browse · S3 transfers", locale: locale), systemImage: "arrow.up.arrow.down")
+            Label("\(L10n.text("Version", locale: locale)) \(AppUpdateController.shared.version)", systemImage: "info.circle")
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .textSelection(.enabled)
                 .padding(10)
         }
         .padding(8)

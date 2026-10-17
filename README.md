@@ -18,6 +18,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 ## Features
 
 - **EC2 instances** - View instance state, networking, AMIs, and tags
+- **EC2 resource group** - Expand or collapse instances, EBS volumes, snapshots, load balancers, Target Groups, and security groups; browse current-account EBS volumes and owned snapshots with search, state filters, favorites, and recent visits
 - **Lambda functions** - View function configuration and source code from deployment packages
 - **Metrics and logs** - Manually query CloudWatch metrics for EC2 and Lambda, and logs for the current Lambda function, with time ranges, log filters, and pagination
 - **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; upload or download individual files with progress and cancellation
@@ -134,6 +135,14 @@ For contributor guidance on display strings and resource packaging, see [Localiz
 ### EC2 CPU Credit Mode
 
 The `Compute and capacity` section of a T-series instance's overview shows its current `Standard` or `Unlimited` CPU Credit mode. This requires `ec2:DescribeInstanceCreditSpecifications` in the selected Profile and Region. Permission denial and read failure are shown separately from an unknown or missing response; other instance families do not query or display this field. The app only reads the mode. See the [AWS API reference](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html).
+
+### EC2 Navigation, EBS Volumes, and Snapshots
+
+The EC2 sidebar group contains `Instances`, `EBS Volumes`, `Snapshots`, `Load balancers`, `Target groups`, and `Security groups`. Its expansion preference is saved locally. Collapsing the group keeps the current page and shows its name beneath EC2; opening a saved or related resource reveals its child entry. Existing EC2 favorites and startup service preferences retain their original identifiers.
+
+After selecting and verifying a Profile, EBS pages query that Profile's current Region. Volumes include attached and unattached volumes; details show size, type, state, encryption, KMS key, source snapshot, attachments, and tags when returned. Snapshot requests always use `OwnerIds=self`; the page lists only snapshots owned by the current account, including archived snapshots, and shows source volume, progress, storage tier, description, and tags. Shared and public snapshots are excluded. Both lists use complete pagination, local search and state filters, manual refresh/cancel, favorites, and recent visits. Scope changes clear old data; a failed refresh labels a retained list as potentially out of date.
+
+Required read permissions are `ec2:DescribeVolumes` and `ec2:DescribeSnapshots`. Permission, expired credentials, network, and incomplete-pagination errors produce explicit messages. The app does not create, attach, detach, restore, modify, share, or delete volumes or snapshots. See [DescribeVolumes](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html) and [DescribeSnapshots](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSnapshots.html).
 
 ### S3 Object Browsing
 

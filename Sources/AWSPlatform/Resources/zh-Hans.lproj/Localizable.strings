@@ -1462,3 +1462,36 @@
 "Could not verify the Profile credentials. Use Retry Connection to verify the Profile again." = "无法验证 Profile 凭据，请点击“重试连接”重新验证 Profile。";
 "There is not enough local disk space. Free some space and try again." = "本地磁盘空间不足，请释放空间后重试。";
 "The S3 object changed or its metadata is incomplete. Refresh the list and start again." = "S3 对象发生变化或其元数据不完整，请刷新列表后重试。";
+
+// EC2 navigation and EBS browsing
+"Instances" = "实例";
+"Snapshots" = "快照";
+"EBS Snapshots" = "EBS 快照";
+"Collapse EC2 group" = "收起 EC2 分组";
+"Expand EC2 group" = "展开 EC2 分组";
+"Only snapshots owned by the current account" = "仅显示当前账号拥有的快照";
+"Search names, IDs or tags" = "搜索名称、ID 或标签";
+"Loading EBS resources…" = "正在加载 EBS 资源…";
+"Select an EBS volume" = "选择一个 EBS 卷";
+"Select an EBS snapshot" = "选择一个 EBS 快照";
+"Volume attachments" = "卷挂载信息";
+"No volume attachments returned." = "未返回卷挂载信息。";
+"Source snapshot" = "来源快照";
+"Source volume" = "来源卷";
+"Progress" = "进度";
+"Storage tier" = "存储层级";
+"Select and verify a profile and region before loading EBS resources." = "请先选择并验证 Profile 和区域，再加载 EBS 资源。";
+"EBS returned an invalid resource response. Refresh to retry." = "EBS 返回了无效的资源响应，请刷新重试。";
+"The EBS list could not be loaded completely. Refresh to retry." = "EBS 列表未能完整加载，请刷新重试。";
+"EBS volume access was denied. Check ec2:DescribeVolumes permission." = "EBS 卷访问被拒绝，请检查 ec2:DescribeVolumes 权限。";
+"EBS snapshot access was denied. Check ec2:DescribeSnapshots permission." = "EBS 快照访问被拒绝，请检查 ec2:DescribeSnapshots 权限。";
+"EBS credentials are unavailable or expired. Verify the selected profile again." = "EBS 凭据不可用或已过期，请重新验证所选 Profile。";
+"Unable to connect to EBS. Check your network and retry." = "无法连接 EBS，请检查网络后重试。";
+"EBS request limit reached. Wait a moment and refresh." = "已达到 EBS 请求限制，请稍后刷新。";
+"Unable to load EBS resources. Refresh to try again." = "无法加载 EBS 资源，请刷新重试。";
+"EBS loading cancelled. Refresh to try again." = "EBS 加载已取消，可刷新重试。";
+"Showing previously loaded EBS resources; they may be out of date." = "正在显示此前加载的 EBS 资源，数据可能已过时。";
+"No EBS list is available. Use Refresh to retry." = "暂无可用的 EBS 列表，请刷新重试。";
+"No matching EBS resources. Try another search or state." = "没有匹配的 EBS 资源，请更改搜索或状态条件。";
+"No EBS volumes were returned in this region." = "该区域未返回 EBS 卷。";
+"No snapshots owned by this account were returned in this region." = "该区域未返回当前账号拥有的快照。";

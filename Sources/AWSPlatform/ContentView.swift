@@ -18,6 +18,8 @@ struct ContentView: View {
     @StateObject private var elbVM: ELBViewModel
     @StateObject private var membershipsVM: EC2TargetGroupsViewModel
     @StateObject private var securityGroupsVM: SecurityGroupsViewModel
+    @StateObject private var volumesVM: EBSViewModel
+    @StateObject private var snapshotsVM: EBSViewModel
     @StateObject private var resourceRelationshipsVM: ResourceRelationshipsViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
     @StateObject private var metricsVM: ResourceMetricsViewModel
@@ -37,6 +39,7 @@ struct ContentView: View {
     @State private var showsResourceRelationships = false
 
     init() {
+        _selectedService = State(initialValue: AWSService(rawValue: UserDefaults.standard.string(forKey: "selectedService") ?? "") ?? .ec2)
         let profiles = ProfileViewModel()
         _profileVM = StateObject(wrappedValue: profiles)
         let transfers = AWSS3TransferService(provider: profiles.provider)
@@ -101,6 +104,9 @@ struct ContentView: View {
         _securityGroupsVM = StateObject(wrappedValue: SecurityGroupsViewModel(loader: {
             try await groups.loadGroups(scope: $0)
         }))
+        let ebs = AWSEBSService(provider: profiles.provider)
+        _volumesVM = StateObject(wrappedValue: EBSViewModel(kind: .volume, loader: { try await ebs.load(kind: $0, scope: $1) }))
+        _snapshotsVM = StateObject(wrappedValue: EBSViewModel(kind: .snapshot, loader: { try await ebs.load(kind: $0, scope: $1) }))
         let provider = profiles.provider
         let relations = AWSResourceRelationshipService(
             loadBalancers: { scope in
@@ -252,6 +258,7 @@ struct ContentView: View {
             loadVisibleRoute53()
             loadVisibleELB()
             loadVisibleSecurityGroups()
+            loadVisibleEBS()
         }
         .onChange(of: destination) { selection in
             if selection != .resources { s3TransferVM.leaveBrowser() }
@@ -270,6 +277,7 @@ struct ContentView: View {
             loadVisibleRoute53()
             loadVisibleELB()
             loadVisibleSecurityGroups()
+            loadVisibleEBS()
         }
         .onDisappear {
             s3TransferVM.reset()
@@ -287,6 +295,8 @@ struct ContentView: View {
             route53VM.reset()
             elbVM.reset()
             securityGroupsVM.reset()
+            volumesVM.reset()
+            snapshotsVM.reset()
             Task { await profileVM.shutdown() }
         }
     }
@@ -400,6 +410,19 @@ struct ContentView: View {
         securityGroupsVM.loadIfNeeded()
     }
 
+    private func configureEBS() {
+        volumesVM.configure(scope: currentMonitoringScope)
+        snapshotsVM.configure(scope: currentMonitoringScope)
+        loadVisibleEBS()
+    }
+
+    private func loadVisibleEBS() {
+        guard destination == .resources, profileVM.isProfileReady,
+              favoriteNavigation.target == nil, relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        if selectedService == .ebsVolumes { volumesVM.loadIfNeeded() }
+        if selectedService == .ebsSnapshots { snapshotsVM.loadIfNeeded() }
+    }
+
     @ViewBuilder
     private var middlePane: some View {
         if profileVM.selectedProfile == nil {
@@ -443,6 +466,8 @@ struct ContentView: View {
             ELBTargetGroupListView(vm: elbVM)
         case .securityGroups:
             SecurityGroupListView(vm: securityGroupsVM)
+        case .ebsVolumes: EBSListView(vm: volumesVM)
+        case .ebsSnapshots: EBSListView(vm: snapshotsVM)
         }
     }
 
@@ -537,6 +562,10 @@ struct ContentView: View {
         case .securityGroups:
             guard securityGroupsVM.scope == currentMonitoringScope, let group = securityGroupsVM.selectedGroup else { return nil }
             resource = (group.id, group.name)
+        case .ebsVolumes, .ebsSnapshots:
+            let vm = selectedService == .ebsVolumes ? volumesVM : snapshotsVM
+            guard vm.scope == currentMonitoringScope, let selected = vm.selectedResource else { return nil }
+            resource = (selected.id, selected.name)
         }
         let favorite = ResourceFavorite(
             profileName: profileName, accountID: identity.account,
@@ -690,6 +719,8 @@ struct ContentView: View {
         case .loadBalancers: return "loadbalancer/" + (elbVM.selectedLoadBalancer?.arn ?? "")
         case .targetGroups: return "targetgroup/" + (elbVM.selectedTargetGroup?.arn ?? "")
         case .securityGroups: return "securitygroup/" + (securityGroupsVM.selectedGroup?.id ?? "")
+        case .ebsVolumes: return "volume/" + (volumesVM.selectedResource?.id ?? "")
+        case .ebsSnapshots: return "snapshot/" + (snapshotsVM.selectedResource?.id ?? "")
         }
     }
 
@@ -784,6 +815,8 @@ struct ContentView: View {
             } else {
                 EmptyStateView(text: "Select a security group", icon: "shield.lefthalf.filled")
             }
+        case .ebsVolumes: EBSDetailView(vm: volumesVM)
+        case .ebsSnapshots: EBSDetailView(vm: snapshotsVM)
         }
     }
 
@@ -816,6 +849,8 @@ struct ContentView: View {
         snsVM.reset()
         elbVM.reset()
         securityGroupsVM.reset()
+        volumesVM.reset()
+        snapshotsVM.reset()
     }
 
     private func reconfigureServices(forceRefresh: Bool = false) {
@@ -860,6 +895,7 @@ struct ContentView: View {
             configureSNS()
             configureELB()
             configureSecurityGroups()
+            configureEBS()
             guard let target else { return }
             switch target.service {
             case .ec2: await ec2VM.loadInstances(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
@@ -871,6 +907,8 @@ struct ContentView: View {
             case .loadBalancers: await elbVM.loadLoadBalancers()
             case .targetGroups: await elbVM.loadTargetGroups()
             case .securityGroups: await securityGroupsVM.loadGroups()
+            case .ebsVolumes: await volumesVM.loadResources()
+            case .ebsSnapshots: await snapshotsVM.loadResources()
             }
             guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
             if favoriteNavigation.relationshipReference != nil {
@@ -879,7 +917,8 @@ struct ContentView: View {
                     latestScope: { currentMonitoringScope })
             } else {
                 favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM,
-                                           route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM)
+                                           route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
+                                           volumes: volumesVM, snapshots: snapshotsVM)
             }
         }
     }

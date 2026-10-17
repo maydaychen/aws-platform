@@ -5,6 +5,13 @@ struct ServiceSidebarView: View {
     @Environment(\.locale) private var locale
     @Binding var selectedService: AWSService
     @Binding var destination: WorkspaceDestination
+    @AppStorage("sidebar.ec2Expanded") private var ec2Expanded = true
+
+    init(selectedService: Binding<AWSService>, destination: Binding<WorkspaceDestination>, defaults: UserDefaults = .standard) {
+        _selectedService = selectedService
+        _destination = destination
+        _ec2Expanded = AppStorage(wrappedValue: true, "sidebar.ec2Expanded", store: defaults)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -73,21 +80,34 @@ struct ServiceSidebarView: View {
                         .padding(.top, 20)
                         .padding(.bottom, 8)
                     VStack(spacing: 2) {
-                        ForEach(AWSService.allCases) { service in
-                            Button {
-                                activate(.resources, service: service)
-                            } label: {
-                                Label(L10n.text(service.rawValue, locale: locale), systemImage: service.icon)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(10)
-                                    .background(destination == .resources && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                                    .contentShape(Rectangle())
+                        Button {
+                            var transaction = Transaction(animation: nil)
+                            transaction.disablesAnimations = true
+                            withTransaction(transaction) { ec2Expanded.toggle() }
+                        } label: {
+                            HStack(spacing: WorkspaceLayout.controlSpacing) {
+                                Image(systemName: ec2Expanded ? "chevron.down" : "chevron.right").font(.caption)
+                                Image(systemName: "server.rack")
+                                VStack(alignment: .leading, spacing: WorkspaceLayout.sidebarCaptionSpacing) {
+                                    Text("EC2").fontWeight(.medium)
+                                    if !ec2Expanded && destination == .resources && selectedService.isEC2Service {
+                                        Text(L10n.text(selectedService.sidebarTitle, locale: locale))
+                                            .font(.caption).foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer(minLength: 0)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("service.\(service.rawValue)")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("sidebar.ec2.group")
+                        .accessibilityLabel(L10n.text(ec2Expanded ? "Collapse EC2 group" : "Expand EC2 group", locale: locale))
+                        .accessibilityValue(L10n.text(ec2Expanded ? "Expanded" : "Collapsed", locale: locale))
+                        if ec2Expanded {
+                            ForEach(AWSService.ec2Services) { service in serviceButton(service, child: true) }
+                        }
+                        ForEach(AWSService.standaloneServices) { service in serviceButton(service) }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,9 +123,27 @@ struct ServiceSidebarView: View {
                 .padding(10)
         }
         .padding(8)
-        .frame(width: 176)
+        .frame(width: WorkspaceLayout.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(.bar)
+        .onChange(of: selectedService) { service in
+            if destination == .resources && service.isEC2Service { ec2Expanded = true }
+        }
+        .onChange(of: destination) { destination in
+            if destination == .resources && selectedService.isEC2Service { ec2Expanded = true }
+        }
+    }
+
+    private func serviceButton(_ service: AWSService, child: Bool = false) -> some View {
+        Button { activate(.resources, service: service) } label: {
+            Label(L10n.text(service.sidebarTitle, locale: locale), systemImage: service.icon)
+                .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10).padding(.leading, child ? WorkspaceLayout.sidebarChildIndent : 0)
+                .background(destination == .resources && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6)).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("service.\(service.rawValue)")
     }
 
     private func activate(_ nextDestination: WorkspaceDestination, service: AWSService? = nil) {

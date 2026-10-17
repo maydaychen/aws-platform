@@ -113,7 +113,7 @@ final class FavoriteNavigation: ObservableObject {
 
     func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel,
                  route53: Route53ViewModel? = nil, elb: ELBViewModel? = nil,
-                 securityGroups: SecurityGroupsViewModel? = nil) {
+                 securityGroups: SecurityGroupsViewModel? = nil, volumes: EBSViewModel? = nil, snapshots: EBSViewModel? = nil) {
         guard let target, source != .relationship else { return }
         switch target.service {
         case .ec2:
@@ -189,6 +189,19 @@ final class FavoriteNavigation: ObservableObject {
             }
             securityGroups.selectedGroup = securityGroups.groups.first { $0.id == target.resourceID }
             finish(found: securityGroups.selectedGroup != nil, loadError: nil)
+        case .ebsVolumes, .ebsSnapshots:
+            let vm = target.service == .ebsVolumes ? volumes : snapshots
+            vm?.searchText = ""
+            vm?.stateFilter = "All"
+            guard let vm, !vm.isLoading, !vm.isStale, vm.error == nil,
+                  vm.scope?.profile.name == target.profileName, vm.scope?.accountID == target.accountID,
+                  vm.scope?.region == target.region else {
+                vm?.selectedResource = nil
+                finish(found: false, loadError: vm?.error ?? EBSError.invalidScope.rawValue)
+                return
+            }
+            vm.selectedResource = vm.resources.first { $0.id == target.resourceID }
+            finish(found: vm.selectedResource != nil, loadError: nil)
         }
     }
 

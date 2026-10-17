@@ -1462,3 +1462,36 @@
 "Could not verify the Profile credentials. Use Retry Connection to verify the Profile again." = "Could not verify the Profile credentials. Use Retry Connection to verify the Profile again.";
 "There is not enough local disk space. Free some space and try again." = "There is not enough local disk space. Free some space and try again.";
 "The S3 object changed or its metadata is incomplete. Refresh the list and start again." = "The S3 object changed or its metadata is incomplete. Refresh the list and start again.";
+
+// EC2 navigation and EBS browsing
+"Instances" = "Instances";
+"Snapshots" = "Snapshots";
+"EBS Snapshots" = "EBS Snapshots";
+"Collapse EC2 group" = "Collapse EC2 group";
+"Expand EC2 group" = "Expand EC2 group";
+"Only snapshots owned by the current account" = "Only snapshots owned by the current account";
+"Search names, IDs or tags" = "Search names, IDs or tags";
+"Loading EBS resources…" = "Loading EBS resources…";
+"Select an EBS volume" = "Select an EBS volume";
+"Select an EBS snapshot" = "Select an EBS snapshot";
+"Volume attachments" = "Volume attachments";
+"No volume attachments returned." = "No volume attachments returned.";
+"Source snapshot" = "Source snapshot";
+"Source volume" = "Source volume";
+"Progress" = "Progress";
+"Storage tier" = "Storage tier";
+"Select and verify a profile and region before loading EBS resources." = "Select and verify a profile and region before loading EBS resources.";
+"EBS returned an invalid resource response. Refresh to retry." = "EBS returned an invalid resource response. Refresh to retry.";
+"The EBS list could not be loaded completely. Refresh to retry." = "The EBS list could not be loaded completely. Refresh to retry.";
+"EBS volume access was denied. Check ec2:DescribeVolumes permission." = "EBS volume access was denied. Check ec2:DescribeVolumes permission.";
+"EBS snapshot access was denied. Check ec2:DescribeSnapshots permission." = "EBS snapshot access was denied. Check ec2:DescribeSnapshots permission.";
+"EBS credentials are unavailable or expired. Verify the selected profile again." = "EBS credentials are unavailable or expired. Verify the selected profile again.";
+"Unable to connect to EBS. Check your network and retry." = "Unable to connect to EBS. Check your network and retry.";
+"EBS request limit reached. Wait a moment and refresh." = "EBS request limit reached. Wait a moment and refresh.";
+"Unable to load EBS resources. Refresh to try again." = "Unable to load EBS resources. Refresh to try again.";
+"EBS loading cancelled. Refresh to try again." = "EBS loading cancelled. Refresh to try again.";
+"Showing previously loaded EBS resources; they may be out of date." = "Showing previously loaded EBS resources; they may be out of date.";
+"No EBS list is available. Use Refresh to retry." = "No EBS list is available. Use Refresh to retry.";
+"No matching EBS resources. Try another search or state." = "No matching EBS resources. Try another search or state.";
+"No EBS volumes were returned in this region." = "No EBS volumes were returned in this region.";
+"No snapshots owned by this account were returned in this region." = "No snapshots owned by this account were returned in this region.";

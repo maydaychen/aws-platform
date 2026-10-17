@@ -24,6 +24,8 @@ struct ResourceFavorite: Codable, Identifiable, Equatable {
     }
 
     var isValid: Bool {
+        if service == .ebsVolumes, !EBSResource.Kind.volume.validID(resourceID) { return false }
+        if service == .ebsSnapshots, !EBSResource.Kind.snapshot.validID(resourceID) { return false }
         if service == .route53 {
             guard region == "global", Route53HostedZone.normalizedID(resourceID) == resourceID else { return false }
         }

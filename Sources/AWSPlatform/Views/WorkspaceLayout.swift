@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Desktop context and field layouts defined in DESIGN.md.
 enum WorkspaceLayout {
+    static let sidebarWidth: CGFloat = 204
+    static let sidebarChildIndent: CGFloat = 24
+    static let sidebarCaptionSpacing: CGFloat = 3
+    static let minimumWindowWidth: CGFloat = 1000
     static let contextSpacing: CGFloat = 12
     static let controlSpacing: CGFloat = 8
     static let sessionMinimum: CGFloat = 140

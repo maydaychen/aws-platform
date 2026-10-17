@@ -257,7 +257,7 @@ final class ELBIntegrationTests: XCTestCase {
         let legacy = AWSService.allCases.filter { $0 != .loadBalancers && $0 != .targetGroups }.map { service in
             ResourceFavorite(profileName: profile.name, accountID: identity.account,
                              region: service == .route53 ? "global" : "eu-west-1", service: service,
-                             resourceID: service == .route53 ? "ZEXAMPLE" : "existing-\(service.rawValue)",
+                             resourceID: service == .route53 ? "ZEXAMPLE" : service == .ebsVolumes ? "vol-12345678" : service == .ebsSnapshots ? "snap-12345678" : "existing-\(service.rawValue)",
                              displayName: "Existing \(service.rawValue)")
         }
         var saved = legacy

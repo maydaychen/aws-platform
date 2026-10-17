@@ -18,6 +18,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 ## 功能
 
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
+- **EC2 资源分组** - 可折叠的实例、EBS 卷、快照、负载均衡、目标组和安全组入口；浏览当前账号的 EBS 卷及自有快照，支持搜索、状态筛选、收藏和最近访问
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；支持单文件上传／下载、进度与取消
@@ -134,6 +135,14 @@ Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架�
 ### EC2 CPU 积分模式
 
 T 系列实例概览的「计算与容量」区域显示当前 `Standard`／`Unlimited` CPU 积分模式，需要当前 Profile／Region 的 `ec2:DescribeInstanceCreditSpecifications` 读取权限。权限不足、读取失败与响应缺失／未知模式分别提示；其他实例系列不查询或展示该字段。应用只读取模式。参考 [AWS API 文档](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html) 。
+
+### EC2 导航、EBS 卷与快照
+
+EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」「目标组」和「安全组」，在本机保存展开偏好。收起分组保留当前页面，并在 EC2 下显示当前子页面名称；从收藏、最近访问或关联资源进入时展开对应入口。现有 EC2 收藏与启动服务偏好的原始标识保持不变。
+
+手动选择并验证 Profile 后，EBS 页面读取该 Profile 当前 Region 的资源。卷列表包含已挂载与未挂载的卷；详情显示 API 返回的容量、类型、状态、加密、KMS Key、来源快照、挂载信息和标签。快照请求固定使用 `OwnerIds=self`，只显示当前账号拥有的快照，包含归档快照；详情展示来源卷、进度、存储层级、描述和标签，不包含共享或公共快照。两个列表均支持完整分页、本地搜索与状态筛选、手动刷新／取消、收藏和最近访问。切换范围清空旧数据，刷新失败时保留的历史列表会明确标记为可能过时。
+
+需要 `ec2:DescribeVolumes`、`ec2:DescribeSnapshots` 读取权限；权限不足、凭据过期、网络和分页不完整分别提示。应用不创建、挂载、卸载、恢复、修改、共享或删除卷及快照。参考 [DescribeVolumes](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html) 和 [DescribeSnapshots](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSnapshots.html) 。
 
 ### S3 对象浏览
 

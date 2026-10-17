@@ -15,7 +15,7 @@ struct AWSPlatformApp: App {
                 .environmentObject(favoritesVM)
                 .environmentObject(recentsVM)
                 .environment(\.locale, languageSettings.locale)
-                .frame(minWidth: 960, minHeight: 600)
+                .frame(minWidth: WorkspaceLayout.minimumWindowWidth, minHeight: 600)
                 .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in
                     languageSettings.refreshSystemLanguages()
                 }

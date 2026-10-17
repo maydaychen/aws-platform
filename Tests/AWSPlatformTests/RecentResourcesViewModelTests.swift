@@ -12,7 +12,7 @@ final class RecentResourcesViewModelTests: XCTestCase {
             let vm = RecentResourcesViewModel(defaults: defaults, now: { visitedAt })
             let resources = AWSService.allCases.map {
                 makeResource(region: $0 == .route53 ? "global" : "us-east-1", service: $0,
-                             resourceID: $0 == .route53 ? "ZEXAMPLE" : "i-example")
+                             resourceID: $0 == .route53 ? "ZEXAMPLE" : $0 == .ebsVolumes ? "vol-12345678" : $0 == .ebsSnapshots ? "snap-12345678" : "i-example")
             }
             XCTAssertTrue(vm.entries.isEmpty)
 

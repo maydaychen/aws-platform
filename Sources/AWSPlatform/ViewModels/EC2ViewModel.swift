@@ -23,6 +23,7 @@ final class EC2ViewModel: ObservableObject {
     typealias InstanceLoader = () async throws -> [EC2InstanceModel]
     typealias ImageNameLoader = ([String]) async throws -> [String: String]
     typealias HealthLoader = ([String]) async throws -> [String: EC2InstanceHealth]
+    typealias HealthResultLoader = ([String]) async throws -> EC2InstanceHealthResult
     typealias DetailLoader = (String) async throws -> EC2InstanceDetailModel
 
     @Published var instances: [EC2InstanceModel] = []
@@ -33,6 +34,8 @@ final class EC2ViewModel: ObservableObject {
         }
     }
     @Published var instanceHealth: [String: EC2InstanceHealth] = [:]
+    @Published var instanceHealthErrors: [String: String] = [:]
+    @Published var isHealthLoading = false
     @Published var instanceDetail: EC2InstanceDetailModel?
     @Published var isLoading = false
     @Published var isDetailLoading = false
@@ -48,6 +51,7 @@ final class EC2ViewModel: ObservableObject {
     private var instanceLoader: InstanceLoader?
     private var imageNameLoader: ImageNameLoader?
     private var healthLoader: HealthLoader?
+    private var healthResultLoader: HealthResultLoader?
     private var detailLoader: DetailLoader?
     private var listGeneration = 0
 
@@ -55,11 +59,13 @@ final class EC2ViewModel: ObservableObject {
         instanceLoader: InstanceLoader? = nil,
         imageNameLoader: ImageNameLoader? = nil,
         healthLoader: HealthLoader? = nil,
+        healthResultLoader: HealthResultLoader? = nil,
         detailLoader: DetailLoader? = nil
     ) {
         self.instanceLoader = instanceLoader
         self.imageNameLoader = imageNameLoader
         self.healthLoader = healthLoader
+        self.healthResultLoader = healthResultLoader
         self.detailLoader = detailLoader
     }
 
@@ -73,6 +79,7 @@ final class EC2ViewModel: ObservableObject {
             let matchesState = stateFilter == "All" || instance.state == stateFilter
             let matchesHealth = healthFilter == .all
                 || instanceHealth[instance.instanceId]?.needsAttention == true
+                || instanceHealthErrors[instance.instanceId] != nil
             let matchesSearch = query.isEmpty || [
                 instance.name,
                 instance.instanceId,
@@ -102,9 +109,10 @@ final class EC2ViewModel: ObservableObject {
             let client = try await provider.ec2Client(scope: scope)
             return try await Self.fetchImageNames(ids: ids, client: client)
         }
-        healthLoader = { ids in
+        healthLoader = nil
+        healthResultLoader = { ids in
             let client = try await provider.ec2Client(scope: scope)
-            return try await Self.fetchHealth(instanceIds: ids, client: client)
+            return try await EC2InstanceHealthService(client: client).load(instanceIds: ids)
         }
         detailLoader = { instanceId in
             let client = try await provider.ec2Client(scope: scope)
@@ -121,9 +129,17 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func cancelLoading() {
+        if isHealthLoading {
+            for instance in instances where instanceHealth[instance.instanceId]?.hasStatusChecks != true {
+                instanceHealthErrors[instance.instanceId] = "Loading cancelled. Use Refresh to try again."
+            }
+        }
         listGeneration += 1
         loadTask?.cancel()
+        detailTask?.cancel()
         isLoading = false
+        isDetailLoading = false
+        isHealthLoading = false
     }
 
     func reset() {
@@ -133,6 +149,8 @@ final class EC2ViewModel: ObservableObject {
         instances = []
         selectedInstance = nil
         instanceHealth = [:]
+        instanceHealthErrors = [:]
+        isHealthLoading = false
         instanceDetail = nil
         error = nil
         detailError = nil
@@ -145,10 +163,20 @@ final class EC2ViewModel: ObservableObject {
         guard !Task.isCancelled, let instanceLoader else { return }
         listGeneration += 1
         let generation = listGeneration
+        detailTask?.cancel()
+        instanceDetail = nil
+        detailError = nil
+        isDetailLoading = false
+        instanceHealth = [:]
+        instanceHealthErrors = [:]
+        isHealthLoading = true
         isLoading = true
         error = nil
         defer {
-            if generation == listGeneration { isLoading = false }
+            if generation == listGeneration {
+                isLoading = false
+                isHealthLoading = false
+            }
         }
 
         do {
@@ -190,24 +218,39 @@ final class EC2ViewModel: ObservableObject {
                 )
             }
 
-            let loadedHealth: [String: EC2InstanceHealth]
+            instances = loadedInstances
+            let ids = loadedInstances.map(\.instanceId)
+            let loadedHealth: EC2InstanceHealthResult
             do {
-                loadedHealth = try await healthLoader?(loadedInstances.map(\.instanceId)) ?? [:]
+                if let healthResultLoader {
+                    loadedHealth = try await healthResultLoader(ids)
+                } else {
+                    loadedHealth = .init(health: try await healthLoader?(ids) ?? [:], errors: [:])
+                }
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                loadedHealth = [:]
+                let message = EC2InstanceHealthService.errorMessage(error)
+                loadedHealth = .init(health: [:], errors: Dictionary(ids.map { ($0, message) }, uniquingKeysWith: { first, _ in first }))
             }
 
             try Task.checkCancellation()
             guard generation == listGeneration else { return }
             let selectedID = selectedInstance?.instanceId
-            instances = loadedInstances
-            instanceHealth = loadedHealth
+            let wanted = Set(ids)
+            var mergedHealth = loadedHealth.health.filter { wanted.contains($0.key) }
+            for (id, value) in instanceHealth where wanted.contains(id) && mergedHealth[id]?.hasStatusChecks != true {
+                mergedHealth[id] = value
+            }
+            instanceHealth = mergedHealth
+            instanceHealthErrors = loadedHealth.errors.filter { wanted.contains($0.key) && mergedHealth[$0.key]?.hasStatusChecks != true }
+            for id in ids where mergedHealth[id]?.hasStatusChecks != true && instanceHealthErrors[id] == nil {
+                instanceHealthErrors[id] = EC2InstanceHealthResult.notReturned
+            }
             selectedInstance = selectedID.flatMap { id in
                 loadedInstances.first { $0.instanceId == id }
             } ?? (selectFirstIfNeeded ? loadedInstances.first : nil)
-            if selectedID == selectedInstance?.instanceId {
+            if selectedID == selectedInstance?.instanceId, instanceDetail == nil, !isDetailLoading {
                 loadDetailForSelection()
             }
 
@@ -220,6 +263,7 @@ final class EC2ViewModel: ObservableObject {
             instances = []
             selectedInstance = nil
             instanceHealth = [:]
+            instanceHealthErrors = [:]
             self.error = UserFacingError.message(for: error)
         }
     }
@@ -239,23 +283,28 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func loadDetail(instanceId: String) async {
-        guard let detailLoader else { return }
+        guard !Task.isCancelled, let detailLoader else { return }
+        let generation = listGeneration
 
         do {
             let detail = try await detailLoader(instanceId)
             try Task.checkCancellation()
-            guard selectedInstance?.instanceId == instanceId else { return }
+            guard generation == listGeneration, selectedInstance?.instanceId == instanceId else { return }
             instanceDetail = detail
             if let health = detail.health {
                 instanceHealth[instanceId] = health
+                if health.hasStatusChecks { instanceHealthErrors[instanceId] = nil }
+                else { instanceHealthErrors[instanceId] = EC2InstanceHealthResult.notReturned }
+            } else if instanceHealth[instanceId]?.hasStatusChecks != true, instanceHealthErrors[instanceId] == nil {
+                instanceHealthErrors[instanceId] = EC2InstanceHealthResult.notReturned
             }
         } catch {
             if Task.isCancelled || error is CancellationError { return }
-            guard selectedInstance?.instanceId == instanceId else { return }
+            guard generation == listGeneration, selectedInstance?.instanceId == instanceId else { return }
             detailError = UserFacingError.message(for: error)
         }
 
-        if selectedInstance?.instanceId == instanceId {
+        if generation == listGeneration, selectedInstance?.instanceId == instanceId {
             isDetailLoading = false
         }
     }
@@ -315,31 +364,6 @@ final class EC2ViewModel: ObservableObject {
         )
     }
 
-    private static func fetchHealth(
-        instanceIds: [String],
-        client: EC2
-    ) async throws -> [String: EC2InstanceHealth] {
-        guard !instanceIds.isEmpty else { return [:] }
-        var result: [String: EC2InstanceHealth] = [:]
-
-        for start in stride(from: 0, to: instanceIds.count, by: 100) {
-            try Task.checkCancellation()
-            let end = min(start + 100, instanceIds.count)
-            let response = try await client.describeInstanceStatus(
-                .init(
-                    includeAllInstances: true,
-                    instanceIds: Array(instanceIds[start..<end])
-                )
-            )
-            for status in response.instanceStatuses ?? [] {
-                guard let instanceId = status.instanceId else { continue }
-                result[instanceId] = health(from: status)
-            }
-        }
-
-        return result
-    }
-
     private static func fetchDetail(
         instanceId: String,
         client: EC2
@@ -352,7 +376,7 @@ final class EC2ViewModel: ObservableObject {
         var warnings: [String] = []
         let status: EC2InstanceHealth?
         do {
-            status = try await fetchHealth(instanceIds: [instanceId], client: client)[instanceId]
+            status = try await EC2InstanceHealthService(client: client).loadDetail(instanceId: instanceId)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -515,26 +539,6 @@ final class EC2ViewModel: ObservableObject {
             )
         }
         .sorted { $0.groupId < $1.groupId }
-    }
-
-    private static func health(from status: EC2.InstanceStatus) -> EC2InstanceHealth {
-        EC2InstanceHealth(
-            systemStatus: status.systemStatus?.status?.rawValue,
-            instanceStatus: status.instanceStatus?.status?.rawValue,
-            attachedEBSStatus: status.attachedEbsStatus?.status?.rawValue,
-            events: (status.events ?? []).map { event in
-                EC2ScheduledEvent(
-                    eventId: event.instanceEventId
-                        ?? [event.code?.rawValue, event.notBefore?.description]
-                            .compactMap { $0 }
-                            .joined(separator: "-"),
-                    code: event.code?.rawValue ?? "unknown",
-                    description: event.description,
-                    notBefore: event.notBefore,
-                    notAfter: event.notAfter
-                )
-            }
-        )
     }
 
     private static func networkInterface(

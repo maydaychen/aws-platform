@@ -137,6 +137,10 @@ Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架�
 
 开发者文案与资源打包约定见 [Localization](docs/localization.md) 。
 
+### EC2 状态检查
+
+实例列表主动读取全部已列出实例的状态检查，无需逐台点击。通过当前 Profile 和 Region 读取完整状态分页，对缺项进行一轮有界补查，并保留已成功读取的结果。绿色勾号表示检查通过，橙色三角表示需要关注，橙色问号表示读取失败；悬停提示和列表警告提供原因，刷新可重试。灰色横杠表示检查不适用，运行状态仍单独显示。
+
 ### EC2 CPU 积分模式
 
 T 系列实例概览的「计算与容量」区域显示当前 `Standard`／`Unlimited` CPU 积分模式，需要当前 Profile／Region 的 `ec2:DescribeInstanceCreditSpecifications` 读取权限。权限不足、读取失败与响应缺失／未知模式分别提示；其他实例系列不查询或展示该字段。应用只读取模式。参考 [AWS API 文档](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html) 。

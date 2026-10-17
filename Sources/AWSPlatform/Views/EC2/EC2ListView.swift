@@ -38,7 +38,11 @@ struct EC2ListView: View {
                             .lineLimit(1)
                             .help(instance.name)
                         Spacer()
-                        healthIndicator(for: instance)
+                        EC2HealthStatusIndicator(
+                            health: vm.instanceHealth[instance.instanceId],
+                            isLoading: vm.isHealthLoading,
+                            error: vm.instanceHealthErrors[instance.instanceId]
+                        )
                         Text(instance.instanceType)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -67,25 +71,11 @@ struct EC2ListView: View {
                     EmptyStateView(text: vm.instances.isEmpty ? "No EC2 instances in this region" : "No matching instances. Try another search or filter.", icon: "server.rack")
                 }
             }
+            if !vm.instanceHealthErrors.isEmpty {
+                EC2HealthReadWarning(errors: vm.instanceHealthErrors)
+            }
             ResourceListFooter(visible: vm.filteredInstances.count, total: vm.instances.count)
         }
     }
 
-    @ViewBuilder
-    private func healthIndicator(for instance: EC2InstanceModel) -> some View {
-        let health = vm.instanceHealth[instance.instanceId]
-        if health?.needsAttention == true {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-                .help(L10n.text(health?.summary ?? "Needs attention", locale: locale))
-        } else if health?.summary == "Checks passed" {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .help(L10n.text("Status checks passed", locale: locale))
-        } else {
-            Image(systemName: "minus.circle")
-                .foregroundColor(.secondary)
-                .help(L10n.text(health?.summary ?? "Status checks unavailable", locale: locale))
-        }
-    }
 }

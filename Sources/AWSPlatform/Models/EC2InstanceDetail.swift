@@ -12,11 +12,19 @@ enum EC2CPUCreditMode: String, Hashable {
     }
 }
 
-struct EC2InstanceHealth: Hashable {
+struct EC2InstanceHealth: Hashable, Sendable {
     let systemStatus: String?
     let instanceStatus: String?
     let attachedEBSStatus: String?
     let events: [EC2ScheduledEvent]
+
+    var hasStatusChecks: Bool {
+        [systemStatus, instanceStatus].allSatisfy { $0?.isEmpty == false }
+    }
+
+    var isNotApplicable: Bool {
+        !needsAttention && systemStatus == "not-applicable" && instanceStatus == "not-applicable"
+    }
 
     var needsAttention: Bool {
         !events.isEmpty || [systemStatus, instanceStatus, attachedEBSStatus]
@@ -40,7 +48,7 @@ struct EC2InstanceHealth: Hashable {
     }
 }
 
-struct EC2ScheduledEvent: Identifiable, Hashable {
+struct EC2ScheduledEvent: Identifiable, Hashable, Sendable {
     let eventId: String
     let code: String
     let description: String?

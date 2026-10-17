@@ -1110,6 +1110,14 @@
 "Status and tags unavailable for %@ function(s). Check lambda:GetFunction permission, then refresh. State filters exclude functions with unknown status." = "Status and tags unavailable for %@ function(s). Check lambda:GetFunction permission, then refresh. State filters exclude functions with unknown status.";
 "Status checks passed" = "Status checks passed";
 "Status checks unavailable" = "Status checks unavailable";
+"Loading status checks…" = "Loading status checks…";
+"Unable to read status checks" = "Unable to read status checks";
+"Status checks not applicable" = "Status checks not applicable";
+"Status checks could not be read for %@ instances." = "Status checks could not be read for %@ instances.";
+"Status checks could not be read for 1 instance." = "Status checks could not be read for 1 instance.";
+"Refresh the list to retry status checks." = "Refresh the list to retry status checks.";
+"Status checks were not returned for this instance." = "Status checks were not returned for this instance.";
+"Unable to load EC2 status checks." = "Unable to load EC2 status checks.";
 "Status checks: %@" = "Status checks: %@";
 "Stickiness duration (seconds)" = "Stickiness duration (seconds)";
 "Stickiness enabled" = "Stickiness enabled";

@@ -1110,6 +1110,14 @@
 "Status and tags unavailable for %@ function(s). Check lambda:GetFunction permission, then refresh. State filters exclude functions with unknown status." = "%1$@ 个函数的状态和标签不可用。请检查 lambda:GetFunction 权限后刷新。状态筛选会排除状态未知的函数。";
 "Status checks passed" = "状态检查已通过";
 "Status checks unavailable" = "状态检查不可用";
+"Loading status checks…" = "正在读取状态检查…";
+"Unable to read status checks" = "无法读取状态检查";
+"Status checks not applicable" = "状态检查不适用";
+"Status checks could not be read for %@ instances." = "有 %@ 台实例未能读取状态检查。";
+"Status checks could not be read for 1 instance." = "有 1 台实例未能读取状态检查。";
+"Refresh the list to retry status checks." = "刷新列表可重新读取状态检查。";
+"Status checks were not returned for this instance." = "未返回此实例的状态检查。";
+"Unable to load EC2 status checks." = "无法读取 EC2 状态检查。";
 "Status checks: %@" = "状态检查：%1$@";
 "Stickiness duration (seconds)" = "会话粘性持续时间（秒）";
 "Stickiness enabled" = "会话粘性已启用";

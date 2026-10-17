@@ -137,6 +137,10 @@ Changing the language preserves the selected Session, Profile, Region, filters, 
 
 For contributor guidance on display strings and resource packaging, see [Localization](docs/localization.md).
 
+### EC2 Status Checks
+
+The instance list loads status checks for all listed instances without requiring selection. It reads every status page in the selected Profile and Region, then makes one bounded follow-up pass for missing instances while retaining successful results. A green check means checks passed, an orange triangle needs attention, and an orange question mark means the checks could not be read; the row tooltip and list warning show the reason. Refresh retries the checks. A gray minus means checks are not applicable. Running state remains a separate indicator.
+
 ### EC2 CPU Credit Mode
 
 The `Compute and capacity` section of a T-series instance's overview shows its current `Standard` or `Unlimited` CPU Credit mode. This requires `ec2:DescribeInstanceCreditSpecifications` in the selected Profile and Region. Permission denial and read failure are shown separately from an unknown or missing response; other instance families do not query or display this field. The app only reads the mode. See the [AWS API reference](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html).

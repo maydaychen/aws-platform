@@ -24,12 +24,15 @@ actor AWSServiceProvider {
     private var generation = UUID()
     private let verifier: IdentityBoundCredentialProvider.Verifier
     private let credentialFactory: (@Sendable (AWSProfile, AWSConfigurationPaths) -> CredentialProviderFactory)?
+    private let cliCredentialRunner: AWSCLICredentialProvider.Runner?
     nonisolated let identityInvalidations: AsyncStream<UUID>
     private let identityEvents: AsyncStream<UUID>.Continuation
 
     init(credentialFactory: (@Sendable (AWSProfile, AWSConfigurationPaths) -> CredentialProviderFactory)? = nil,
+         cliCredentialRunner: AWSCLICredentialProvider.Runner? = nil,
          identityVerifier: @escaping IdentityBoundCredentialProvider.Verifier = { try await IdentityBoundCredentialProvider.verify($0, region: $1) }) {
         self.credentialFactory = credentialFactory
+        self.cliCredentialRunner = cliCredentialRunner
         self.verifier = identityVerifier
         let stream = AsyncStream<UUID>.makeStream(bufferingPolicy: .bufferingNewest(8))
         identityInvalidations = stream.stream
@@ -67,11 +70,23 @@ actor AWSServiceProvider {
         let credentialProvider: CredentialProviderFactory
         if let credentialFactory {
             credentialProvider = credentialFactory(profile, paths)
-        } else if profile.isSSO && paths.usesCustomConfig {
+        } else if profile.roleARN != nil && profile.roleAccountID == nil {
+            credentialProvider = .custom { _ in InvalidRoleCredentialProvider() }
+        } else if profile.roleARN != nil || (profile.isSSO && paths.usesCustomConfig) {
+            // Soto's config-file provider requires the destination section in
+            // credentials before reading role_arn from config. The CLI resolves
+            // source-only role layouts and custom-path SSO without that limit.
+            let cliCredentialRunner = self.cliCredentialRunner
             credentialProvider = .custom { context in
-                RotatingCredentialProvider(
+                let provider: AWSCLICredentialProvider
+                if let cliCredentialRunner {
+                    provider = AWSCLICredentialProvider(profile: profile.name, paths: paths, runner: cliCredentialRunner)
+                } else {
+                    provider = AWSCLICredentialProvider(profile: profile.name, paths: paths)
+                }
+                return RotatingCredentialProvider(
                     context: context,
-                    provider: AWSCLICredentialProvider(profile: profile.name, paths: paths)
+                    provider: provider
                 )
             }
         } else if profile.isSSO {
@@ -88,8 +103,22 @@ actor AWSServiceProvider {
         let previousBinding = binding
         let nextGeneration = UUID()
         let events = identityEvents
+        var profileVerifier = verifier
+        if profile.roleARN != nil {
+            let verifier = self.verifier
+            let expectedPrincipal = profile.assumedRolePrincipalARN
+            profileVerifier = { credential, region in
+                let identity = try await verifier(credential, region)
+                guard let expectedPrincipal,
+                      AWSStablePrincipal.normalizedARN(identity.arn) == expectedPrincipal else {
+                    throw AWSServiceError.identityUnavailable
+                }
+                return identity
+            }
+        }
         let nextBinding = IdentityBoundCredentialProvider(source: AWSClient(credentialProvider: credentialProvider),
-            region: region, expectedAccount: profile.ssoAccountID, verifier: verifier,
+            region: region, expectedAccount: profile.roleARN == nil ? profile.ssoAccountID : profile.roleAccountID,
+            verifier: profileVerifier,
             onInvalidation: { events.yield(nextGeneration) })
         let nextClient = AWSClient(credentialProvider: .custom { _ in nextBinding })
 
@@ -295,6 +324,12 @@ actor AWSServiceProvider {
         try? await Task.detached {
             try await awsClient.shutdown()
         }.value
+    }
+}
+
+private struct InvalidRoleCredentialProvider: CredentialProvider {
+    func getCredential(logger: Logger) async throws -> Credential {
+        throw AWSServiceError.identityUnavailable
     }
 }
 

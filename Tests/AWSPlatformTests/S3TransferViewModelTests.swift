@@ -9,7 +9,7 @@ final class S3TransferViewModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = try S3TransferFixtures.file(in: directory)
         let gate = TestGate()
-        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No unconfirmed upload") }, downloader: { _, _, _, _ in },
+        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No unconfirmed upload") }, downloader: { _, _, _, _ in .init() },
             filePreparer: { url in
                 let file = try await S3LocalFile.prepare(url: url, temporaryRoot: directory)
                 await gate.wait()
@@ -36,7 +36,7 @@ final class S3TransferViewModelTests: XCTestCase {
         let file = try S3TransferFixtures.file(in: directory)
         let gate = TestGate()
         let activity = TransferActivity()
-        let vm = S3TransferViewModel(uploader: { _, _ in await gate.wait() }, downloader: { _, _, _, _ in }, activity: activity)
+        let vm = S3TransferViewModel(uploader: { _, _ in await gate.wait() }, downloader: { _, _, _, _ in .init() }, activity: activity)
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { file.url }
@@ -62,7 +62,7 @@ final class S3TransferViewModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let gate = TestGate()
         let activity = TransferActivity()
-        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in await gate.wait() }, activity: activity)
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in await gate.wait(); return .init() }, activity: activity)
         let context = S3TransferFixtures.context()
         let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
         vm.configure(scope: context.scope)
@@ -85,7 +85,7 @@ final class S3TransferViewModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let gate = TestGate()
         let activity = TransferActivity()
-        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in XCTFail("Restart must block download") }, activity: activity)
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in XCTFail("Restart must block download"); return .init() }, activity: activity)
         let context = S3TransferFixtures.context()
         let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
         vm.configure(scope: context.scope)
@@ -109,7 +109,7 @@ final class S3TransferViewModelTests: XCTestCase {
 
     @MainActor
     func testUnselectedOrMismatchedProfileCannotOpenFilePicker() {
-        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No upload") }, downloader: { _, _, _, _ in XCTFail("No download") })
+        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No upload") }, downloader: { _, _, _, _ in XCTFail("No download"); return .init() })
         let context = S3TransferFixtures.context()
         XCTAssertFalse(vm.canStart)
         vm.chooseUpload(context: context) { XCTFail("No picker without Profile"); return nil }
@@ -128,7 +128,7 @@ final class S3TransferViewModelTests: XCTestCase {
         let vm = S3TransferViewModel(uploader: { intent, progress in
             await calls.add(intent)
             await progress(.init(bytes: intent.file.size, total: intent.file.size))
-        }, downloader: { _, _, _, _ in XCTFail("No download") })
+        }, downloader: { _, _, _, _ in XCTFail("No download"); return .init() })
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { file.url }
@@ -156,7 +156,7 @@ final class S3TransferViewModelTests: XCTestCase {
         let vm = S3TransferViewModel(uploader: { intent, _ in
             await calls.add(intent)
             if intent.overwriteETag == nil { throw S3TransferError.objectExists(etag: "etag", region: "ap-southeast-1") }
-        }, downloader: { _, _, _, _ in })
+        }, downloader: { _, _, _, _ in .init() })
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { file.url }
@@ -182,7 +182,7 @@ final class S3TransferViewModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = try S3TransferFixtures.file(in: directory)
         let gate = TestGate()
-        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Stale confirmation must not upload") }, downloader: { _, _, _, _ in })
+        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Stale confirmation must not upload") }, downloader: { _, _, _, _ in .init() })
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { await gate.wait(); return file.url }
@@ -214,7 +214,7 @@ final class S3TransferViewModelTests: XCTestCase {
             await gate.wait()
             await progress(.init(bytes: 99, total: 99))
             finished.fulfill()
-        }, downloader: { _, _, _, _ in })
+        }, downloader: { _, _, _, _ in .init() })
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { file.url }
@@ -235,7 +235,7 @@ final class S3TransferViewModelTests: XCTestCase {
         let directory = try S3TransferFixtures.directory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let gate = TestGate()
-        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in XCTFail("Stale panel must not download") })
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in XCTFail("Stale panel must not download"); return .init() })
         let context = S3TransferFixtures.context()
         let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
         vm.configure(scope: context.scope)
@@ -257,7 +257,7 @@ final class S3TransferViewModelTests: XCTestCase {
         let directory = try S3TransferFixtures.directory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = try S3TransferFixtures.file(in: directory)
-        let vm = S3TransferViewModel(uploader: { _, _ in throw S3TransferError.accessDenied }, downloader: { _, _, _, _ in })
+        let vm = S3TransferViewModel(uploader: { _, _ in throw S3TransferError.accessDenied }, downloader: { _, _, _, _ in .init() })
         let context = S3TransferFixtures.context()
         vm.configure(scope: context.scope)
         vm.chooseUpload(context: context) { file.url }
@@ -267,6 +267,32 @@ final class S3TransferViewModelTests: XCTestCase {
         XCTAssertEqual(vm.error, S3TransferError.accessDenied.errorDescription)
         XCTAssertNil(vm.refreshID)
         XCTAssertTrue(vm.canStart)
+    }
+
+    @MainActor
+    func testDownloadCompletionPublishesRecoveryLocationAndNextSelectionClearsIt() async throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recovery = directory.appendingPathComponent("AWSPlatform Recovery previous")
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in
+            .init(recoveryURL: recovery)
+        })
+        let context = S3TransferFixtures.context()
+        let object = S3ObjectModel(key: "file", size: 1, lastModified: nil, storageClass: nil, isPrefix: false)
+        vm.configure(scope: context.scope)
+        XCTAssertNil(vm.completedDownload)
+        vm.chooseDownload(context: context, object: object) { directory.appendingPathComponent("saved") }
+        await waitFor { vm.status == "Download complete" }
+        XCTAssertEqual(vm.completedDownload?.recoveryURL, recovery)
+        XCTAssertNil(vm.error)
+        let gate = TestGate()
+        vm.chooseDownload(context: context, object: object) { await gate.wait(); return nil }
+        XCTAssertNil(vm.completedDownload)
+        await gate.waitForEntry()
+        await gate.open()
+        await waitFor { !vm.isBusy }
+        vm.configure(scope: context.scope)
+        XCTAssertNil(vm.completedDownload)
     }
 }
 

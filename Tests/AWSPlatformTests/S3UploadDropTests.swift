@@ -13,7 +13,7 @@ final class S3UploadDropTests: XCTestCase {
     }
 
     func testDropRequiresSelectedProfileSingleFileAndIdleWindow() async throws {
-        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No write") }, downloader: { _, _, _, _ in })
+        let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("No write") }, downloader: { _, _, _, _ in .init() })
         let context = S3TransferFixtures.context()
         XCTAssertFalse(vm.receiveUploadDrop(context: context, numberOfFiles: 1) { XCTFail("No Profile"); return URL(fileURLWithPath: "/tmp/file") })
         vm.configure(scope: S3TransferFixtures.context(profileName: "other").scope)
@@ -42,7 +42,7 @@ final class S3UploadDropTests: XCTestCase {
             XCTAssertEqual(intent.key, "nested/current/file.txt")
             XCTAssertNil(intent.overwriteETag)
             uploaded.fulfill()
-        }, downloader: { _, _, _, _ in })
+        }, downloader: { _, _, _, _ in .init() })
         vm.configure(scope: context.scope)
         XCTAssertTrue(vm.receiveUploadDrop(context: context, numberOfFiles: 1) { file.url })
         await waitFor { vm.pendingUpload != nil }
@@ -63,7 +63,7 @@ final class S3UploadDropTests: XCTestCase {
         let context = S3TransferFixtures.context()
         for operation in [0, 1, 2] {
             let gate = TestGate()
-            let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Stale drop must not upload") }, downloader: { _, _, _, _ in })
+            let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Stale drop must not upload") }, downloader: { _, _, _, _ in .init() })
             vm.configure(scope: context.scope)
             XCTAssertTrue(vm.receiveUploadDrop(context: context, numberOfFiles: 1) { await gate.wait(); return file.url })
             await gate.waitForEntry()
@@ -86,7 +86,7 @@ final class S3UploadDropTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let context = S3TransferFixtures.context()
         for url in [directory, try XCTUnwrap(URL(string: "https://example.com/file.txt"))] {
-            let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Invalid file must not upload") }, downloader: { _, _, _, _ in })
+            let vm = S3TransferViewModel(uploader: { _, _ in XCTFail("Invalid file must not upload") }, downloader: { _, _, _, _ in .init() })
             vm.configure(scope: context.scope)
             XCTAssertTrue(vm.receiveUploadDrop(context: context, numberOfFiles: 1) { url })
             await waitFor { vm.error != nil }
@@ -94,7 +94,7 @@ final class S3UploadDropTests: XCTestCase {
             XCTAssertNil(vm.pendingUpload)
             XCTAssertTrue(vm.canStart)
         }
-        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in })
+        let vm = S3TransferViewModel(uploader: { _, _ in }, downloader: { _, _, _, _ in .init() })
         vm.configure(scope: context.scope)
         XCTAssertTrue(vm.receiveUploadDrop(context: context, numberOfFiles: 1) { throw NSError(domain: "private-provider-detail", code: 1) })
         await waitFor { vm.error != nil }

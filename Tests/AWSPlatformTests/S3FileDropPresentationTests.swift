@@ -12,7 +12,7 @@ final class S3FileDropPresentationTests: XCTestCase {
             prefix: "nested/" + String(repeating: "long-folder-name/", count: 12), knownRegion: original.knownRegion)
         let listVM = S3ViewModel()
         listVM.currentPrefix = context.prefix
-        let transferVM = S3TransferViewModel(uploader: { _, _ in XCTFail("Rendering must not upload") }, downloader: { _, _, _, _ in })
+        let transferVM = S3TransferViewModel(uploader: { _, _ in XCTFail("Rendering must not upload") }, downloader: { _, _, _, _ in .init() })
         transferVM.configure(scope: context.scope)
         for (language, scheme) in [("en", ColorScheme.light), ("zh-Hans", ColorScheme.dark)] {
             for targeted in [false, true] {

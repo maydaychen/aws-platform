@@ -59,8 +59,12 @@ final class EC2SSMConnectionTests: XCTestCase {
         }
         let script = try String(contentsOf: url)
         XCTAssertTrue(script.contains("ssm start-session --target 'i-0123456789abcdef0'"))
-        XCTAssertFalse(script.contains("AWS_SECRET_ACCESS_KEY"))
-        XCTAssertFalse(script.contains("export-credentials"))
+        XCTAssertTrue(script.contains("configure export-credentials --format process"))
+        XCTAssertTrue(script.contains("export AWS_ACCESS_KEY_ID=\"$connect_access\" AWS_SECRET_ACCESS_KEY=\"$connect_secret\""))
+        XCTAssertFalse(script.contains(offlineSecret))
+        XCTAssertFalse(script.contains("eval "))
+        XCTAssertFalse(script.contains("python"))
+        XCTAssertFalse(script.contains("jq "))
         XCTAssertFalse(script.contains("osascript"))
     }
 
@@ -79,21 +83,28 @@ final class EC2SSMConnectionTests: XCTestCase {
         }
     }
 
-    func testExecutedScriptQuotesArgumentsIsolatesEnvironmentAndAcceptsRenewedSession() throws {
+    func testExecutedScriptPinsCredentialsAfterProfileMutationAndAcceptsRenewedSession() throws {
         let root = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let marker = root.appendingPathComponent("injected")
         let profile = "ops ' ; $(touch \(marker.path)) `touch \(marker.path)`"
         let req = try request(profile: profile, config: root.appendingPathComponent("config ' $(false)").path)
-        let run = try execute(root: root, request: req, identity: "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/renewed")
+        let run = try execute(root: root, request: req, identity: validIdentity, changeProfile: true)
         XCTAssertEqual(run.status, 0, run.output)
-        XCTAssertEqual(run.calls.filter { $0 == "__CALL__" }.count, 2)
+        XCTAssertEqual(run.calls.filter { $0 == "__CALL__" }.count, 3)
+        XCTAssertEqual(run.calls.filter { $0 == "export-credentials" }.count, 1)
+        XCTAssertEqual(run.calls.filter { $0 == "--profile" }.count, 1)
         XCTAssertTrue(run.calls.contains(profile))
         XCTAssertTrue(run.calls.contains(req.scope.configPath))
         XCTAssertTrue(run.calls.contains(req.scope.credentialsPath))
-        XCTAssertEqual(run.calls.filter { $0 == "us-east-1" }.count, 2)
+        XCTAssertEqual(run.calls.filter { $0 == "us-east-1" }.count, 3)
         XCTAssertTrue(run.calls.contains(req.instanceID))
-        XCTAssertEqual(run.calls.filter { $0 == "ambient=unset/unset/unset/unset/unset" }.count, 2)
+        XCTAssertTrue(run.calls.contains("export-ambient=unset/unset/unset/unset/unset"))
+        XCTAssertEqual(run.calls.filter { $0 == "fixed-credentials=yes" }.count, 2)
+        XCTAssertEqual(run.calls.filter { $0 == "/dev/null" }.count, 4)
+        XCTAssertEqual(run.calls.filter { $0 == "changed-profile-ignored=yes" }.count, 2)
+        XCTAssertTrue(try String(contentsOfFile: req.scope.configPath).contains("DifferentRole"))
+        assertNoCredentialValues(run)
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.deletingLastPathComponent().path))
@@ -131,6 +142,80 @@ final class EC2SSMConnectionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
     }
 
+    func testStaticCredentialsWithoutSessionTokenAreUsedForBothCalls() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let run = try execute(root: root, request: request(), identity: validIdentity, token: nil)
+        XCTAssertEqual(run.status, 0, run.output)
+        XCTAssertEqual(run.calls.filter { $0 == "fixed-credentials=yes" }.count, 2)
+        XCTAssertEqual(run.calls.filter { $0 == "business-token=absent" }.count, 2)
+        assertNoCredentialValues(run)
+    }
+
+    func testMalformedEmptyAndWrongTypeCredentialExportsNeverReachSTSOrSSM() throws {
+        let valid: [String: Any] = ["Version": 1, "AccessKeyId": offlineAccess, "SecretAccessKey": offlineSecret]
+        var responses = ["not-json", "[]", "{}"]
+        for (key, values) in [
+            ("Version", ["1", 2, NSNull()] as [Any]),
+            ("AccessKeyId", ["", "offline\n", 7, NSNull()] as [Any]),
+            ("SecretAccessKey", ["", "offline\n", "offline\tbad", false, NSNull()] as [Any]),
+            ("SessionToken", ["", "offline\n", 7, false, NSNull(), ["nested"]] as [Any])
+        ] {
+            for value in values {
+                var response = valid
+                response[key] = value
+                responses.append(String(decoding: try JSONSerialization.data(withJSONObject: response), as: UTF8.self))
+            }
+        }
+        for response in responses {
+            let root = try makeDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let run = try execute(root: root, request: request(), identity: validIdentity, exportedJSON: response)
+            XCTAssertNotEqual(run.status, 0)
+            XCTAssertEqual(run.calls.filter { $0 == "export-credentials" }.count, 1)
+            XCTAssertFalse(run.calls.contains("sts"))
+            XCTAssertFalse(run.calls.contains("start-session"))
+            XCTAssertTrue(run.output.contains(EC2SSMConnectionError.credentialsUnavailable.rawValue))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
+            assertNoCredentialValues(run)
+        }
+    }
+
+    func testExportFailureIsSanitizedAndCleanedBeforeIdentityLookup() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let run = try execute(root: root, request: request(), identity: validIdentity, exportExit: 37)
+        XCTAssertNotEqual(run.status, 0)
+        XCTAssertFalse(run.calls.contains("sts"))
+        XCTAssertFalse(run.calls.contains("start-session"))
+        XCTAssertTrue(run.output.contains(EC2SSMConnectionError.credentialsUnavailable.rawValue))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
+        assertNoCredentialValues(run)
+    }
+
+    func testShellSpecialCharactersInCredentialsArePassedAsValuesWithoutExpansion() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let secret = "offline'\"$(false);`false`/+="
+        let token = "offline'\"$(false);`false`/+=token"
+        let run = try execute(root: root, request: request(), identity: validIdentity,
+                              secret: secret, token: token)
+        XCTAssertEqual(run.status, 0, run.output)
+        XCTAssertEqual(run.calls.filter { $0 == "fixed-credentials=yes" }.count, 2)
+        for value in [secret, token] { XCTAssertFalse((run.output + run.calls.joined()).contains(value)) }
+    }
+
+    func testTerminationSignalCleansOneTimeScriptAndPreservesFailure() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let run = try execute(root: root, request: request(), identity: validIdentity, terminateDuringSession: true)
+        XCTAssertNotEqual(run.status, 0)
+        XCTAssertTrue(run.calls.contains("start-session"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.deletingLastPathComponent().path))
+        assertNoCredentialValues(run)
+    }
+
     func testAllConnectionMessagesAreLocalized() {
         let keys = EC2SSMConnectionError.allCases.map(\.rawValue) + ["Connect", "Unable to connect",
             "Open an SSM session in your default terminal",
@@ -148,21 +233,56 @@ final class EC2SSMConnectionTests: XCTestCase {
         return root
     }
 
+    private let offlineAccess = "offline-access-key"
+    private let offlineSecret = "offline-secret-key"
+    private let offlineToken = "offline-session-token"
+    private let validIdentity = "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/renewed"
+
+    private func assertNoCredentialValues(_ run: (status: Int32, output: String, calls: [String], script: URL)) {
+        for value in [offlineAccess, offlineSecret, offlineToken] {
+            XCTAssertFalse(run.output.contains(value))
+            XCTAssertFalse(run.calls.joined(separator: "\n").contains(value))
+        }
+    }
+
     private func execute(root: URL, request: EC2SSMConnectionRequest, identity: String,
-                         stsExit: Int = 0, ssmExit: Int = 0) throws -> (status: Int32, output: String, calls: [String], script: URL) {
+                         stsExit: Int = 0, ssmExit: Int = 0, exportedJSON: String? = nil, exportExit: Int = 0,
+                         secret: String = "offline-secret-key", token: String? = "offline-session-token",
+                         terminateDuringSession: Bool = false, changeProfile: Bool = false) throws -> (status: Int32, output: String, calls: [String], script: URL) {
         let cli = root.appendingPathComponent("aws ' offline")
         let log = root.appendingPathComponent("arguments")
+        let state = root.appendingPathComponent("profile-state")
         func quote(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        var credentials: [String: Any] = ["Version": 1, "AccessKeyId": offlineAccess, "SecretAccessKey": secret]
+        if let token { credentials["SessionToken"] = token }
+        let response = try exportedJSON ?? String(decoding: JSONSerialization.data(withJSONObject: credentials), as: UTF8.self)
         // This executable is the only CLI the generated script can call. It never
         // loads AWS configuration, credentials, plugins or network libraries.
         let stub = """
         #!/bin/bash
+        set -euo pipefail
         printf '%s\\n' '__CALL__' "$@" "$AWS_CONFIG_FILE" "$AWS_SHARED_CREDENTIALS_FILE" >> \(quote(log.path))
-        printf 'ambient=%s/%s/%s/%s/%s\\n' "${AWS_ACCESS_KEY_ID-unset}" "${AWS_SESSION_TOKEN-unset}" "${AWS_PROFILE-unset}" "${AWS_ENDPOINT_URL-unset}" "${AWS_ROLE_ARN-unset}" >> \(quote(log.path))
+        if [[ "$1" == configure ]]; then
+            printf 'export-ambient=%s/%s/%s/%s/%s\\n' "${AWS_ACCESS_KEY_ID-unset}" "${AWS_SESSION_TOKEN-unset}" "${AWS_PROFILE-unset}" "${AWS_ENDPOINT_URL-unset}" "${AWS_ROLE_ARN-unset}" >> \(quote(log.path))
+            printf '%s\\n' changed > \(quote(state.path))
+            if [[ \(exportExit) != 0 ]]; then printf '%s\\n' \(quote(offlineSecret)) >&2; exit \(exportExit); fi
+            printf '%s\\n' \(quote(response))
+            if [[ \(changeProfile ? "true" : "false") == true ]]; then printf '%s\\n' 'DifferentRole' > "$AWS_CONFIG_FILE"; fi
+            exit 0
+        fi
+        [[ "$AWS_CONFIG_FILE" == /dev/null && "$AWS_SHARED_CREDENTIALS_FILE" == /dev/null && "$BOTO_CONFIG" == /dev/null ]] || exit 91
+        [[ "${AWS_PROFILE-unset}" == unset && "${AWS_DEFAULT_PROFILE-unset}" == unset && "${AWS_ENDPOINT_URL-unset}" == unset && "${AWS_ROLE_ARN-unset}" == unset ]] || exit 92
+        [[ "$AWS_ACCESS_KEY_ID" == \(quote(offlineAccess)) && "$AWS_SECRET_ACCESS_KEY" == \(quote(secret)) && "${AWS_SESSION_TOKEN-}" == \(quote(token ?? "")) ]] || exit 93
+        for argument in "$@"; do [[ "$argument" != --profile ]] || exit 94; done
+        printf '%s\\n' 'fixed-credentials=yes' >> \(quote(log.path))
+        if [[ -n "${AWS_SESSION_TOKEN-}" ]]; then printf '%s\\n' 'business-token=present'; else printf '%s\\n' 'business-token=absent'; fi >> \(quote(log.path))
+        [[ -f \(quote(state.path)) ]] || exit 95
+        printf '%s\\n' 'changed-profile-ignored=yes' >> \(quote(log.path))
         if [[ "$1" == sts ]]; then
             printf '%s\\n' \(quote(identity))
             exit \(stsExit)
         fi
+        if [[ \(terminateDuringSession ? "true" : "false") == true ]]; then kill -TERM "$PPID"; exit 143; fi
         exit \(ssmExit)
         """
         try Data(stub.utf8).write(to: cli)
@@ -172,12 +292,15 @@ final class EC2SSMConnectionTests: XCTestCase {
             open: { script = $0; return true }, temporaryDirectory: root, homeDirectory: root)
         try service.connect(request, locale: .init(identifier: "en"))
         let url = try XCTUnwrap(script)
+        let generated = try String(contentsOf: url)
+        for value in [offlineAccess, secret, token].compactMap({ $0 }) { XCTAssertFalse(generated.contains(value)) }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["--noprofile", "--norc", url.path]
         process.environment = ["PATH": "/usr/bin:/bin", "HOME": root.path,
+            "SHELLOPTS": "xtrace",
             "AWS_ACCESS_KEY_ID": "offline-ambient", "AWS_SESSION_TOKEN": "offline-token",
-            "AWS_PROFILE": "wrong-profile", "AWS_ENDPOINT_URL": "http://127.0.0.1:1", "AWS_ROLE_ARN": "wrong-role"]
+            "AWS_PROFILE": "wrong-profile", "AWS_DEFAULT_PROFILE": "wrong-default", "AWS_ENDPOINT_URL": "http://127.0.0.1:1", "AWS_ROLE_ARN": "wrong-role"]
         let output = Pipe()
         process.standardOutput = output
         process.standardError = output

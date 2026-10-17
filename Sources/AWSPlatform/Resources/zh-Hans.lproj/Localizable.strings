@@ -762,6 +762,11 @@
 "Only this topic's subscriptions are shown." = "仅显示此主题的订阅。";
 "Open" = "打开";
 "New Window" = "新建窗口";
+"Previous file saved at: %@" = "原文件已保存在：%@";
+"S3 returned an invalid bucket list. Refresh to try again." = "S3 返回的 Bucket 列表无效，请刷新后重试。";
+"S3 could not complete the bucket list. Refresh to try again." = "S3 未能完整读取 Bucket 列表，请刷新后重试。";
+"Unable to obtain valid credentials for the selected Profile. Sign in again or update AWS CLI v2." = "无法获取所选 Profile 的有效凭据，请重新登录或更新 AWS CLI v2。";
+"Unable to load Profile credentials. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, check the Profile and AWS_CONFIG_FILE configuration, complete SSO login if required, then retry." = "无法加载 Profile 凭据。请在 /opt/homebrew/bin 或 /usr/local/bin 安装 AWS CLI v2，检查 Profile 和 AWS_CONFIG_FILE 配置，按需完成 SSO 登录后重试。";
 "Open %@ in account %@, profile %@, region %@" = "打开 %1$@，账号 %2$@，Profile %3$@，区域 %4$@";
 "Open %@ in the current profile and region" = "在当前 Profile 和区域中打开 %1$@";
 "Open EC2 instance" = "打开 EC2 实例";
@@ -1244,7 +1249,6 @@
 "Unable to find target group memberships. Refresh to try again." = "无法查询所属目标组。请刷新重试。";
 "Unable to load AWS Health data. Refresh to try again." = "无法加载 AWS Health 数据。请刷新重试。";
 "Unable to load Route 53 data. Refresh to try again." = "无法加载 Route 53 数据。请刷新重试。";
-"Unable to load SSO credentials from the custom configuration. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, run aws sso login with the same AWS_CONFIG_FILE and profile, then retry." = "无法从自定义配置加载 SSO 凭据。请将 AWS CLI v2 安装到 /opt/homebrew/bin 或 /usr/local/bin，使用相同的 AWS_CONFIG_FILE 和 Profile 运行 aws sso login 后重试。";
 "Unable to load load balancing data. Refresh to try again." = "无法加载负载均衡数据。请刷新重试。";
 "Unable to load security groups. Refresh to try again." = "无法加载安全组。请刷新重试。";
 "Unable to load the related alarm. Check CloudWatch access and retry." = "无法加载关联告警。请检查 CloudWatch 访问权限后重试。";

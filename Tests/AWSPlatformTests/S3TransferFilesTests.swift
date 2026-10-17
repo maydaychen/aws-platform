@@ -114,10 +114,11 @@ final class S3TransferFilesTests: XCTestCase {
         let file = try S3TransferFixtures.file(in: directory)
         let writer = try S3DownloadWriter(destination: .init(url: file.url))
         try writer.write(Data("ok".utf8))
-        try writer.commit(expectedLength: 2)
+        let result = try writer.commit(expectedLength: 2)
         writer.cleanup()
         XCTAssertEqual(try Data(contentsOf: file.url), Data("ok".utf8))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: writer.temporaryURL.path))
+        XCTAssertEqual(result.recoveryURL, writer.temporaryURL)
+        XCTAssertEqual(try Data(contentsOf: writer.temporaryURL), Data("sample".utf8))
     }
 
     func testEmptyDownloadAndNewDestinationConflict() throws {
@@ -125,7 +126,7 @@ final class S3TransferFilesTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("empty")
         let writer = try S3DownloadWriter(destination: .init(url: url))
-        try writer.commit(expectedLength: 0)
+        XCTAssertNil(try writer.commit(expectedLength: 0).recoveryURL)
         XCTAssertEqual(try Data(contentsOf: url).count, 0)
         let newURL = directory.appendingPathComponent("new")
         let conflict = try S3DownloadWriter(destination: .init(url: newURL))

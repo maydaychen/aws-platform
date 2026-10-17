@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class S3TransferViewModel: ObservableObject {
     typealias Uploader = @Sendable (S3UploadIntent, @escaping S3ProgressHandler) async throws -> Void
-    typealias Downloader = @Sendable (S3TransferContext, S3ObjectModel, S3DownloadDestination, @escaping S3ProgressHandler) async throws -> Void
+    typealias Downloader = @Sendable (S3TransferContext, S3ObjectModel, S3DownloadDestination, @escaping S3ProgressHandler) async throws -> S3DownloadResult
     typealias FilePreparer = @Sendable (URL) async throws -> S3LocalFile
     typealias Picker = @MainActor () async -> URL?
     typealias DropLoader = @MainActor () async throws -> URL
@@ -16,6 +16,7 @@ final class S3TransferViewModel: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var activeKey: String?
     @Published private(set) var refreshID: UUID?
+    @Published private(set) var completedDownload: S3DownloadResult?
     private(set) var completedContext: S3TransferContext?
     private(set) var scope: MonitoringScope?
     private let uploader: Uploader
@@ -60,6 +61,7 @@ final class S3TransferViewModel: ObservableObject {
         progress = .init(bytes: 0, total: nil)
         completedContext = nil
         refreshID = nil
+        completedDownload = nil
         scope = nil
     }
 
@@ -159,12 +161,13 @@ final class S3TransferViewModel: ObservableObject {
                 guard let lease = activity.begin() else { finishSelection(); releaseAccess(); return }
                 defer { activity.finish(lease) }
                 status = "Downloading"
-                try await downloader(context, object, destination) { [weak self] value in
+                let result = try await downloader(context, object, destination) { [weak self] value in
                     await self?.update(value, token: token, context: context)
                 }
                 guard current(token, context), !Task.isCancelled else { return }
                 isBusy = false
                 status = "Download complete"
+                completedDownload = result
                 task = nil
                 releaseAccess()
             } catch { fail(error, token: token, context: context) }
@@ -185,6 +188,7 @@ final class S3TransferViewModel: ObservableObject {
         generation = UUID()
         self.uploading = uploading
         self.status = status
+        completedDownload = nil
         activeKey = key
         isBusy = true
         error = nil

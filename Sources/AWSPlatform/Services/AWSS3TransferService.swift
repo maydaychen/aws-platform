@@ -83,8 +83,9 @@ struct AWSS3TransferService: Sendable {
         }
     }
 
+    @discardableResult
     func download(context: S3TransferContext, object: S3ObjectModel, destination: S3DownloadDestination,
-                  progress: @escaping S3ProgressHandler) async throws {
+                  progress: @escaping S3ProgressHandler) async throws -> S3DownloadResult {
         guard !object.isPrefix, let size = object.size, size >= 0,
               let etag = object.eTag, !etag.isEmpty else { throw S3TransferError.objectChanged }
         let key = object.key
@@ -103,7 +104,7 @@ struct AWSS3TransferService: Sendable {
                 try writer.write(Data(buffer.readableBytesView))
                 await progress(.init(bytes: writer.bytes, total: response.contentLength))
             }
-            try writer.commit(expectedLength: size)
+            return try writer.commit(expectedLength: size)
         } catch {
             try Task.checkCancellation()
             throw Self.map(error)

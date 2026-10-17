@@ -56,7 +56,9 @@ struct ConfigReader {
             ssoRegion: values["sso_region"],
             ssoAccountID: values["sso_account_id"],
             ssoRoleName: values["sso_role_name"],
-            ssoSessionName: values["sso_session"].flatMap { $0.isEmpty ? nil : $0 }
+            ssoSessionName: values["sso_session"].flatMap { $0.isEmpty ? nil : $0 },
+            roleARN: values["role_arn"].flatMap { $0.isEmpty ? nil : $0 },
+            sourceProfile: values["source_profile"].flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 

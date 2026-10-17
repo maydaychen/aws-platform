@@ -51,6 +51,14 @@ struct S3TransferProgress: Sendable {
     }
 }
 
+struct S3DownloadResult: Equatable, Sendable {
+    let recoveryURL: URL?
+
+    init(recoveryURL: URL? = nil) {
+        self.recoveryURL = recoveryURL
+    }
+}
+
 enum S3TransferError: Error, Equatable, LocalizedError {
     case invalidScope, invalidFilename, invalidFile, multipleFiles, fileChanged, tooLarge
     case regionUnavailable, destinationChanged, incompleteDownload, insufficientSpace

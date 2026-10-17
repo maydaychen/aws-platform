@@ -67,6 +67,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - 源码构建需要提供 Swift 6.2+ 的完整 Xcode；构建机器的 macOS 版本需满足所用 Xcode 的系统要求
 - 已配置 AWS CLI (`~/.aws/config` 和 `~/.aws/credentials`)
 - 使用 SSO 时，先配置具名 `sso-session` 并安装 AWS CLI v2；可在应用内点击 `SSO Login` 或在终端执行 `aws sso login --sso-session <name>`。浏览资源还需配置引用该 session 的 Profile
+- 包含 `role_arn` 的 AssumeRole Profile 也需要 AWS CLI v2。目标角色与 `source_profile` 可仅在 config 中声明，credentials 只保存源 Profile 凭据；应用通过有界内存管道导出临时凭据并验证目标账号与角色，不写入凭据或补写重复配置节
 
 Apple Silicon 上应使用能原生运行的 AWS CLI。AWS CLI v2 从 2.30.0 起提供同时支持 Intel／Apple Silicon 的 [官方 Universal 安装包](https://aws.amazon.com/blogs/devops/introducing-universal-installers-for-aws-cli-v2-on-macos/)；旧版 Intel CLI 在没有 Rosetta 的机器上无法启动。
 
@@ -146,7 +147,7 @@ T 系列实例概览的「计算与容量」区域显示当前 `Standard`／`Unl
 
 AWS CLI v2 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/bin`；[Session Manager 插件](https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html) 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/local/sessionmanagerplugin/bin`。应用只检查可执行文件是否存在，安装损坏或运行时错误显示在终端中。实例需要正常的 SSM Agent、实例权限及 Systems Manager 网络连通性；当前角色需要相应的 [Session Manager 权限](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-restrict-access-quickstart.html) 。EC2 处于运行状态不代表 SSM 一定可用。
 
-脚本显式使用当前 Profile、Region 和 AWS 配置路径，隔离终端继承的 AWS 凭据；先核对 CLI 的账号和去除会话后缀的主体 ARN，再执行 `aws ssm start-session`。凭据解析和 SSO 缓存由 CLI 管理，应用不将自身凭据导出到磁盘或终端历史。登录过期、权限不足、目标离线等错误由 CLI 显示。脚本执行退出或移交失败时清理；若关联程序始终未执行脚本，文件可能留在私有系统临时目录。应用不安装 Agent 或修改 IAM／SSM 配置。参考 [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html) 。
+脚本通过当前 Profile 和 AWS 配置路径仅解析一次凭据，核对账号和去除会话后缀的主体 ARN 后，使用同一组内存凭据及所选 Region 发起 SSM；这两次调用不重新解析 Profile 或共享配置。凭据不写入脚本、磁盘、命令行参数、日志或终端历史。登录过期、权限不足、目标离线等错误由 CLI 显示。脚本执行退出或移交失败时清理；若关联程序始终未执行脚本，文件可能留在私有系统临时目录。应用不安装 Agent 或修改 IAM／SSM 配置。参考 [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html) 。
 
 ### EC2 导航、EBS 卷与快照
 
@@ -158,11 +159,15 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 
 ### S3 对象浏览
 
+Bucket 列表完整读取当前账号的所有分页，支持已提高 Bucket 配额的账号，不按当前浏览 Region 筛选；任一页面失败时，不把部分结果展示为完整成功列表。
+
 打开 Bucket 时只加载对象和文件夹的第一页，每次请求最多返回 1,000 项；点击「加载更多」才请求下一页，不再自动遍历整个目录。底部显示已加载数量，搜索只筛选当前目录已加载的项目，不查询尚未加载的页面或子目录。当前页没有可显示项目时，仍可能存在后续页。
 
 点击路径栏的「根目录」或任意祖先目录即可返回，长路径支持横向滚动；前缀中的斜杠、空格、Unicode 与百分号按原样保留。续页失败保留已有列表，可点击「重试」；权限拒绝或 Bucket 不存在时清空旧行。Bucket 浏览、详情和位置查询均限定 Bucket 属于当前已验证账号。刷新以及上传成功后的刷新都会从第一页重新开始，新上传对象可能位于后续页。切换目录、Bucket 或 Profile 时清除旧分页状态并丢弃迟到结果。浏览使用 `s3:ListBucket` 和现有 Bucket 区域查询，LIST 请求可能产生 S3 请求费用。参考 [ListObjectsV2](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html) 。
 
 ### S3 文件传输
+
+下载覆盖现有本地文件时，通过原子交换将被替换文件保留在同目录的 `AWSPlatform Recovery <UUID>` 路径，完成提示提供可复制的位置；应用不自动删除恢复副本。即使其他程序在最终检查与替换之间保存了编辑，内容也会保留。新目标使用排他提交，提交前失败不会更改原文件；文件系统不支持原子交换时，覆盖会失败。
 
 选择并验证 Profile 后，打开 Bucket 并进入对象列表。「上传文件」选择一个本地文件，使用文件名上传到当前前缀。确认前先准备私有临时副本，上传使用该副本及其 SHA-256 校验和；准备过程需要文件大小加 64 MiB 预留空间。写入前的确认弹窗显示 Profile、账号、Bucket、完整 Key、本地路径和大小；同名对象需要单独确认「覆盖」。新建使用 `If-None-Match: *`，确认覆盖使用当前对象的 ETag 作为 `If-Match`，并发变化会导致上传失败，避免静默替换更新后的对象。上传成功后刷新当前前缀。覆盖不会复制原对象的元数据、标签或 ACL，新对象使用本次上传参数和 Bucket 默认设置；Bucket 现有版本控制、默认加密和策略继续生效，应用不会修改这些配置。
 

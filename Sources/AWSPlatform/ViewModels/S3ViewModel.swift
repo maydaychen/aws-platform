@@ -419,19 +419,7 @@ final class S3ViewModel: ObservableObject {
     }
 
     private static func fetchBuckets(client: S3) async throws -> [S3BucketModel] {
-        let response = try await client.listBuckets(.init())
-        return (response.buckets ?? []).map { bucket in
-            S3BucketModel(
-                name: bucket.name ?? "unknown",
-                region: nil,
-                creationDate: bucket.creationDate,
-                versioningEnabled: nil,
-                encryptionEnabled: nil,
-                publicAccessBlock: nil,
-                tags: [:],
-                detailError: nil
-            )
-        }
+        try await S3BucketListing.load { try await client.listBuckets($0) }
     }
 
     private static func errorCode(_ error: Error) -> String? {

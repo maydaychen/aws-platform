@@ -92,7 +92,7 @@ final class S3BrowserPresentationTests: XCTestCase {
                         XCTAssertNotNil(vm.objectPageError)
                         XCTAssertEqual(vm.objects.count, 8)
                     }
-                    let transfer = S3TransferViewModel(uploader: { _, _ in XCTFail("Rendering must not upload") }, downloader: { _, _, _, _ in })
+                    let transfer = S3TransferViewModel(uploader: { _, _ in XCTFail("Rendering must not upload") }, downloader: { _, _, _, _ in .init() })
                     transfer.configure(scope: context.scope)
                     let root = S3ObjectListView(vm: vm, transferVM: transfer, bucketName: context.bucket, transferContext: context)
                         .background(Color(nsColor: .windowBackgroundColor))

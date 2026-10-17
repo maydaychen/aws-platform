@@ -270,4 +270,71 @@ final class ConfigReaderTests: XCTestCase {
 
         XCTAssertTrue(profiles.isEmpty)
     }
+
+    func testAssumeRoleProfileParsesWithOnlySourceCredentials() throws {
+        let profiles = ConfigReader.readProfiles(configContent: """
+        [profile target]
+        role_arn = arn:aws:iam::444455556666:role/team/ReadOnly
+        source_profile = base
+        region = eu-west-1
+        """, credentialsContent: "[base]\naws_access_key_id = OFFLINE-EXAMPLE")
+        XCTAssertEqual(profiles.map(\.name), ["target", "base"])
+        let target = try XCTUnwrap(profiles.first)
+        XCTAssertEqual(target.roleARN, "arn:aws:iam::444455556666:role/team/ReadOnly")
+        XCTAssertEqual(target.sourceProfile, "base")
+        XCTAssertEqual(target.roleAccountID, "444455556666")
+        XCTAssertFalse(target.isSSO)
+        XCTAssertNil(profiles.last?.roleARN)
+    }
+
+    func testRoleAndSourceChangesParticipateInProfileEquality() throws {
+        func profile(role: String = "ReadOnly", source: String = "base") throws -> AWSProfile {
+            try XCTUnwrap(ConfigReader.readProfiles(configContent: """
+            [profile target]
+            role_arn = arn:aws:iam::444455556666:role/\(role)
+            source_profile = \(source)
+            """).first)
+        }
+        let original = try profile()
+        XCTAssertNotEqual(original, try profile(role: "Other"))
+        XCTAssertNotEqual(original, try profile(source: "default"))
+        XCTAssertEqual(original, try profile())
+    }
+
+    func testEmptyRoleMetadataPreservesOrdinaryProfiles() throws {
+        let profile = try XCTUnwrap(ConfigReader.readProfiles(configContent: """
+        [profile ordinary]
+        role_arn =
+        source_profile =
+        """).first)
+        XCTAssertNil(profile.roleARN)
+        XCTAssertNil(profile.sourceProfile)
+        XCTAssertNil(profile.roleAccountID)
+        XCTAssertFalse(profile.isSSO)
+    }
+
+    func testRoleAccountOnlyAcceptsIAMRoleARNs() throws {
+        for partition in ["aws", "aws-cn", "aws-us-gov"] {
+            let profile = try XCTUnwrap(ConfigReader.readProfiles(configContent: """
+            [profile target]
+            role_arn = arn:\(partition):iam::444455556666:role/team/ReadOnly
+            source_profile = default
+            """).first)
+            XCTAssertEqual(profile.roleAccountID, "444455556666")
+        }
+        for arn in [
+            "arn:aws:iam::444455556666:user/name",
+            "arn:aws:sts::444455556666:assumed-role/ReadOnly/session",
+            "arn:aws:iam:us-east-1:444455556666:role/ReadOnly",
+            "arn:aws:iam::invalid:role/ReadOnly",
+            "arn:aws:iam::444455556666:role/",
+            "arn:aws:iam::444455556666:role/invalid role"
+        ] {
+            let profile = try XCTUnwrap(ConfigReader.readProfiles(configContent: """
+            [profile target]
+            role_arn = \(arn)
+            """).first)
+            XCTAssertNil(profile.roleAccountID)
+        }
+    }
 }

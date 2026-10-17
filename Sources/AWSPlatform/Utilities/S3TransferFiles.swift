@@ -236,22 +236,30 @@ final class S3DestinationDirectory: Hashable, @unchecked Sendable {
 /// Same-directory staging makes the final rename atomic, including across volumes.
 final class S3DownloadWriter {
     typealias Capacity = @Sendable (Int32) throws -> Int64
+    typealias Rename = @Sendable (Int32, String, Int32, String, UInt32) -> Int32
     static let minimumFreeSpace: Int64 = 64 * 1024 * 1024
     let destination: S3DownloadDestination
     let temporaryURL: URL
     private var handle: FileHandle?
     private var committed = false
+    private var ownsTemporary = false
     private let temporaryName: String
     private let expectedLength: Int64?
     private let capacity: Capacity
+    private let rename: Rename
     private(set) var bytes: Int64 = 0
 
     init(destination: S3DownloadDestination, expectedLength: Int64? = nil,
-         capacity: @escaping Capacity = { try S3DownloadWriter.availableCapacity($0) }) throws {
+         capacity: @escaping Capacity = { try S3DownloadWriter.availableCapacity($0) },
+         identifier: UUID = UUID(),
+         rename: @escaping Rename = { renameatx_np($0, $1, $2, $3, $4) }) throws {
         self.destination = destination
         self.expectedLength = expectedLength
         self.capacity = capacity
-        temporaryName = ".awsplatform-\(UUID().uuidString).part"
+        self.rename = rename
+        temporaryName = destination.original == nil
+            ? ".awsplatform-\(identifier.uuidString).part"
+            : "AWSPlatform Recovery \(identifier.uuidString)"
         temporaryURL = destination.directory.url.appendingPathComponent(temporaryName)
         try destination.directory.validateMapping()
         let available = try capacity(destination.directory.descriptor)
@@ -262,6 +270,7 @@ final class S3DownloadWriter {
             O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else { throw S3TransferError.invalidFile }
         handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        ownsTemporary = true
     }
 
     deinit { cleanup() }
@@ -277,7 +286,8 @@ final class S3DownloadWriter {
         bytes += Int64(data.count)
     }
 
-    func commit(expectedLength: Int64?) throws {
+    @discardableResult
+    func commit(expectedLength: Int64?) throws -> S3DownloadResult {
         try Task.checkCancellation()
         if let expectedLength, bytes != expectedLength { throw S3TransferError.incompleteDownload }
         try handle?.synchronize()
@@ -288,23 +298,25 @@ final class S3DownloadWriter {
             throw S3TransferError.destinationChanged
         }
         try Task.checkCancellation()
-        let result: Int32
-        if destination.original == nil {
-            // A file created after the Save panel must not be silently replaced.
-            result = renameatx_np(destination.directory.descriptor, temporaryName,
-                destination.directory.descriptor, destination.url.lastPathComponent, UInt32(RENAME_EXCL))
-        } else {
-            result = renameat(destination.directory.descriptor, temporaryName,
-                destination.directory.descriptor, destination.url.lastPathComponent)
-        }
+        // An exchange keeps the displaced file, including edits made after the
+        // fingerprint check. Never delete that recovery copy or fall back to a
+        // destructive rename if the filesystem cannot exchange these entries.
+        let isOverwrite = destination.original != nil
+        let flags = UInt32(isOverwrite ? RENAME_SWAP : RENAME_EXCL)
+        let result = rename(destination.directory.descriptor, temporaryName,
+            destination.directory.descriptor, destination.url.lastPathComponent, flags)
         guard result == 0 else { throw S3TransferError.destinationChanged }
         committed = true
+        return .init(recoveryURL: isOverwrite ? temporaryURL : nil)
     }
 
     func cleanup() {
         try? handle?.close()
         handle = nil
-        if !committed { unlinkat(destination.directory.descriptor, temporaryName, 0) }
+        if ownsTemporary, !committed {
+            ownsTemporary = false
+            unlinkat(destination.directory.descriptor, temporaryName, 0)
+        }
     }
 
     static func availableCapacity(_ descriptor: Int32) throws -> Int64 {

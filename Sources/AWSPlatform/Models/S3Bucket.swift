@@ -1,6 +1,6 @@
 import Foundation
 
-struct S3BucketModel: Identifiable, Hashable {
+struct S3BucketModel: Identifiable, Hashable, Sendable {
     let name: String
     var region: String?
     let creationDate: Date?
@@ -13,7 +13,7 @@ struct S3BucketModel: Identifiable, Hashable {
     var id: String { name }
 }
 
-struct S3PublicAccessBlockModel: Hashable {
+struct S3PublicAccessBlockModel: Hashable, Sendable {
     let blockPublicACLs: Bool
     let ignorePublicACLs: Bool
     let blockPublicPolicy: Bool

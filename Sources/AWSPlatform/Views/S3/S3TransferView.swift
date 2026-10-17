@@ -99,6 +99,13 @@ struct S3TransferStatusView: View {
                             .controlSize(.small)
                     }
                 }
+                if let recoveryURL = vm.completedDownload?.recoveryURL {
+                    Text(L10n.format("Previous file saved at: %@", recoveryURL.path, locale: locale))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if vm.isBusy {
                     if let key = vm.activeKey {
                         Text(key).font(.caption).lineLimit(1).truncationMode(.middle).help(key)

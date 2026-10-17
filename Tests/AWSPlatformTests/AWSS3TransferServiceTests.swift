@@ -135,8 +135,10 @@ final class AWSS3TransferServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = try S3TransferFixtures.file(in: directory)
         let context = S3TransferFixtures.context()
-        try await service().download(context: context, object: Self.object(key: "empty", size: 0), destination: .init(url: file.url), progress: { _ in })
+        let result = try await service().download(context: context, object: Self.object(key: "empty", size: 0), destination: .init(url: file.url), progress: { _ in })
         XCTAssertEqual(try Data(contentsOf: file.url).count, 0)
+        let recovery = try XCTUnwrap(result.recoveryURL)
+        XCTAssertEqual(try Data(contentsOf: recovery), Data("sample".utf8))
         let gate = TestGate()
         let delayed = service(get: { _, _ in
             await gate.wait()
@@ -148,10 +150,10 @@ final class AWSS3TransferServiceTests: XCTestCase {
         await gate.waitForEntry()
         task.cancel()
         await gate.open()
-        do { try await task.value; XCTFail("Cancelled transfer must not commit") }
+        do { _ = try await task.value; XCTFail("Cancelled transfer must not commit") }
         catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertEqual(try Data(contentsOf: file.url).count, 0)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["file.txt"])
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: directory.path)), ["file.txt", recovery.lastPathComponent])
     }
 
     func testErrorMappingAndChineseMessagesDoNotExposeProviderDetails() {
@@ -188,7 +190,7 @@ final class AWSS3TransferServiceTests: XCTestCase {
         await gate.waitForEntry()
         download.cancel()
         await gate.open()
-        do { try await download.value; XCTFail("Cancellation must preserve the original") }
+        do { _ = try await download.value; XCTFail("Cancellation must preserve the original") }
         catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertEqual(try Data(contentsOf: file.url), Data("sample".utf8))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["file.txt"])

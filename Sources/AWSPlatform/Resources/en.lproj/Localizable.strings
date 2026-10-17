@@ -762,6 +762,11 @@
 "Only this topic's subscriptions are shown." = "Only this topic's subscriptions are shown.";
 "Open" = "Open";
 "New Window" = "New Window";
+"Previous file saved at: %@" = "Previous file saved at: %@";
+"S3 returned an invalid bucket list. Refresh to try again." = "S3 returned an invalid bucket list. Refresh to try again.";
+"S3 could not complete the bucket list. Refresh to try again." = "S3 could not complete the bucket list. Refresh to try again.";
+"Unable to obtain valid credentials for the selected Profile. Sign in again or update AWS CLI v2." = "Unable to obtain valid credentials for the selected Profile. Sign in again or update AWS CLI v2.";
+"Unable to load Profile credentials. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, check the Profile and AWS_CONFIG_FILE configuration, complete SSO login if required, then retry." = "Unable to load Profile credentials. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, check the Profile and AWS_CONFIG_FILE configuration, complete SSO login if required, then retry.";
 "Open %@ in account %@, profile %@, region %@" = "Open %@ in account %@, profile %@, region %@";
 "Open %@ in the current profile and region" = "Open %@ in the current profile and region";
 "Open EC2 instance" = "Open EC2 instance";
@@ -1244,7 +1249,6 @@
 "Unable to find target group memberships. Refresh to try again." = "Unable to find target group memberships. Refresh to try again.";
 "Unable to load AWS Health data. Refresh to try again." = "Unable to load AWS Health data. Refresh to try again.";
 "Unable to load Route 53 data. Refresh to try again." = "Unable to load Route 53 data. Refresh to try again.";
-"Unable to load SSO credentials from the custom configuration. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, run aws sso login with the same AWS_CONFIG_FILE and profile, then retry." = "Unable to load SSO credentials from the custom configuration. Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin, run aws sso login with the same AWS_CONFIG_FILE and profile, then retry.";
 "Unable to load load balancing data. Refresh to try again." = "Unable to load load balancing data. Refresh to try again.";
 "Unable to load security groups. Refresh to try again." = "Unable to load security groups. Refresh to try again.";
 "Unable to load the related alarm. Check CloudWatch access and retry." = "Unable to load the related alarm. Check CloudWatch access and retry.";

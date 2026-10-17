@@ -10,8 +10,9 @@ struct AWSPlatformApp: App {
     @StateObject private var updates = AppUpdateController.shared
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: MainWindowLifecycle.sceneID) {
             ContentView()
+                .modifier(MainWindowLifecycle(appDelegate: appDelegate))
                 .environmentObject(favoritesVM)
                 .environmentObject(recentsVM)
                 .environment(\.locale, languageSettings.locale)
@@ -25,6 +26,7 @@ struct AWSPlatformApp: App {
         }
         .windowResizability(.contentMinSize)
         .commands {
+            MainWindowCommands(locale: languageSettings.locale)
             CommandGroup(after: .appInfo) {
                 Button(L10n.text("Check for Updates…", locale: languageSettings.locale)) {
                     updates.checkForUpdates()
@@ -41,6 +43,14 @@ struct AWSPlatformApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var reopenMainWindow: (() -> Void)?
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag, let reopenMainWindow else { return true }
+        reopenMainWindow()
+        return false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -51,5 +61,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TransferActivity.shared.postponeTermination {
             sender.reply(toApplicationShouldTerminate: true)
         } ? .terminateLater : .terminateNow
+    }
+}
+
+private struct MainWindowLifecycle: ViewModifier {
+    static let sceneID = "main"
+    @Environment(\.openWindow) private var openWindow
+    let appDelegate: AppDelegate
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            let action = openWindow
+            // Keep the scene action available after the last window's view disappears.
+            appDelegate.reopenMainWindow = { action(id: Self.sceneID) }
+        }
+    }
+}
+
+private struct MainWindowCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    let locale: Locale
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button(L10n.text("New Window", locale: locale)) {
+                openWindow(id: MainWindowLifecycle.sceneID)
+            }
+            .keyboardShortcut("n")
+        }
     }
 }

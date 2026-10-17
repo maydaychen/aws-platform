@@ -761,6 +761,7 @@
 "Only explicit security group references are shown. CIDRs and prefix lists are not resolved to resources." = "Only explicit security group references are shown. CIDRs and prefix lists are not resolved to resources.";
 "Only this topic's subscriptions are shown." = "Only this topic's subscriptions are shown.";
 "Open" = "Open";
+"New Window" = "New Window";
 "Open %@ in account %@, profile %@, region %@" = "Open %@ in account %@, profile %@, region %@";
 "Open %@ in the current profile and region" = "Open %@ in the current profile and region";
 "Open EC2 instance" = "Open EC2 instance";

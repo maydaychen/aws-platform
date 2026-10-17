@@ -122,6 +122,10 @@ The `v0.3.1` installers provide **AWSPlatform → Check for Updates…** and an 
 
 Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates require an Ed25519-signed feed and verify the final ZIP before extraction, retaining the existing bundle identity and local preferences. Feed verification failures stop the update; signatures authenticate content but do not guarantee that the server provides the newest release. If the signing key is lost, recovery requires a manually installed release with a reviewed new key. Version `v0.3.0` and earlier predate this updater. Install `v0.3.1` manually to enable future in-app updates. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
 
+### Window Controls
+
+`Cmd+W` closes the current window while the app keeps running. Click the Dock icon or reopen the app to restore a window when all windows are closed. Use **File → New Window** (`Cmd+N`) to open another resource window.
+
 ### Interface Language
 
 The sidebar footer displays the running application's version and build number, using the same bundle information as Settings.

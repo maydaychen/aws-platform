@@ -761,6 +761,7 @@
 "Only explicit security group references are shown. CIDRs and prefix lists are not resolved to resources." = "仅展示明确的安全组引用，不将 CIDR 和前缀列表解析为资源。";
 "Only this topic's subscriptions are shown." = "仅显示此主题的订阅。";
 "Open" = "打开";
+"New Window" = "新建窗口";
 "Open %@ in account %@, profile %@, region %@" = "打开 %1$@，账号 %2$@，Profile %3$@，区域 %4$@";
 "Open %@ in the current profile and region" = "在当前 Profile 和区域中打开 %1$@";
 "Open EC2 instance" = "打开 EC2 实例";

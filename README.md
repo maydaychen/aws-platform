@@ -24,6 +24,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; upload or download individual files with progress and cancellation
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
+- **CodeCommit** - Search repositories in the selected Profile and Region; inspect repository metadata, clone URLs, branches, and the last queried branch-head commit
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
@@ -160,6 +161,14 @@ The EC2 sidebar group contains `Instances`, `EBS Volumes`, `Snapshots`, `Load ba
 After selecting and verifying a Profile, EBS pages query that Profile's current Region. Volumes include attached and unattached volumes; details show size, type, state, encryption, KMS key, source snapshot, attachments, and tags when returned. Snapshot requests always use `OwnerIds=self`; the page lists only snapshots owned by the current account, including archived snapshots, and shows source volume, progress, storage tier, description, and tags. Shared and public snapshots are excluded. Both lists use complete pagination, local search and state filters, manual refresh/cancel, favorites, and recent visits. Scope changes clear old data; a failed refresh labels a retained list as potentially out of date.
 
 Required read permissions are `ec2:DescribeVolumes` and `ec2:DescribeSnapshots`. Permission, expired credentials, network, and incomplete-pagination errors produce explicit messages. The app does not create, attach, detach, restore, modify, share, or delete volumes or snapshots. See [DescribeVolumes](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html) and [DescribeSnapshots](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSnapshots.html).
+
+### CodeCommit Queries
+
+Select and verify a Profile, choose a Region, then open **CodeCommit** in the sidebar. The repository list loads all pages and supports local name/ID search, refresh, and cancellation. Select a repository to read its metadata and branches independently; a permission failure in one section leaves the other available. The default branch is selected only when returned by repository metadata and present in the branch list. Empty repositories do not trigger commit queries.
+
+Details include repository ID, ARN, account, description, default branch, clone URLs, creation/modification dates, and the selected branch's last queried head commit with SHA, message, author, committer, raw Git timestamps, and parent SHAs. Text fields can be selected and copied. Refresh the branch head to check for changes. Switching Profile, Region, repository, or branch invalidates old results. CodeCommit is read-only; clone URLs are displayed for copying, with no Git clone/push or repository editing. Favorites and recent visits are not available for this service.
+
+Required permissions are `codecommit:ListRepositories` on `"*"`, plus `codecommit:GetRepository`, `codecommit:ListBranches`, `codecommit:GetBranch`, and `codecommit:GetCommit` on the allowed repository ARNs. Encrypted repositories also depend on the relevant KMS key permissions/status. See the [AWS CodeCommit permissions reference](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html).
 
 ### S3 Object Browsing
 

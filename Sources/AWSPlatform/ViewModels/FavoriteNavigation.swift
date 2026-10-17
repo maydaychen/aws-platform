@@ -116,6 +116,8 @@ final class FavoriteNavigation: ObservableObject {
                  securityGroups: SecurityGroupsViewModel? = nil, volumes: EBSViewModel? = nil, snapshots: EBSViewModel? = nil) {
         guard let target, source != .relationship else { return }
         switch target.service {
+        case .codeCommit:
+            finish(found: false, loadError: "Saved CodeCommit navigation is not available. Open CodeCommit and select a repository.")
         case .ec2:
             ec2.searchText = ""
             ec2.stateFilter = "All"

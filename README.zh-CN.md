@@ -24,6 +24,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；支持单文件上传／下载、进度与取消
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
+- **CodeCommit 查询** - 搜索当前 Profile／Region 的仓库，查看仓库元数据、克隆地址、分支及最近查询的分支头提交
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
 - **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
@@ -160,6 +161,14 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 手动选择并验证 Profile 后，EBS 页面读取该 Profile 当前 Region 的资源。卷列表包含已挂载与未挂载的卷；详情显示 API 返回的容量、类型、状态、加密、KMS Key、来源快照、挂载信息和标签。快照请求固定使用 `OwnerIds=self`，只显示当前账号拥有的快照，包含归档快照；详情展示来源卷、进度、存储层级、描述和标签，不包含共享或公共快照。两个列表均支持完整分页、本地搜索与状态筛选、手动刷新／取消、收藏和最近访问。切换范围清空旧数据，刷新失败时保留的历史列表会明确标记为可能过时。
 
 需要 `ec2:DescribeVolumes`、`ec2:DescribeSnapshots` 读取权限；权限不足、凭据过期、网络和分页不完整分别提示。应用不创建、挂载、卸载、恢复、修改、共享或删除卷及快照。参考 [DescribeVolumes](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html) 和 [DescribeSnapshots](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSnapshots.html) 。
+
+### CodeCommit 查询
+
+手动选择并验证 Profile、选择 Region 后，打开侧栏的 CodeCommit。仓库列表完整读取分页，支持按名称／ID 本地搜索、刷新和取消。选择仓库后，元数据和分支独立加载，某一部分权限不足时仍可查看另一部分。只有元数据返回默认分支且该分支存在于列表中时才自动选中；空仓库不会触发提交查询。
+
+详情包含仓库 ID、ARN、账号、描述、默认分支、克隆地址、创建／修改时间，以及所选分支最近查询的头提交 SHA、说明、作者、提交者、原始 Git 时间戳和父提交 SHA；字段支持选择复制。手动刷新分支头可检查更新。切换 Profile、Region、仓库或分支时丢弃旧结果。CodeCommit 保持只读，克隆地址仅供复制，不执行 Git clone／push 或编辑仓库；该服务暂不提供收藏和最近访问入口。
+
+需要 `codecommit:ListRepositories` 对 `"*"` 的权限，以及允许仓库 ARN 上的 `codecommit:GetRepository`、`codecommit:ListBranches`、`codecommit:GetBranch`、`codecommit:GetCommit`；加密仓库还取决于相应 KMS Key 的权限与状态。参考 [AWS CodeCommit 权限表](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html) 。
 
 ### S3 对象浏览
 

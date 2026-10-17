@@ -7,6 +7,7 @@ import SotoCostExplorer
 import SotoCloudWatch
 import SotoCloudWatchLogs
 import SotoSNS
+import SotoCodeCommit
 import SotoHealth
 import SotoRoute53
 import SotoElasticLoadBalancingV2
@@ -169,6 +170,12 @@ actor AWSServiceProvider {
         let regionName = region ?? currentRegion
         guard let regionName else { throw AWSServiceError.notConfigured }
         return S3(client: awsClient, region: .init(rawValue: regionName))
+    }
+
+    func codeCommitClient(scope: MonitoringScope) async throws -> CodeCommit {
+        try await requireIdentity(scope: scope, regional: true)
+        guard let awsClient else { throw AWSServiceError.notConfigured }
+        return CodeCommit(client: awsClient, region: .init(rawValue: scope.region))
     }
 
     func validateIdentity() async throws -> AWSIdentity {

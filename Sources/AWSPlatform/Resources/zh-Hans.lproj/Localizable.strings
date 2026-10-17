@@ -1495,3 +1495,15 @@
 "No matching EBS resources. Try another search or state." = "没有匹配的 EBS 资源，请更改搜索或状态条件。";
 "No EBS volumes were returned in this region." = "该区域未返回 EBS 卷。";
 "No snapshots owned by this account were returned in this region." = "该区域未返回当前账号拥有的快照。";
+
+// EC2 SSM connection
+"Connect" = "连接";
+"Open an SSM session in your default terminal" = "在默认终端中打开 SSM 会话";
+"Unable to connect" = "无法连接";
+"Select and verify the current Profile and instance before connecting." = "请先选择并验证当前 Profile 和实例，再进行连接。";
+"SSM connections require a running instance." = "SSM 连接需要实例处于运行状态。";
+"Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin to connect with SSM." = "请在 /opt/homebrew/bin 或 /usr/local/bin 安装 AWS CLI v2，以通过 SSM 连接。";
+"Install the Session Manager plugin to connect with SSM." = "请安装 Session Manager 插件，以通过 SSM 连接。";
+"Unable to prepare the SSM connection script." = "无法准备 SSM 连接脚本。";
+"Unable to open the connection script. Check the default app for .command files." = "无法打开连接脚本，请检查 .command 文件的默认打开程序。";
+"CLI identity does not match the verified Profile. Reverify the Profile in AWSPlatform before connecting." = "CLI 身份与已验证的 Profile 不一致，请在 AWSPlatform 中重新验证 Profile 后连接。";

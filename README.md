@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A native macOS app for browsing AWS resources and costs, with explicit S3 file uploads and downloads, built with SwiftUI.
+A native macOS app for browsing AWS resources and costs, with explicit S3 file transfers and external EC2 SSM connections, built with SwiftUI.
 
 ## Download
 
@@ -17,7 +17,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 
 ## Features
 
-- **EC2 instances** - View instance state, networking, AMIs, and tags
+- **EC2 instances** - View instance state, networking, AMIs, and tags; open an SSM session in an external terminal with Connect
 - **EC2 resource group** - Expand or collapse instances, EBS volumes, snapshots, load balancers, Target Groups, and security groups; browse current-account EBS volumes and owned snapshots with search, state filters, favorites, and recent visits
 - **Lambda functions** - View function configuration and source code from deployment packages
 - **Metrics and logs** - Manually query CloudWatch metrics for EC2 and Lambda, and logs for the current Lambda function, with time ranges, log filters, and pagination
@@ -136,6 +136,14 @@ For contributor guidance on display strings and resource packaging, see [Localiz
 
 The `Compute and capacity` section of a T-series instance's overview shows its current `Standard` or `Unlimited` CPU Credit mode. This requires `ec2:DescribeInstanceCreditSpecifications` in the selected Profile and Region. Permission denial and read failure are shown separately from an unknown or missing response; other instance families do not query or display this field. The app only reads the mode. See the [AWS API reference](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html).
 
+### EC2 SSM Connect
+
+Select and verify a Profile, select its Region, then open a running EC2 instance and click `Connect` in the detail header. AWSPlatform opens a private, one-time `.command` script using the system's default file association; use a terminal application as the default opener for `.command` files. There is no embedded terminal or terminal preference page. The external terminal owns the session, and changing the Profile or closing AWSPlatform does not end an already handed-off session.
+
+Install AWS CLI v2 in `/opt/homebrew/bin`, `/usr/local/bin`, or `/usr/bin`, and the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html) in `/opt/homebrew/bin`, `/usr/local/bin`, or `/usr/local/sessionmanagerplugin/bin`. Connect checks for executable files; installation and runtime failures remain visible in the terminal. The instance needs a working SSM Agent, instance permissions, and connectivity to Systems Manager; the selected role needs [Session Manager permissions](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-restrict-access-quickstart.html). A running EC2 instance alone does not prove SSM availability.
+
+The script explicitly uses the selected Profile, Region, and AWS configuration paths, strips ambient AWS credentials, and checks the CLI account and normalized principal ARN against the verified identity before `aws ssm start-session`. It uses the CLI's own credential resolution and SSO cache; app credentials are never exported to disk or terminal history. Expired login, missing permissions, and offline SSM targets are reported by the CLI. Scripts are removed when execution exits or handoff fails; if the associated app never executes a script, it can remain in the private system temporary directory. The app does not install agents or change IAM/SSM configuration. See [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html).
+
 ### EC2 Navigation, EBS Volumes, and Snapshots
 
 The EC2 sidebar group contains `Instances`, `EBS Volumes`, `Snapshots`, `Load balancers`, `Target groups`, and `Security groups`. Its expansion preference is saved locally. Collapsing the group keeps the current page and shows its name beneath EC2; opening a saved or related resource reveals its child entry. Existing EC2 favorites and startup service preferences retain their original identifiers.
@@ -160,7 +168,7 @@ Download an object from its detail button or right-click menu, then choose a loc
 
 Transfers use only the current verified Profile and the Bucket's actual Region. Switching or clearing the Profile, revalidating it, changing Region, or leaving the Bucket/prefix cancels pending work and invalidates old dialogs and results. Upload cancellation cannot undo a write AWS has already accepted; refresh to check the object. Files are streamed in bounded chunks, with progress and `Cancel`; single-file uploads are limited to 5 GiB. Each window runs one transfer at a time, without automatic retries.
 
-Uploads require `s3:PutObject`; downloads and the ETag check for an overwrite require `s3:GetObject`. Bucket location lookup requires `s3:GetBucketLocation` when the actual Region is not already known. KMS-encrypted objects also require the appropriate key permissions. See [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html), [GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html), and [SSE-KMS permissions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html). Other services remain read-only. There are no separate object deletion, archive restore, ACL/tag editing, or Bucket configuration actions.
+Uploads require `s3:PutObject`; downloads and the ETag check for an overwrite require `s3:GetObject`. Bucket location lookup requires `s3:GetBucketLocation` when the actual Region is not already known. KMS-encrypted objects also require the appropriate key permissions. See [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html), [GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html), and [SSE-KMS permissions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html). Other services remain read-only, apart from explicitly initiated external EC2 SSM sessions. There are no separate object deletion, archive restore, ACL/tag editing, or Bucket configuration actions.
 
 ### Resource Favorites
 

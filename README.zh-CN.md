@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文件上传与下载，基于 SwiftUI 构建。
+macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文件传输和外部终端 EC2 SSM 连接，基于 SwiftUI 构建。
 
 ## 下载
 
@@ -17,7 +17,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 
 ## 功能
 
-- **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签
+- **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签；通过详情页「连接」按钮在外部终端打开 SSM 会话
 - **EC2 资源分组** - 可折叠的实例、EBS 卷、快照、负载均衡、目标组和安全组入口；浏览当前账号的 EBS 卷及自有快照，支持搜索、状态筛选、收藏和最近访问
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
@@ -136,6 +136,14 @@ Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架�
 
 T 系列实例概览的「计算与容量」区域显示当前 `Standard`／`Unlimited` CPU 积分模式，需要当前 Profile／Region 的 `ec2:DescribeInstanceCreditSpecifications` 读取权限。权限不足、读取失败与响应缺失／未知模式分别提示；其他实例系列不查询或展示该字段。应用只读取模式。参考 [AWS API 文档](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceCreditSpecifications.html) 。
 
+### EC2 SSM 连接
+
+手动选择并验证 Profile、选择 Region 后，打开运行中的 EC2 实例，点击详情标题区的「连接」（Connect）。应用生成私有一次性 `.command` 脚本，通过系统默认文件关联打开；请将 `.command` 默认打开程序设为终端应用。应用不内置终端或增加终端设置页。会话移交后由外部终端管理，切换 Profile 或关闭 AWSPlatform 不会结束已经移交的会话。
+
+AWS CLI v2 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/bin`；[Session Manager 插件](https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html) 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/local/sessionmanagerplugin/bin`。应用只检查可执行文件是否存在，安装损坏或运行时错误显示在终端中。实例需要正常的 SSM Agent、实例权限及 Systems Manager 网络连通性；当前角色需要相应的 [Session Manager 权限](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-restrict-access-quickstart.html) 。EC2 处于运行状态不代表 SSM 一定可用。
+
+脚本显式使用当前 Profile、Region 和 AWS 配置路径，隔离终端继承的 AWS 凭据；先核对 CLI 的账号和去除会话后缀的主体 ARN，再执行 `aws ssm start-session`。凭据解析和 SSO 缓存由 CLI 管理，应用不将自身凭据导出到磁盘或终端历史。登录过期、权限不足、目标离线等错误由 CLI 显示。脚本执行退出或移交失败时清理；若关联程序始终未执行脚本，文件可能留在私有系统临时目录。应用不安装 Agent 或修改 IAM／SSM 配置。参考 [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html) 。
+
 ### EC2 导航、EBS 卷与快照
 
 EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」「目标组」和「安全组」，在本机保存展开偏好。收起分组保留当前页面，并在 EC2 下显示当前子页面名称；从收藏、最近访问或关联资源进入时展开对应入口。现有 EC2 收藏与启动服务偏好的原始标识保持不变。
@@ -160,7 +168,7 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 
 传输只使用当前已验证 Profile 和 Bucket 实际 Region。切换／清空 Profile、重新验证、切换 Region 或离开 Bucket／前缀时，取消待处理任务并使旧弹窗和结果失效。取消上传不能撤销 AWS 已经接收的写入，需要刷新确认对象。文件按块读写，提供进度和「取消」；单文件上传上限为 5 GiB。每个窗口同时执行一个传输，不自动重试。
 
-上传需要 `s3:PutObject`，下载及覆盖前的 ETag 检查需要 `s3:GetObject`；实际区域未知时，位置查询需要 `s3:GetBucketLocation`。使用 KMS 加密的对象还需要相应密钥权限。参考 [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html) 、[GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html) 和 [SSE-KMS 权限](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html) 。其他服务保持只读；没有单独的对象删除、归档恢复、ACL／标签编辑或 Bucket 配置操作。
+上传需要 `s3:PutObject`，下载及覆盖前的 ETag 检查需要 `s3:GetObject`；实际区域未知时，位置查询需要 `s3:GetBucketLocation`。使用 KMS 加密的对象还需要相应密钥权限。参考 [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html) 、[GetObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html) 和 [SSE-KMS 权限](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html) 。除用户主动发起的外部 EC2 SSM 会话外，其他服务保持只读；没有单独的对象删除、归档恢复、ACL／标签编辑或 Bucket 配置操作。
 
 ### 资源收藏
 

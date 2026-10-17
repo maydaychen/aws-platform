@@ -96,8 +96,12 @@ struct EC2DetailView: View {
                     }
                 }
                 Spacer()
-                statusBadge
-                    .fixedSize()
+                VStack(alignment: .trailing, spacing: 8) {
+                    statusBadge
+                    EC2ConnectButton(instance: instance, scope: monitoringScope,
+                                     isCurrentSelection: vm.scope == monitoringScope && vm.selectedInstance == instance)
+                }
+                .fixedSize()
             }
 
             if let detailError = vm.detailError {

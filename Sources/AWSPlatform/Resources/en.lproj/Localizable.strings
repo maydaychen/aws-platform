@@ -1495,3 +1495,15 @@
 "No matching EBS resources. Try another search or state." = "No matching EBS resources. Try another search or state.";
 "No EBS volumes were returned in this region." = "No EBS volumes were returned in this region.";
 "No snapshots owned by this account were returned in this region." = "No snapshots owned by this account were returned in this region.";
+
+// EC2 SSM connection
+"Connect" = "Connect";
+"Open an SSM session in your default terminal" = "Open an SSM session in your default terminal";
+"Unable to connect" = "Unable to connect";
+"Select and verify the current Profile and instance before connecting." = "Select and verify the current Profile and instance before connecting.";
+"SSM connections require a running instance." = "SSM connections require a running instance.";
+"Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin to connect with SSM." = "Install AWS CLI v2 in /opt/homebrew/bin or /usr/local/bin to connect with SSM.";
+"Install the Session Manager plugin to connect with SSM." = "Install the Session Manager plugin to connect with SSM.";
+"Unable to prepare the SSM connection script." = "Unable to prepare the SSM connection script.";
+"Unable to open the connection script. Check the default app for .command files." = "Unable to open the connection script. Check the default app for .command files.";
+"CLI identity does not match the verified Profile. Reverify the Profile in AWSPlatform before connecting." = "CLI identity does not match the verified Profile. Reverify the Profile in AWSPlatform before connecting.";

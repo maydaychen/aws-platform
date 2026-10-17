@@ -38,6 +38,7 @@ final class EC2ViewModel: ObservableObject {
     @Published var isDetailLoading = false
     @Published var error: String?
     @Published var detailError: String?
+    private(set) var scope: MonitoringScope?
     @Published var searchText = ""
     @Published var stateFilter = "All"
     @Published var healthFilter: HealthFilter = .all
@@ -110,6 +111,7 @@ final class EC2ViewModel: ObservableObject {
             return try await Self.fetchDetail(instanceId: instanceId, client: client)
         }
         reset()
+        self.scope = scope
         if refreshImmediately { refresh() }
     }
 
@@ -125,6 +127,7 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func reset() {
+        scope = nil
         cancelLoading()
         detailTask?.cancel()
         instances = []

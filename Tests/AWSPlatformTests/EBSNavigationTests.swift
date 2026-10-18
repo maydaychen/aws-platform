@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class EBSNavigationTests: XCTestCase {
     func testEC2GroupContainsEachServiceExactlyOnceWithoutChangingStoredEC2Key() {
-        XCTAssertEqual(AWSService.ec2Services, [.ec2, .ebsVolumes, .ebsSnapshots, .loadBalancers, .targetGroups, .securityGroups])
+        XCTAssertEqual(AWSService.ec2Services, [.ec2, .autoScaling, .ebsVolumes, .ebsSnapshots, .loadBalancers, .targetGroups, .securityGroups])
         XCTAssertEqual(Set(AWSService.ec2Services + AWSService.standaloneServices), Set(AWSService.allCases))
         XCTAssertEqual(AWSService.ec2Services.count + AWSService.standaloneServices.count, AWSService.allCases.count)
         XCTAssertEqual(AWSService.ec2.rawValue, "EC2")

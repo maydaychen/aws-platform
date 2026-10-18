@@ -120,6 +120,8 @@ final class FavoriteNavigation: ObservableObject {
             finish(found: false, loadError: "Saved CodeCommit navigation is not available. Open CodeCommit and select a repository.")
         case .rds:
             finish(found: false, loadError: "Saved RDS navigation is not available. Open RDS and select a database.")
+        case .autoScaling:
+            finish(found: false, loadError: "Saved Auto Scaling navigation is not available. Open Auto Scaling and select a group.")
         case .ec2:
             ec2.searchText = ""
             ec2.stateFilter = "All"

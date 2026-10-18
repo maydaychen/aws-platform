@@ -16,6 +16,7 @@ struct ContentView: View {
     @StateObject private var snsVM: SNSViewModel
     @StateObject private var codeCommitVM: CodeCommitViewModel
     @StateObject private var rdsVM: RDSViewModel
+    @StateObject private var autoScalingVM: AutoScalingViewModel
     @StateObject private var route53VM: Route53ViewModel
     @StateObject private var elbVM: ELBViewModel
     @StateObject private var membershipsVM: EC2TargetGroupsViewModel
@@ -80,6 +81,7 @@ struct ContentView: View {
         let sns = AWSSNSService(provider: profiles.provider)
         _codeCommitVM = StateObject(wrappedValue: CodeCommitViewModel(provider: profiles.provider))
         _rdsVM = StateObject(wrappedValue: RDSViewModel(provider: profiles.provider))
+        _autoScalingVM = StateObject(wrappedValue: AutoScalingViewModel(provider: profiles.provider))
         _snsVM = StateObject(wrappedValue: SNSViewModel(
             listLoader: { try await sns.loadTopics(scope: $0) },
             attributeLoader: { try await sns.loadAttributes(scope: $0, topic: $1) },
@@ -259,8 +261,7 @@ struct ContentView: View {
             selectedServiceID = selectedService.rawValue
             loadVisibleAlarms()
             loadVisibleSNS()
-            loadVisibleCodeCommit()
-            loadVisibleRDS()
+            loadVisibleMetadataServices()
             loadVisibleRoute53()
             loadVisibleELB()
             loadVisibleSecurityGroups()
@@ -280,8 +281,7 @@ struct ContentView: View {
             if selection == .health { configureHealth() }
             loadVisibleAlarms()
             loadVisibleSNS()
-            loadVisibleCodeCommit()
-            loadVisibleRDS()
+            loadVisibleMetadataServices()
             loadVisibleRoute53()
             loadVisibleELB()
             loadVisibleSecurityGroups()
@@ -302,6 +302,7 @@ struct ContentView: View {
             snsVM.reset()
             codeCommitVM.reset()
             rdsVM.reset()
+            autoScalingVM.reset()
             route53VM.reset()
             elbVM.reset()
             securityGroupsVM.reset()
@@ -386,30 +387,23 @@ struct ContentView: View {
         loadVisibleRoute53()
     }
 
-    private func configureCodeCommit() {
+    private func configureMetadataServices() {
         guard let scope = currentMonitoringScope else { return }
         codeCommitVM.configure(scope: scope)
-        loadVisibleCodeCommit()
-    }
-
-    private func loadVisibleCodeCommit() {
-        guard destination == .resources, selectedService == .codeCommit,
-              profileVM.isProfileReady, favoriteNavigation.target == nil,
-              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
-        codeCommitVM.loadIfNeeded()
-    }
-
-    private func configureRDS() {
-        guard let scope = currentMonitoringScope else { return }
         rdsVM.configure(scope: scope)
-        loadVisibleRDS()
+        autoScalingVM.configure(scope: scope)
+        loadVisibleMetadataServices()
     }
 
-    private func loadVisibleRDS() {
-        guard destination == .resources, selectedService == .rds,
-              profileVM.isProfileReady, favoriteNavigation.target == nil,
+    private func loadVisibleMetadataServices() {
+        guard destination == .resources, profileVM.isProfileReady, favoriteNavigation.target == nil,
               relatedNavigation.target == nil, elbNavigation.target == nil else { return }
-        rdsVM.loadIfNeeded()
+        switch selectedService {
+        case .codeCommit: codeCommitVM.loadIfNeeded()
+        case .rds: rdsVM.loadIfNeeded()
+        case .autoScaling: autoScalingVM.loadIfNeeded()
+        default: break
+        }
     }
 
     private func loadVisibleRoute53() {
@@ -498,6 +492,8 @@ struct ContentView: View {
             CodeCommitRepositoryListView(vm: codeCommitVM)
         case .rds:
             RDSDatabaseListView(vm: rdsVM)
+        case .autoScaling:
+            AutoScalingGroupListView(vm: autoScalingVM)
         case .route53:
             Route53ZoneListView(vm: route53VM)
         case .loadBalancers:
@@ -574,7 +570,7 @@ struct ContentView: View {
               let profileName = profileVM.selectedProfileID else { return nil }
         let resource: (id: String, name: String)
         switch selectedService {
-        case .codeCommit, .rds: return nil
+        case .codeCommit, .rds, .autoScaling: return nil
         case .ec2:
             guard let instance = ec2VM.selectedInstance else { return nil }
             resource = (instance.instanceId, instance.name)
@@ -758,6 +754,7 @@ struct ContentView: View {
         case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
         case .codeCommit: return "codecommit/" + (codeCommitVM.selectedRepository?.id ?? "")
         case .rds: return "rds/" + (rdsVM.selectedDatabase?.id ?? "")
+        case .autoScaling: return "asg/" + (autoScalingVM.selectedGroup?.arn ?? "")
         case .route53: return "route53/" + (route53VM.selectedZone?.id ?? "")
         case .loadBalancers: return "loadbalancer/" + (elbVM.selectedLoadBalancer?.arn ?? "")
         case .targetGroups: return "targetgroup/" + (elbVM.selectedTargetGroup?.arn ?? "")
@@ -774,6 +771,8 @@ struct ContentView: View {
             CodeCommitRepositoryDetailView(vm: codeCommitVM)
         case .rds:
             RDSDatabaseDetailView(vm: rdsVM)
+        case .autoScaling:
+            AutoScalingGroupDetailView(vm: autoScalingVM)
         case .ec2:
             if let instance = ec2VM.selectedInstance {
                 EC2DetailView(instance: instance, vm: ec2VM,
@@ -896,6 +895,7 @@ struct ContentView: View {
         snsVM.reset()
         codeCommitVM.reset()
         rdsVM.reset()
+        autoScalingVM.reset()
         elbVM.reset()
         securityGroupsVM.reset()
         volumesVM.reset()
@@ -942,14 +942,13 @@ struct ContentView: View {
             s3TransferVM.configure(scope: currentMonitoringScope)
             configureAlarms()
             configureSNS()
-            configureCodeCommit()
-            configureRDS()
+            configureMetadataServices()
             configureELB()
             configureSecurityGroups()
             configureEBS()
             guard let target else { return }
             switch target.service {
-            case .codeCommit, .rds: break
+            case .codeCommit, .rds, .autoScaling: break
             case .ec2: await ec2VM.loadInstances(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
             case .lambda: await lambdaVM.loadFunctions(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
             case .s3: await s3VM.loadBuckets()

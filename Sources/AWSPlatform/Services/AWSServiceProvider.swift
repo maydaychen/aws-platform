@@ -9,6 +9,7 @@ import SotoCloudWatchLogs
 import SotoSNS
 import SotoCodeCommit
 import SotoRDS
+import SotoAutoScaling
 import SotoHealth
 import SotoRoute53
 import SotoElasticLoadBalancingV2
@@ -183,6 +184,12 @@ actor AWSServiceProvider {
         try await requireIdentity(scope: scope, regional: true)
         guard let awsClient else { throw AWSServiceError.notConfigured }
         return RDS(client: awsClient, region: .init(rawValue: scope.region))
+    }
+
+    func autoScalingClient(scope: MonitoringScope) async throws -> AutoScaling {
+        try await requireIdentity(scope: scope, regional: true)
+        guard let awsClient else { throw AWSServiceError.notConfigured }
+        return AutoScaling(client: awsClient, region: .init(rawValue: scope.region))
     }
 
     func validateIdentity() async throws -> AWSIdentity {

@@ -18,7 +18,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 ## Features
 
 - **EC2 instances** - View instance state, networking, AMIs, and tags; open an SSM session in an external terminal with Connect
-- **EC2 resource group** - Expand or collapse instances, EBS volumes, snapshots, load balancers, Target Groups, and security groups; browse current-account EBS volumes and owned snapshots with search, state filters, favorites, and recent visits
+- **EC2 resource group** - Expand or collapse instances, Auto Scaling groups, EBS volumes, snapshots, load balancers, Target Groups, and security groups; browse current-account EBS volumes and owned snapshots with search, state filters, favorites, and recent visits
 - **Lambda functions** - View function configuration and source code from deployment packages
 - **Metrics and logs** - Manually query CloudWatch metrics for EC2 and Lambda, and logs for the current Lambda function, with time ranges, log filters, and pagination
 - **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; upload or download individual files with progress and cancellation
@@ -26,6 +26,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
 - **CodeCommit** - Search repositories in the selected Profile and Region; inspect repository metadata, clone URLs, branches, and the last queried branch-head commit
 - **RDS** - Browse DB instances and clusters in the selected Profile and Region, with engine/status, endpoints, network, storage, protection, members, and tags
+- **EC2 Auto Scaling** - Search groups in the selected Profile and Region; inspect capacity units, members, launch settings, scaling policy summaries, and recent scaling activities
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
@@ -176,6 +177,14 @@ Required permissions are `codecommit:ListRepositories` on `"*"`, plus `codecommi
 Open **RDS** after selecting and verifying a Profile and choosing a Region. DB instances and clusters load independently with complete pagination; a failed instance or cluster query leaves the other list available. Search identifiers, ARNs, engines, and endpoints locally, or filter by resource type. Select a database to view the returned metadata. Refresh reloads both lists; cancellation preserves already completed results. Scope changes clear old data and reject late responses. RDS favorites and recent visits are not available.
 
 The app uses only `rds:DescribeDBInstances` and `rds:DescribeDBClusters`, including their returned tags. It excludes shared clusters, Neptune, and DocumentDB. It does not connect to databases, execute SQL, query metrics, or change resources. Details include engine/version/status, instance class, endpoints/port, availability, subnet group/security groups, storage/encryption, backup retention, deletion protection, cluster members, and Serverless v2 capacity when returned. Instance responses can include VPC/subnet IDs; cluster responses supply the subnet group name without VPC/subnet details. Missing values remain unknown. An engine mode of `provisioned` does not rule out Serverless v2. See [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html), [DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html), and the [RDS IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html).
+
+### EC2 Auto Scaling
+
+Open **EC2 → Auto Scaling** after selecting and verifying a Profile and choosing a Region. The group list loads all pages and supports local search, refresh, and cancellation without automatically selecting a group. Details include capacity values and type, regular member count, AZs/subnets, launch configuration/template and mixed-instance summaries, health settings, suspended processes, load-balancer associations, members, and tags. Capacity values may represent weighted, vCPU, or memory units rather than instance counts. Missing values remain unknown; template aliases such as `$Latest` are preserved, and group operation status is not interpreted as health.
+
+Selecting a group independently loads scaling policy summaries and activities from the last six weeks. The detail refresh button reloads these two sections; use list refresh to reload group metadata. One section's failure leaves the other readable. Profile, identity, Region, or group changes invalidate old responses. The app does not query warm-pool members, template contents, metrics, or full advanced metric/predictive policy configurations, and does not change capacity or execute scaling actions. Favorites and recent visits are not available for this service.
+
+Required permissions are `autoscaling:DescribeAutoScalingGroups`, `autoscaling:DescribePolicies`, and `autoscaling:DescribeScalingActivities` on `"*"`. See [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html), [DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html), [DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html), and the [Auto Scaling IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html).
 
 ### S3 Object Browsing
 

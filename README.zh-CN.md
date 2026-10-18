@@ -18,7 +18,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 ## 功能
 
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签；通过详情页「连接」按钮在外部终端打开 SSM 会话
-- **EC2 资源分组** - 可折叠的实例、EBS 卷、快照、负载均衡、目标组和安全组入口；浏览当前账号的 EBS 卷及自有快照，支持搜索、状态筛选、收藏和最近访问
+- **EC2 资源分组** - 可折叠的实例、Auto Scaling 组、EBS 卷、快照、负载均衡、目标组和安全组入口；浏览当前账号的 EBS 卷及自有快照，支持搜索、状态筛选、收藏和最近访问
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
 - **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
 - **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；支持单文件上传／下载、进度与取消
@@ -26,6 +26,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **CodeCommit 查询** - 搜索当前 Profile／Region 的仓库，查看仓库元数据、克隆地址、分支及最近查询的分支头提交
 - **RDS 查询** - 浏览当前 Profile／Region 的数据库实例与集群，查看引擎／状态、端点、网络、存储、保护、成员及标签
+- **EC2 Auto Scaling 查询** - 搜索当前 Profile／Region 的实例组，查看容量单位、成员、启动摘要、扩缩容策略摘要及近期活动
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
 - **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
@@ -176,6 +177,14 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 手动选择并验证 Profile、选择 Region 后，打开侧栏的 RDS。数据库实例和集群独立完整分页加载，一类查询失败时仍可查看另一类结果；可按标识符、ARN、引擎和端点本地搜索，或按资源类型筛选。选择数据库后查看返回的元数据；刷新重新加载两类列表，取消保留已经完成的结果。切换范围时清空旧数据并丢弃迟到响应，暂不提供 RDS 收藏和最近访问入口。
 
 只使用 `rds:DescribeDBInstances` 和 `rds:DescribeDBClusters` 及其返回的标签，排除共享集群、Neptune 和 DocumentDB；不连接数据库、执行 SQL、查询指标或修改资源。详情包含接口返回的引擎／版本／状态、实例规格、端点／端口、可用区、子网组／安全组、存储／加密、备份保留、删除保护、集群成员及 Serverless v2 容量。实例响应可含 VPC／子网 ID；集群只返回子网组名称，不包含 VPC／子网明细。缺失字段保持未知，不能仅根据 `engineMode=provisioned` 排除 Serverless v2。参考 [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html) 、[DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html) 和 [RDS IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html) 。
+
+### EC2 Auto Scaling 查询
+
+手动选择并验证 Profile、选择 Region 后，打开「EC2 → Auto Scaling」。组列表完整分页，支持本地搜索、刷新和取消，不自动选择实例组。详情包含容量数值与类型、普通成员数、可用区／子网、启动配置／模板及混合实例摘要、健康检查、暂停进程、负载均衡关联、成员和标签。容量可能按权重、vCPU 或内存单位计量，不直接视为实例台数；缺失字段保持未知，启动模板保留 `$Latest` 等别名，组操作状态不解释为健康状态。
+
+选择组后独立加载扩缩容策略摘要和近六周活动，详情刷新按钮只重新读取这两部分，组元数据通过列表刷新重读；一类失败不影响另一类结果。切换 Profile、身份、Region 或实例组后丢弃旧响应。不查询 Warm Pool 成员、启动模板内容、指标或完整高级指标／预测策略配置，不修改容量或执行扩缩容动作；暂不提供该服务的收藏和最近访问入口。
+
+需要 `autoscaling:DescribeAutoScalingGroups`、`autoscaling:DescribePolicies` 和 `autoscaling:DescribeScalingActivities` 对 `"*"` 的权限。参考 [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html) 、[DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html) 、[DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html) 和 [Auto Scaling IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html) 。
 
 ### S3 对象浏览
 

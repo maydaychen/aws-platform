@@ -8,6 +8,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     case sns = "SNS"
     case codeCommit = "CodeCommit"
     case rds = "RDS"
+    case autoScaling = "Auto Scaling"
     case route53 = "Route 53"
     case loadBalancers = "Load Balancers"
     case targetGroups = "Target Groups"
@@ -17,7 +18,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    static let ec2Services: [AWSService] = [.ec2, .ebsVolumes, .ebsSnapshots, .loadBalancers, .targetGroups, .securityGroups]
+    static let ec2Services: [AWSService] = [.ec2, .autoScaling, .ebsVolumes, .ebsSnapshots, .loadBalancers, .targetGroups, .securityGroups]
     static var standaloneServices: [AWSService] { allCases.filter { !$0.isEC2Service } }
     var isEC2Service: Bool { Self.ec2Services.contains(self) }
     var sidebarTitle: String {
@@ -40,6 +41,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         case .sns: return "dot.radiowaves.left.and.right"
         case .codeCommit: return "chevron.left.forwardslash.chevron.right"
         case .rds: return "cylinder"
+        case .autoScaling: return "arrow.up.arrow.down"
         case .route53: return "network"
         case .loadBalancers: return "point.3.connected.trianglepath.dotted"
         case .targetGroups: return "scope"

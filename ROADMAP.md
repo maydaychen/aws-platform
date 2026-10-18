@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-`v0.4.0 (17)` 已公开为 GitHub Latest，安装包源提交为 `2b0c7f3`；用户已确认本机预览整体效果并授权发布。ARM／Intel App 与 DMG 的签名、公证、独立产物核验及五附件匿名下载已通过，正在同步应用内更新清单；过程证据位于 `.tmp/release-0.4.0/`。
+`v0.4.0 (17)` 已公开为 GitHub Latest，安装包源提交为 `2b0c7f3`；用户已确认本机预览整体效果并授权发布。ARM／Intel App 与 DMG 的签名、公证、独立产物核验、五附件匿名下载及两份线上更新清单验签均已通过；过程证据位于 `.tmp/release-0.4.0/`。
 
 已有服务子模块与资源导航已完成源码和离线验证：RDS 指标／事件／快照、CloudWatch 日志组／流／手动日志查询、CodeCommit 文件／固定提交差异／PR、S3 历史版本、ASG 模板版本／实例刷新记录，以及 RDS／ASG／CodeCommit 收藏／最近访问与成员到 EC2 跳转。严格构建与 1,329 项回归通过；只读查询绑定当前显式已验证 Profile、身份、Region 和配置路径，收费数据按需手动加载。范围与证据见 [子模块实施记录](docs/superpowers/plans/2026-10-18-service-submodules.md) ，计费边界见 [查询费用](docs/aws-query-costs.md) 。
 
@@ -18,7 +18,7 @@ EC2 列表健康状态修复已通过离线验收并纳入 `v0.4.0`：完整分�
 
 面向 macOS 13+ 的 Apple Silicon `arm64`／Intel `x86_64` 各提供独立 ZIP 和 DMG，附统一 `SHA256SUMS.txt`。两套 App／DMG 已完成 Developer ID 签名、Apple 公证、票据装订、Gatekeeper 与独立产物核验，构建 App／ZIP／只读挂载 DMG 的 311 个条目一致，包含 27 个依赖的 83 个许可文件。Apple Silicon 正式包在空 AWS 配置和隔离偏好下启动完成、持续运行 8 秒并正常退出，未强制阻断出站网络，不据此认定真实 AWS 验收。最终 ZIP 均完成 Ed25519 签名及纯公钥验签；五附件的远端摘要及实际匿名下载的字节数、SHA-256 均匹配本地产物。固定发布前五项门禁、1,329 项应用测试、40 项打包测试及发布源提交的秘密扫描通过。
 
-ARM／Intel 的 `0.4.0 (17)` 签名更新清单候选已通过纯公钥验签、公开 ZIP 下载比对与归档引用检查，并保留 `0.3.1 (9)` 历史记录；正在发布至固定 HTTPS 更新源，公共地址回读尚未完成。完整检查／下载／安装／重启仍保留专项验收。新正式包与过程证据分别在 `dist/AWSPlatform-0.4.0-{arm64,x86_64}/` 和 `.tmp/release-0.4.0/`。
+ARM／Intel 固定 HTTPS 更新源已发布 `0.4.0 (17)` 的 Ed25519 签名清单，发布提交为 `94ea178`，并保留 `0.3.1 (9)` 历史记录。已从应用实际使用的两个地址匿名回读，字节与候选／仓库一致，Feed 签名、版本、归档 URL／长度／签名绑定均通过主线及独立验签；双语下载入口与脚本文档已同步。完整检查／下载／安装／重启仍保留专项验收。新正式包与过程证据分别在 `dist/AWSPlatform-0.4.0-{arm64,x86_64}/` 和 `.tmp/release-0.4.0/`。
 
 只读资源浏览、本地收藏与最近访问、按 Session 登录、Cost Explorer、CloudWatch Alarms、SNS Topics／配置调用链、EC2／Lambda 指标及 Lambda 日志、AWS Health 当前账号／组织事件、Route 53、ELBv2 负载均衡与目标组、独立安全组、统一资源关联、中英文界面及 Lambda 源码预览加固均已纳入正式分发。登录后保持 Profile 为空，只有手动选择并验证 Profile 才加载数据，不因共用 Session 自动聚合 Profile。
 
@@ -32,7 +32,7 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 最近完成
 
-- 2026-10-19 00:23：发布 `v0.4.0 (17)` 为 GitHub Latest，标签指向正式包源提交 `2b0c7f3`，包含服务子模块、RDS／ASG／CodeCommit 与此前 EC2／窗口／文件保护改动。ARM／Intel 各提供 Developer ID 签名、公证并装订票据的 ZIP／DMG，五个公开附件的实际匿名下载与本地 SHA-256 一致；签名更新清单候选及双语下载入口同步中。旧 Release 和本机预览安装保留。
+- 2026-10-19 00:28：发布 `v0.4.0 (17)` 为 GitHub Latest，标签指向正式包源提交 `2b0c7f3`，包含服务子模块、RDS／ASG／CodeCommit 与此前 EC2／窗口／文件保护改动。ARM／Intel 各提供 Developer ID 签名、公证并装订票据的 ZIP／DMG，五个公开附件的实际匿名下载与本地 SHA-256 一致；ARM／Intel 签名更新源和双语下载入口已发布，线上两份 Feed 回读验签通过。旧 Release 和本机预览安装保留。
 
 - 2026-10-18 23:33：按用户授权从固定提交 `2dde056` 的隔离源码构建并安装 `arm64` 本机预览 `0.3.1 (16)`，包含本次全部服务子模块和 RDS／ASG 查询。正常退出旧版，将 `0.3.1 (15)` 原样备份至 `dist/local-preview-arm64-submodules-2dde056/previous-installations/20261018-233300/`，原子替换并打开新版，保留偏好、收藏和 AWS 配置。产物与安装清单位于同一产物目录；未推送、发布或修改线上更新源。
 
@@ -74,9 +74,7 @@ Health 组织模式与新 App 图标已纳入 `v0.3.0`。组织查询仍通过�
 
 ## 最近验证
 
-- 2026-10-19 00:23：两架构正式包独立核验通过：版本、实际切片、最低 macOS 13、双语 1,877 条词条、27 依赖／83 许可文件、深层 Developer ID／runtime／时间戳、App／DMG 公证 Accepted／装订／Gatekeeper，以及 App／ZIP／只读 DMG 的 311 条目一致。ARM 在空 AWS 配置和隔离偏好下通过 LaunchServices 后台启动完成、存活 8 秒并正常退出；未强制阻断网络。五附件完整匿名下载的大小及 SHA-256、Latest／Tag／源提交通过主线及独立回读；候选 Feed 公钥验签、17／9 版本顺序和归档引用通过，线上 Feed 回读待完成。证据位于 `.tmp/release-0.4.0/` 与正式产物 `verification/`；真实 AWS、Intel／macOS 13 实机和完整更新安装轮次仍保留专项验收。
-
-- 2026-10-18 23:50：`v0.4.0 (17)` 发布准备通过固定 Harness release 五项门禁，包含 `swift build`、1,329 项离线应用测试与设计／文件规模／差异检查；40 项离线打包测试和 Shell 语法通过。待公开的 18 个提交完成 Gitleaks 扫描，无泄漏；版本默认值与对应测试同步，不改变签名、公证或更新信任逻辑。正式包签名、公证、公共附件及更新清单尚未完成，证据位于 `.tmp/release-0.4.0/`。
+- 2026-10-19 00:28：两架构正式包独立核验通过：版本、实际切片、最低 macOS 13、双语 1,877 条词条、27 依赖／83 许可文件、深层 Developer ID／runtime／时间戳、App／DMG 公证 Accepted／装订／Gatekeeper，以及 App／ZIP／只读 DMG 的 311 条目一致。ARM 在空 AWS 配置和隔离偏好下通过 LaunchServices 后台启动完成、存活 8 秒并正常退出；未强制阻断网络。五附件完整匿名下载的大小及 SHA-256、Latest／Tag／源提交通过主线及独立回读；候选及线上 Feed 公钥验签、17／9 版本顺序、完整历史保留和归档引用均通过，公开字节与候选／仓库一致。证据位于 `.tmp/release-0.4.0/` 与正式产物 `verification/`；真实 AWS、Intel／macOS 13 实机和完整更新安装轮次仍保留专项验收。
 
 - 2026-10-18 23:33：391 个隔离源码文件构建前后 SHA-256 一致；`arm64` Release、版本／最低 macOS 13／运行库 RPATH、两语各 1,877 条词条、更新公钥与签名策略、严格深层 ad-hoc 签名和 ZIP 完整性通过主线及独立产物核验。构建包、ZIP 解包和安装副本的 185 个条目内容／权限／链接一致，旧版备份匹配安装前指纹；NSWorkspace 确认新进程启动完成，8 秒后仍运行并有 1 个可见窗口。本次 Harness task 三项静态门禁通过；过程位于 `.tmp/service-submodules-preview-install/`，独立核验随产物保存在 `dist/local-preview-arm64-submodules-2dde056/verification/`。源码此前严格全量 1,329 项回归通过，本次无业务源码变更不重复全量测试；未主动选择 Profile 或执行真实 AWS 查询，完整窗口交互与 Intel／macOS 13 实机未验收。
 

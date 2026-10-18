@@ -6,14 +6,14 @@ A native macOS app for browsing AWS resources and costs, with explicit S3 file t
 
 ## Download
 
-[Version 0.3.1](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1) requires **macOS 13 or later**. Choose the package for your Mac:
+[Version 0.4.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.0) requires **macOS 13 or later**. Choose the package for your Mac:
 
 | Mac | Installer | Archive |
 | --- | --- | --- |
-| Apple Silicon (M-series, `arm64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-arm64.zip) |
-| Intel (`x86_64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-x86_64.zip) |
+| Apple Silicon (M-series, `arm64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.zip) |
+| Intel (`x86_64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.zip) |
 
-Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both builds are Developer ID signed and notarized by Apple. [SHA-256 checksums](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/SHA256SUMS.txt) are available with the release. AWS CLI v2 is required for SSO sign-in; see [Prerequisites](#prerequisites).
+Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both builds are Developer ID signed and notarized by Apple. [SHA-256 checksums](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/SHA256SUMS.txt) are available with the release. AWS CLI v2 is required for SSO sign-in; see [Prerequisites](#prerequisites).
 
 ## Features
 
@@ -124,7 +124,7 @@ For distribution, use `scripts/package-distribution.py` with the same architectu
 
 ### Application Updates
 
-The `v0.3.1` installers provide **AWSPlatform → Check for Updates…** and an **Updates** section in Settings. Automatic checks are off by default; enabling them checks for new releases without automatically downloading or installing them. Installation requires confirmation and waits for S3 transfers across the app's windows to actually finish, including tasks whose cancellation was requested. New transfers are paused while a restart is pending. Close any separately launched app instances before updating.
+Installers from `v0.3.1` onward provide **AWSPlatform → Check for Updates…** and an **Updates** section in Settings. Automatic checks are off by default; enabling them checks for new releases without automatically downloading or installing them. Installation requires confirmation and waits for S3 transfers across the app's windows to actually finish, including tasks whose cancellation was requested. New transfers are paused while a restart is pending. Close any separately launched app instances before updating.
 
 Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates require an Ed25519-signed feed and verify the final ZIP before extraction, retaining the existing bundle identity and local preferences. Feed verification failures stop the update; signatures authenticate content but do not guarantee that the server provides the newest release. If the signing key is lost, recovery requires a manually installed release with a reviewed new key. Version `v0.3.0` and earlier predate this updater. Install `v0.3.1` manually to enable future in-app updates. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
 

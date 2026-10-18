@@ -6,14 +6,14 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 
 ## 下载
 
-[0.3.1 版本](https://github.com/maydaychen/aws-platform/releases/tag/v0.3.1) 需要 **macOS 13 或更高版本**，请按 Mac 的芯片选择安装包：
+[0.4.0 版本](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.0) 需要 **macOS 13 或更高版本**，请按 Mac 的芯片选择安装包：
 
 | Mac | 安装包 | 压缩包 |
 | --- | --- | --- |
-| Apple Silicon（M 系列，`arm64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-arm64.zip) |
-| Intel（`x86_64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/AWSPlatform-0.3.1-x86_64.zip) |
+| Apple Silicon（M 系列，`arm64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.zip) |
+| Intel（`x86_64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.zip) |
 
-打开 DMG 后将 AWSPlatform 拖入 Applications，或解压 ZIP。两个版本均已完成 Developer ID 签名和 Apple 公证；Release 附有 [SHA-256 校验文件](https://github.com/maydaychen/aws-platform/releases/download/v0.3.1/SHA256SUMS.txt) 。SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
+打开 DMG 后将 AWSPlatform 拖入 Applications，或解压 ZIP。两个版本均已完成 Developer ID 签名和 Apple 公证；Release 附有 [SHA-256 校验文件](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/SHA256SUMS.txt) 。SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
 
 ## 功能
 
@@ -124,7 +124,7 @@ open Package.swift
 
 ### 应用更新
 
-`v0.3.1` 安装包提供「AWSPlatform → 检查更新…」菜单和设置中的「更新」分组。自动检查默认关闭；开启后只检查新版本，不自动下载或安装。安装需要确认，并等待应用各窗口中的 S3 任务实际退出，包括已经请求取消的任务；等待重启期间暂停新传输。更新前请先关闭另行启动的其他应用实例。
+`v0.3.1` 及更新版本的安装包提供「AWSPlatform → 检查更新…」菜单和设置中的「更新」分组。自动检查默认关闭；开启后只检查新版本，不自动下载或安装。安装需要确认，并等待应用各窗口中的 S3 任务实际退出，包括已经请求取消的任务；等待重启期间暂停新传输。更新前请先关闭另行启动的其他应用实例。
 
 Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架构选择。更新要求 Ed25519 签名的清单，并在解包前校验最终 ZIP，延续现有 Bundle ID 和本地偏好。清单验签失败会停止更新；签名验证内容来源，不保证服务器提供的是最新版本。签名密钥丢失时，需要手动安装经过审查、包含新公钥的版本。`v0.3.0` 及更早版本尚未集成更新器，需要先手动安装 `v0.3.1`，后续才能在应用内升级。签名、打包和清单生成见 [打包说明](scripts/README.md#应用更新与发布清单) 。
 

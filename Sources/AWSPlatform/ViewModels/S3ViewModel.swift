@@ -35,6 +35,7 @@ final class S3ViewModel: ObservableObject {
     private var objectGeneration = 0
     private var objectBucket: String?
     private var consumedObjectTokens: Set<Data> = []
+    private var hasAttemptedLoad = false
 
     var hasMoreObjects: Bool { nextObjectToken != nil }
 
@@ -84,10 +85,19 @@ final class S3ViewModel: ObservableObject {
         if refreshImmediately { refresh() }
     }
 
+    func loadIfNeeded() {
+        guard !hasAttemptedLoad else { return }
+        refresh()
+    }
+
     func refresh() {
+        guard bucketLoader != nil else { return }
+        hasAttemptedLoad = true
         loadTask?.cancel()
         loadTask = Task { await loadBuckets() }
     }
+
+    func waitForCurrentLoad() async { await loadTask?.value }
 
     func cancelLoading() {
         listGeneration += 1
@@ -102,6 +112,7 @@ final class S3ViewModel: ObservableObject {
 
     func reset() {
         cancelLoading()
+        hasAttemptedLoad = false
         provider = nil
         scope = nil
         buckets = []
@@ -112,6 +123,7 @@ final class S3ViewModel: ObservableObject {
 
     func loadBuckets() async {
         guard !Task.isCancelled, let bucketLoader else { return }
+        hasAttemptedLoad = true
         listGeneration += 1
         let generation = listGeneration
         detailGeneration += 1

@@ -273,6 +273,7 @@ struct ContentView: View {
             if s3BrowsingBucket != nil { s3VM.leaveObjectBrowser() }
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
+            loadVisibleCoreServices()
             loadVisibleAlarms()
             loadVisibleSNS()
             loadVisibleMetadataServices()
@@ -293,6 +294,7 @@ struct ContentView: View {
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
             if selection == .health { configureHealth() }
+            loadVisibleCoreServices()
             loadVisibleAlarms()
             loadVisibleSNS()
             loadVisibleMetadataServices()
@@ -372,6 +374,15 @@ struct ContentView: View {
               case .valid(let identity) = profileVM.profileStatus else { return }
         alarmsVM.configure(scope: AlarmScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
         loadVisibleAlarms()
+    }
+
+    private func loadVisibleCoreServices() {
+        ResourceListLoader.loadIfNeeded(
+            service: selectedService, destination: destination,
+            isProfileReady: profileVM.isProfileReady && currentMonitoringScope != nil,
+            isNavigating: favoriteNavigation.target != nil || relatedNavigation.target != nil || elbNavigation.target != nil,
+            ec2: ec2VM, lambda: lambdaVM, s3: s3VM
+        )
     }
 
     private func loadVisibleAlarms() {
@@ -882,9 +893,9 @@ struct ContentView: View {
                    !favoriteNavigation.validateRelationshipScope(currentMonitoringScope) { return }
             }
             guard let scope = currentMonitoringScope else { return }
-            ec2VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .ec2)
-            lambdaVM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .lambda)
-            s3VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: target?.service != .s3)
+            ec2VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
+            lambdaVM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
+            s3VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
             s3TransferVM.configure(scope: currentMonitoringScope)
             configureAlarms()
             configureSNS()
@@ -892,6 +903,7 @@ struct ContentView: View {
             configureELB()
             configureSecurityGroups()
             configureEBS()
+            loadVisibleCoreServices()
             guard let target else { return }
             switch target.service {
             case .logs: break

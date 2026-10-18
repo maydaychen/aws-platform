@@ -33,6 +33,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **Resource relationships** - Explore Route 53 records, load balancers, Target Groups, EC2 instances, and security groups one hop at a time, with explicit reverse queries and precise resource navigation
 - **AWS Health events** - Switch between current-account and organization events using the current Profile, with account filtering, event descriptions, and affected resources
 - **Separate Session and Profile selection** - Sign in to a session, then manually choose an associated Profile and Region; resource views stay empty until a Profile is selected
+- **On-demand resource loading** - After Profile verification, only the visible module loads, including EC2, Lambda, and S3. Other modules load when selected; returning within the same scope reuses results. Use Refresh to retry empty, failed, or cancelled loads; changing Profile or Region clears the previous regional results
 - **Searchable Profiles** - Search Profile names, account IDs, and roles within the selected session
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh

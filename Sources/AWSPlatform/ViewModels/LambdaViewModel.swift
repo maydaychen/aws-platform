@@ -39,6 +39,7 @@ final class LambdaViewModel: ObservableObject {
     private var codeLoader: CodeLoader?
     private var listGeneration = 0
     private var codeGeneration = 0
+    private var hasAttemptedLoad = false
 
     init(
         functionLoader: FunctionLoader? = nil,
@@ -111,10 +112,19 @@ final class LambdaViewModel: ObservableObject {
         if refreshImmediately { refresh() }
     }
 
+    func loadIfNeeded() {
+        guard !hasAttemptedLoad else { return }
+        refresh()
+    }
+
     func refresh() {
+        guard functionLoader != nil else { return }
+        hasAttemptedLoad = true
         loadTask?.cancel()
         loadTask = Task { await loadFunctions() }
     }
+
+    func waitForCurrentLoad() async { await loadTask?.value }
 
     func cancelLoading() {
         listGeneration += 1
@@ -127,6 +137,7 @@ final class LambdaViewModel: ObservableObject {
 
     func reset() {
         cancelLoading()
+        hasAttemptedLoad = false
         provider = nil
         scope = nil
         functions = []
@@ -142,6 +153,7 @@ final class LambdaViewModel: ObservableObject {
 
     func loadFunctions(selectFirstIfNeeded: Bool = true) async {
         guard !Task.isCancelled, let functionLoader else { return }
+        hasAttemptedLoad = true
         listGeneration += 1
         let generation = listGeneration
         isLoading = true

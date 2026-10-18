@@ -54,6 +54,7 @@ final class EC2ViewModel: ObservableObject {
     private var healthResultLoader: HealthResultLoader?
     private var detailLoader: DetailLoader?
     private var listGeneration = 0
+    private var hasAttemptedLoad = false
 
     init(
         instanceLoader: InstanceLoader? = nil,
@@ -123,10 +124,19 @@ final class EC2ViewModel: ObservableObject {
         if refreshImmediately { refresh() }
     }
 
+    func loadIfNeeded() {
+        guard !hasAttemptedLoad else { return }
+        refresh()
+    }
+
     func refresh() {
+        guard instanceLoader != nil else { return }
+        hasAttemptedLoad = true
         loadTask?.cancel()
         loadTask = Task { await loadInstances() }
     }
+
+    func waitForCurrentLoad() async { await loadTask?.value }
 
     func cancelLoading() {
         if isHealthLoading {
@@ -145,6 +155,7 @@ final class EC2ViewModel: ObservableObject {
     func reset() {
         scope = nil
         cancelLoading()
+        hasAttemptedLoad = false
         detailTask?.cancel()
         instances = []
         selectedInstance = nil
@@ -161,6 +172,7 @@ final class EC2ViewModel: ObservableObject {
 
     func loadInstances(selectFirstIfNeeded: Bool = true) async {
         guard !Task.isCancelled, let instanceLoader else { return }
+        hasAttemptedLoad = true
         listGeneration += 1
         let generation = listGeneration
         detailTask?.cancel()

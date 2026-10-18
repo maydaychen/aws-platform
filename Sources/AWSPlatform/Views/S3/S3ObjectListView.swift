@@ -4,10 +4,24 @@ import UniformTypeIdentifiers
 struct S3ObjectListView: View {
     @Environment(\.locale) private var locale
     @State private var isDropTargeted = false
+    @State private var showsVersions = false
     @ObservedObject var vm: S3ViewModel
     @ObservedObject var transferVM: S3TransferViewModel
     let bucketName: String
     let transferContext: S3TransferContext?
+    var versionsVM: S3VersionsViewModel? = nil
+    private let transferPrefixIdentity: Data?
+
+    init(vm: S3ViewModel, transferVM: S3TransferViewModel, bucketName: String,
+         transferContext: S3TransferContext?, versionsVM: S3VersionsViewModel? = nil) {
+        _vm = ObservedObject(wrappedValue: vm)
+        _transferVM = ObservedObject(wrappedValue: transferVM)
+        self.bucketName = bucketName
+        self.transferContext = transferContext
+        self.versionsVM = versionsVM
+        // Store the literal identity so SwiftUI can detect an otherwise String-equivalent input change.
+        transferPrefixIdentity = transferContext.map { Data($0.prefix.utf8) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,6 +44,12 @@ struct S3ObjectListView: View {
                 Text(L10n.text("or drop a file", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
                 Spacer()
+                if versionsVM != nil {
+                    Button(L10n.text("Object versions", locale: locale)) {
+                        if let object = vm.selectedObject { openVersions(object) }
+                    }
+                    .disabled(vm.selectedObject == nil || vm.selectedObject?.isPrefix == true || transferContext?.isValid != true)
+                }
             }.padding(.horizontal, 12).padding(.vertical, 8)
             S3TransferStatusView(vm: transferVM)
             S3BreadcrumbView(bucket: bucketName, prefix: vm.currentPrefix) { prefix in
@@ -71,6 +91,10 @@ struct S3ObjectListView: View {
                                 await S3FilePanels.saveFile(key: object.key, locale: locale)
                             }
                         }.disabled(!transferVM.canStart || transferContext == nil)
+                        if versionsVM != nil {
+                            Button(L10n.text("Object versions", locale: locale)) { openVersions(object) }
+                                .disabled(transferContext?.isValid != true)
+                        }
                     }
                 }
             }
@@ -97,6 +121,29 @@ struct S3ObjectListView: View {
                 S3UploadDropOverlay(context: context).allowsHitTesting(false)
             }
         }
+        .sheet(isPresented: $showsVersions) {
+            if let versionsVM { S3VersionsView(vm: versionsVM) }
+        }
+        .onChange(of: transferContext) { _ in
+            showsVersions = false
+            versionsVM?.reset()
+        }
+        .onChange(of: transferPrefixIdentity) { _ in
+            showsVersions = false
+            versionsVM?.reset()
+        }
+        .onDisappear {
+            showsVersions = false
+            versionsVM?.reset()
+        }
+    }
+
+    private func openVersions(_ object: S3ObjectModel) {
+        guard let versionsVM, let transferContext, transferContext.isValid,
+              transferContext.bucket == bucketName, !object.isPrefix,
+              vm.objects.contains(object) else { return }
+        versionsVM.configure(context: transferContext, key: object.key)
+        showsVersions = true
     }
 
     private var objectSelection: Binding<Data?> {

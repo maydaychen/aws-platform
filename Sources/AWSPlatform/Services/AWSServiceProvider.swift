@@ -281,6 +281,12 @@ actor AWSServiceProvider {
         return CloudWatch(client: awsClient, region: .init(rawValue: region))
     }
 
+    func cloudWatchClient(scope: MonitoringScope) async throws -> CloudWatch {
+        try await requireIdentity(scope: scope, regional: true)
+        guard let awsClient else { throw AWSServiceError.notConfigured }
+        return CloudWatch(client: awsClient, region: .init(rawValue: scope.region))
+    }
+
     func snsClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) async throws -> SNS {
         guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
             throw SNSError.invalidScope
@@ -295,6 +301,12 @@ actor AWSServiceProvider {
         }
         try await requireIdentity()
         return CloudWatchLogs(client: awsClient, region: .init(rawValue: region))
+    }
+
+    func cloudWatchLogsClient(scope: MonitoringScope) async throws -> CloudWatchLogs {
+        try await requireIdentity(scope: scope, regional: true)
+        guard let awsClient else { throw AWSServiceError.notConfigured }
+        return CloudWatchLogs(client: awsClient, region: .init(rawValue: scope.region))
     }
 
     func shutdown() async {

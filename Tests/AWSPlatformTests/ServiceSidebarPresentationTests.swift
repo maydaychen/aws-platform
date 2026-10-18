@@ -55,6 +55,104 @@ final class ServiceSidebarPresentationTests: XCTestCase {
         XCTAssertTrue(defaults.bool(forKey: "sidebar.ec2Expanded"))
     }
 
+    func testCloudWatchDisclosurePersistsWithoutChangingDestinationOrService() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "sidebar.ec2Expanded")
+        defaults.set(true, forKey: "sidebar.cloudWatchExpanded")
+        let state = SidebarPresentationState()
+        state.service = .logs
+        state.destination = .recents
+        let (view, window) = mount(SidebarPresentationFixture(state: state, defaults: defaults), width: 620, height: 1050)
+        defer { window.close() }
+        settle(view)
+        let groupIndex = 5 + AWSService.ec2Services.count
+        try click(rowAt: groupIndex, view: view, window: window)
+        settle(view)
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        XCTAssertTrue(defaults.bool(forKey: "sidebar.ec2Expanded"))
+        XCTAssertEqual(state.service, .logs)
+        XCTAssertEqual(state.destination, .recents)
+        try click(rowAt: groupIndex, view: view, window: window)
+        settle(view)
+        XCTAssertTrue(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        XCTAssertEqual(state.destination, .recents)
+        let childIndex = try XCTUnwrap(AWSService.cloudWatchServices.firstIndex(of: .alarms))
+        try click(rowAt: groupIndex + 1 + childIndex, view: view, window: window)
+        settle(view)
+        XCTAssertEqual(state.service, .alarms)
+        XCTAssertEqual(state.destination, .resources)
+    }
+
+    func testReturningToResourcesOrSelectingLogsExpandsOnlyCurrentCloudWatchGroup() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: "sidebar.ec2Expanded")
+        defaults.set(false, forKey: "sidebar.cloudWatchExpanded")
+        let state = SidebarPresentationState()
+        state.service = .logs
+        state.destination = .favorites
+        let (view, window) = mount(SidebarPresentationFixture(state: state, defaults: defaults), width: 620, height: 920)
+        defer { window.close() }
+        settle(view)
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        state.destination = .resources
+        settle(view)
+        XCTAssertTrue(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.ec2Expanded"))
+        try click(rowAt: 5, view: view, window: window)
+        settle(view)
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        state.service = .lambda
+        settle(view)
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        state.service = .logs
+        settle(view)
+        XCTAssertTrue(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+        XCTAssertFalse(defaults.bool(forKey: "sidebar.ec2Expanded"))
+    }
+
+    func testCloudWatchGroupContainsBothChildrenWithoutChangingSavedAlarmServiceKey() {
+        XCTAssertEqual(AWSService.cloudWatchServices, [.alarms, .logs])
+        XCTAssertEqual(AWSService.alarms.rawValue, "CloudWatch")
+        XCTAssertEqual(AWSService.logs.rawValue, "CloudWatch Logs")
+        XCTAssertEqual(AWSService.alarms.sidebarTitle, "Alarms")
+        XCTAssertEqual(AWSService.logs.sidebarTitle, "Logs")
+        XCTAssertFalse(AWSService.standaloneServices.contains(.alarms))
+        XCTAssertFalse(AWSService.standaloneServices.contains(.logs))
+        for key in ["Alarms", "Logs", "Collapse CloudWatch group", "Expand CloudWatch group"] {
+            XCTAssertNotEqual(L10n.text(key, locale: Locale(identifier: "zh-Hans")), key)
+        }
+    }
+
+    func testNativeCloudWatchGroupingRendersBothLanguagesAndAppearances() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for language in ["en", "zh-Hans"] {
+            for scheme in [ColorScheme.light, .dark] {
+                defaults.set(true, forKey: "sidebar.ec2Expanded")
+                defaults.set(true, forKey: "sidebar.cloudWatchExpanded")
+                let state = SidebarPresentationState()
+                state.service = .logs
+                let root = SidebarPresentationFixture(state: state, defaults: defaults)
+                    .environment(\.locale, Locale(identifier: language))
+                    .environment(\.colorScheme, scheme)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                let (view, window) = mount(root, width: 620, height: 1050, scheme: scheme)
+                defer { window.close() }
+                settle(view)
+                let appearance = scheme == .dark ? "dark" : "light"
+                try captureCloudWatch(view, name: "\(language)-\(appearance)-expanded")
+                let groupIndex = 5 + AWSService.ec2Services.count
+                try click(rowAt: groupIndex, view: view, window: window)
+                settle(view)
+                XCTAssertFalse(defaults.bool(forKey: "sidebar.cloudWatchExpanded"))
+                XCTAssertEqual(state.service, .logs)
+                try captureCloudWatch(view, name: "\(language)-\(appearance)-collapsed")
+            }
+        }
+    }
+
     func testNativeEBSViewsRenderInBothLanguagesAndAppearances() async throws {
         let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -145,6 +243,19 @@ final class ServiceSidebarPresentationTests: XCTestCase {
 
     private func capture(_ image: NSBitmapImageRep, name: String) throws {
         guard let path = ProcessInfo.processInfo.environment["AWS_PLATFORM_EBS_SCREENSHOTS"] else { return }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try XCTUnwrap(image.representation(using: .png, properties: [:])).write(to: output.appendingPathComponent(name + ".png"))
+    }
+
+    private func captureCloudWatch(_ view: NSView, name: String) throws {
+        view.displayIfNeeded()
+        let image = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: image)
+        XCTAssertGreaterThan(image.pixelsWide, 0)
+        XCTAssertGreaterThan(image.pixelsHigh, 0)
+        let path = ProcessInfo.processInfo.environment["AWS_PLATFORM_SUBMODULE_SCREENSHOTS"]
+            ?? ".tmp/service-submodules/screenshots/navigation"
         let output = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         try XCTUnwrap(image.representation(using: .png, properties: [:])).write(to: output.appendingPathComponent(name + ".png"))

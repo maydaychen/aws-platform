@@ -3,10 +3,12 @@ import Foundation
 enum ResourceMetricTarget: Hashable, Sendable {
     case ec2(String)
     case lambda(String)
+    case rdsInstance(identifier: String, engine: String?)
+    case rdsCluster(identifier: String, engine: String?)
 
     var resourceID: String {
         switch self {
-        case .ec2(let id), .lambda(let id): return id
+        case .ec2(let id), .lambda(let id), .rdsInstance(let id, _), .rdsCluster(let id, _): return id
         }
     }
 
@@ -18,8 +20,30 @@ enum ResourceMetricTarget: Hashable, Sendable {
         switch self {
         case .ec2: pattern = "^i-(?:[0-9a-f]{8}|[0-9a-f]{17})$"
         case .lambda: pattern = "^[A-Za-z0-9_-]{1,64}$"
+        case .rdsInstance(_, let engine), .rdsCluster(_, let engine):
+            guard !resourceID.hasSuffix("-"), !resourceID.contains("--"),
+                  !["docdb", "neptune"].contains(engine?.lowercased() ?? "") else { return false }
+            if case .rdsCluster = self, !isAurora { return false }
+            pattern = "^[A-Za-z][A-Za-z0-9-]{0,62}$"
         }
         return resourceID.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    var isAurora: Bool {
+        switch self {
+        case .rdsInstance(_, let engine), .rdsCluster(_, let engine):
+            return engine?.lowercased().hasPrefix("aurora") == true
+        default: return false
+        }
+    }
+}
+
+extension RDSDatabase {
+    var metricTarget: ResourceMetricTarget {
+        switch kind {
+        case .instance: return .rdsInstance(identifier: identifier, engine: engine)
+        case .cluster: return .rdsCluster(identifier: identifier, engine: engine)
+        }
     }
 }
 

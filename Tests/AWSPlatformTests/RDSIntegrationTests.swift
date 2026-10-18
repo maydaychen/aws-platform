@@ -90,7 +90,7 @@ final class RDSIntegrationTests: XCTestCase {
         XCTAssertEqual(AWSService.rds.sidebarTitle, "RDS")
     }
 
-    func testSavedRDSNavigationFinishesWithUnsupportedErrorForFavoritesAndRecents() {
+    func testSavedRDSNavigationWithoutResourceContextFailsForFavoritesAndRecents() {
         let selected = profile()
         let resource = ResourceFavorite(profileName: selected.name, accountID: "111122223333", region: "eu-west-1",
                                         service: .rds, resourceID: "arn:aws:rds:eu-west-1:111122223333:db:example",
@@ -108,7 +108,7 @@ final class RDSIntegrationTests: XCTestCase {
             XCTAssertNotNil(navigation.target)
             navigation.resolve(ec2: ec2, lambda: lambda, s3: s3, alarms: alarms, sns: sns)
             XCTAssertNil(navigation.target)
-            XCTAssertEqual(navigation.error, "Unable to open example: Saved RDS navigation is not available. Open RDS and select a database. The \(source.noun) is still saved.")
+            XCTAssertEqual(navigation.error, "Unable to open example: The saved resource list is not ready. Refresh the selected profile and try again. The \(source.noun) is still saved.")
             XCTAssertNil(ec2.selectedInstance)
             XCTAssertNil(lambda.selectedFunction)
             XCTAssertNil(s3.selectedBucket)

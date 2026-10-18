@@ -5,6 +5,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     case lambda = "Lambda"
     case s3 = "S3"
     case alarms = "CloudWatch"
+    case logs = "CloudWatch Logs"
     case sns = "SNS"
     case codeCommit = "CodeCommit"
     case rds = "RDS"
@@ -19,11 +20,15 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 
     static let ec2Services: [AWSService] = [.ec2, .autoScaling, .ebsVolumes, .ebsSnapshots, .loadBalancers, .targetGroups, .securityGroups]
-    static var standaloneServices: [AWSService] { allCases.filter { !$0.isEC2Service } }
+    static let cloudWatchServices: [AWSService] = [.alarms, .logs]
+    static var standaloneServices: [AWSService] { allCases.filter { !$0.isEC2Service && !$0.isCloudWatchService } }
     var isEC2Service: Bool { Self.ec2Services.contains(self) }
+    var isCloudWatchService: Bool { Self.cloudWatchServices.contains(self) }
     var sidebarTitle: String {
         switch self {
         case .ec2: return "Instances"
+        case .alarms: return "Alarms"
+        case .logs: return "Logs"
         case .ebsSnapshots: return "Snapshots"
         case .loadBalancers: return "Load balancers"
         case .targetGroups: return "Target groups"
@@ -38,6 +43,7 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         case .lambda: return "function"
         case .s3: return "externaldrive"
         case .alarms: return "bell.badge"
+        case .logs: return "doc.text.magnifyingglass"
         case .sns: return "dot.radiowaves.left.and.right"
         case .codeCommit: return "chevron.left.forwardslash.chevron.right"
         case .rds: return "cylinder"

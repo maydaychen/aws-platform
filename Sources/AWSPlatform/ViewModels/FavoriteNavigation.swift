@@ -113,15 +113,49 @@ final class FavoriteNavigation: ObservableObject {
 
     func resolve(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel, alarms: AlarmViewModel, sns: SNSViewModel,
                  route53: Route53ViewModel? = nil, elb: ELBViewModel? = nil,
-                 securityGroups: SecurityGroupsViewModel? = nil, volumes: EBSViewModel? = nil, snapshots: EBSViewModel? = nil) {
+                 securityGroups: SecurityGroupsViewModel? = nil, volumes: EBSViewModel? = nil, snapshots: EBSViewModel? = nil,
+                 codeCommit: CodeCommitViewModel? = nil, rds: RDSViewModel? = nil,
+                 autoScaling: AutoScalingViewModel? = nil, currentScope: MonitoringScope? = nil) {
         guard let target, source != .relationship else { return }
         switch target.service {
+        case .logs:
+            finish(found: false, loadError: "Saved log group navigation is not available. Open CloudWatch Logs and select a group.")
         case .codeCommit:
-            finish(found: false, loadError: "Saved CodeCommit navigation is not available. Open CodeCommit and select a repository.")
+            codeCommit?.selectedRepository = nil
+            guard let codeCommit, let scope = codeCommit.scope, scope == currentScope,
+                  matchesSavedScope(scope, resource: target), !codeCommit.isLoading else {
+                finish(found: false, loadError: "The saved resource list is not ready. Refresh the selected profile and try again.")
+                return
+            }
+            codeCommit.searchText = ""
+            codeCommit.selectedRepository = codeCommit.repositories.first { $0.id == target.resourceID }
+            finish(found: codeCommit.selectedRepository != nil, loadError: codeCommit.error)
         case .rds:
-            finish(found: false, loadError: "Saved RDS navigation is not available. Open RDS and select a database.")
+            rds?.selectedDatabase = nil
+            guard let rds, let scope = rds.scope, scope == currentScope, matchesSavedScope(scope, resource: target) else {
+                finish(found: false, loadError: "The saved resource list is not ready. Refresh the selected profile and try again.")
+                return
+            }
+            let cluster = target.resourceID.contains(":cluster:")
+            let error = cluster ? rds.clusterError : rds.instanceError
+            guard error == nil, !(cluster ? rds.isClustersLoading : rds.isInstancesLoading) else {
+                finish(found: false, loadError: error ?? "The saved resource list is not ready. Refresh the selected profile and try again.")
+                return
+            }
+            rds.searchText = ""
+            rds.kindFilter = nil
+            rds.selectedDatabase = rds.databases.first { $0.arn == target.resourceID }
+            finish(found: rds.selectedDatabase != nil, loadError: nil)
         case .autoScaling:
-            finish(found: false, loadError: "Saved Auto Scaling navigation is not available. Open Auto Scaling and select a group.")
+            autoScaling?.selectedGroup = nil
+            guard let autoScaling, let scope = autoScaling.scope, scope == currentScope,
+                  matchesSavedScope(scope, resource: target), !autoScaling.isLoading else {
+                finish(found: false, loadError: "The saved resource list is not ready. Refresh the selected profile and try again.")
+                return
+            }
+            autoScaling.searchText = ""
+            autoScaling.selectedGroup = autoScaling.groups.first { $0.arn == target.resourceID }
+            finish(found: autoScaling.selectedGroup != nil, loadError: autoScaling.error)
         case .ec2:
             ec2.searchText = ""
             ec2.stateFilter = "All"
@@ -209,6 +243,11 @@ final class FavoriteNavigation: ObservableObject {
             vm.selectedResource = vm.resources.first { $0.id == target.resourceID }
             finish(found: vm.selectedResource != nil, loadError: nil)
         }
+    }
+
+    private func matchesSavedScope(_ scope: MonitoringScope, resource: ResourceFavorite) -> Bool {
+        scope.isValid && scope.profile.name == resource.profileName && scope.accountID == resource.accountID
+            && scope.region == resource.region
     }
 
     func resolveRelationship(ec2: EC2ViewModel, lambda: LambdaViewModel, s3: S3ViewModel,

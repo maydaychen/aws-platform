@@ -6,38 +6,44 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var favoritesVM: FavoritesViewModel
     @EnvironmentObject private var recentsVM: RecentResourcesViewModel
-    @StateObject private var favoriteNavigation = FavoriteNavigation()
-    @StateObject private var relatedNavigation = SNSRelatedResourceNavigation()
-    @StateObject private var elbNavigation = ELBResourceNavigation()
-    @StateObject private var profileVM: ProfileViewModel
+    @StateObject var favoriteNavigation = FavoriteNavigation()
+    @StateObject var relatedNavigation = SNSRelatedResourceNavigation()
+    @StateObject var elbNavigation = ELBResourceNavigation()
+    @StateObject var profileVM: ProfileViewModel
     @StateObject private var costVM: CostViewModel
     @StateObject private var healthVM: HealthViewModel
-    @StateObject private var alarmsVM: AlarmViewModel
-    @StateObject private var snsVM: SNSViewModel
-    @StateObject private var codeCommitVM: CodeCommitViewModel
-    @StateObject private var rdsVM: RDSViewModel
-    @StateObject private var autoScalingVM: AutoScalingViewModel
-    @StateObject private var route53VM: Route53ViewModel
-    @StateObject private var elbVM: ELBViewModel
+    @StateObject var alarmsVM: AlarmViewModel
+    @StateObject var snsVM: SNSViewModel
+    @StateObject var codeCommitVM: CodeCommitViewModel
+    @StateObject var rdsVM: RDSViewModel
+    @StateObject var autoScalingVM: AutoScalingViewModel
+    @StateObject private var rdsInsightsVM: RDSInsightsViewModel
+    @StateObject private var rdsMetricsVM: ResourceMetricsViewModel
+    @StateObject private var cloudWatchLogsBrowserVM: CloudWatchLogsBrowserViewModel
+    @StateObject private var s3VersionsVM: S3VersionsViewModel
+    @StateObject private var codeCommitBrowserVM: CodeCommitBrowserViewModel
+    @StateObject private var autoScalingInsightsVM: AutoScalingInsightsViewModel
+    @StateObject var route53VM: Route53ViewModel
+    @StateObject var elbVM: ELBViewModel
     @StateObject private var membershipsVM: EC2TargetGroupsViewModel
-    @StateObject private var securityGroupsVM: SecurityGroupsViewModel
-    @StateObject private var volumesVM: EBSViewModel
-    @StateObject private var snapshotsVM: EBSViewModel
+    @StateObject var securityGroupsVM: SecurityGroupsViewModel
+    @StateObject var volumesVM: EBSViewModel
+    @StateObject var snapshotsVM: EBSViewModel
     @StateObject private var resourceRelationshipsVM: ResourceRelationshipsViewModel
     @StateObject private var relationshipsVM: SNSRelationshipViewModel
     @StateObject private var metricsVM: ResourceMetricsViewModel
     @StateObject private var logsVM: LambdaLogsViewModel
-    @StateObject private var ec2VM = EC2ViewModel()
-    @StateObject private var lambdaVM = LambdaViewModel()
-    @StateObject private var s3VM = S3ViewModel()
+    @StateObject var ec2VM = EC2ViewModel()
+    @StateObject var lambdaVM = LambdaViewModel()
+    @StateObject var s3VM = S3ViewModel()
     @StateObject private var s3TransferVM: S3TransferViewModel
 
     @AppStorage("selectedService") private var selectedServiceID = AWSService.ec2.rawValue
-    @State private var selectedService: AWSService = .ec2
-    @State private var s3BrowsingBucket: String?
+    @State var selectedService: AWSService = .ec2
+    @State var s3BrowsingBucket: String?
     @State private var reconfigureTask: Task<Void, Never>?
     @State private var loginTask: Task<Void, Never>?
-    @State private var destination: WorkspaceDestination = .resources
+    @State var destination: WorkspaceDestination = .resources
     @State private var relationshipTopic: SNSTopic?
     @State private var showsResourceRelationships = false
 
@@ -54,6 +60,14 @@ struct ContentView: View {
         _metricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
             try await metrics.load(scope: scope, target: target, range: range)
         }))
+        _rdsMetricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
+            try await metrics.load(scope: scope, target: target, range: range)
+        }))
+        _rdsInsightsVM = StateObject(wrappedValue: RDSInsightsViewModel(provider: profiles.provider))
+        _cloudWatchLogsBrowserVM = StateObject(wrappedValue: CloudWatchLogsBrowserViewModel(provider: profiles.provider))
+        _s3VersionsVM = StateObject(wrappedValue: S3VersionsViewModel(provider: profiles.provider))
+        _codeCommitBrowserVM = StateObject(wrappedValue: CodeCommitBrowserViewModel(provider: profiles.provider))
+        _autoScalingInsightsVM = StateObject(wrappedValue: AutoScalingInsightsViewModel(provider: profiles.provider))
         let logs = AWSLogsService(provider: profiles.provider)
         _logsVM = StateObject(wrappedValue: LambdaLogsViewModel(loader: { query, cursor in
             try await logs.load(query: query, cursor: cursor)
@@ -303,6 +317,7 @@ struct ContentView: View {
             codeCommitVM.reset()
             rdsVM.reset()
             autoScalingVM.reset()
+            resetSubmodules()
             route53VM.reset()
             elbVM.reset()
             securityGroupsVM.reset()
@@ -392,6 +407,7 @@ struct ContentView: View {
         codeCommitVM.configure(scope: scope)
         rdsVM.configure(scope: scope)
         autoScalingVM.configure(scope: scope)
+        cloudWatchLogsBrowserVM.configure(scope: scope)
         loadVisibleMetadataServices()
     }
 
@@ -402,6 +418,7 @@ struct ContentView: View {
         case .codeCommit: codeCommitVM.loadIfNeeded()
         case .rds: rdsVM.loadIfNeeded()
         case .autoScaling: autoScalingVM.loadIfNeeded()
+        case .logs: cloudWatchLogsBrowserVM.loadIfNeeded()
         default: break
         }
     }
@@ -480,12 +497,14 @@ struct ContentView: View {
         case .s3:
             if let bucketName = s3BrowsingBucket {
                 S3ObjectListView(vm: s3VM, transferVM: s3TransferVM,
-                                 bucketName: bucketName, transferContext: currentS3TransferContext)
+                                 bucketName: bucketName, transferContext: currentS3TransferContext, versionsVM: s3VersionsVM)
             } else {
                 S3BucketListView(vm: s3VM)
             }
         case .alarms:
             AlarmListView(vm: alarmsVM)
+        case .logs:
+            CloudWatchLogGroupListView(vm: cloudWatchLogsBrowserVM)
         case .sns:
             SNSTopicListView(vm: snsVM)
         case .codeCommit:
@@ -565,93 +584,13 @@ struct ContentView: View {
         }
     }
 
-    private var currentResource: ResourceFavorite? {
-        guard case .valid(let identity) = profileVM.profileStatus,
-              let profileName = profileVM.selectedProfileID else { return nil }
-        let resource: (id: String, name: String)
-        switch selectedService {
-        case .codeCommit, .rds, .autoScaling: return nil
-        case .ec2:
-            guard let instance = ec2VM.selectedInstance else { return nil }
-            resource = (instance.instanceId, instance.name)
-        case .lambda:
-            guard let function = lambdaVM.selectedFunction else { return nil }
-            resource = (function.functionName, function.functionName)
-        case .s3:
-            guard s3BrowsingBucket == nil, let bucket = s3VM.selectedBucket else { return nil }
-            resource = (bucket.name, bucket.name)
-        case .alarms:
-            guard let alarm = alarmsVM.selectedAlarm else { return nil }
-            resource = (alarm.arn, alarm.name)
-        case .sns:
-            guard let topic = snsVM.selectedTopic else { return nil }
-            resource = (topic.arn, topic.name)
-        case .route53:
-            guard let zone = route53VM.selectedZone, let profile = profileVM.selectedProfile,
-                  route53VM.scope == Route53Scope(profile: profile, identity: identity) else { return nil }
-            resource = (zone.id, zone.name)
-        case .loadBalancers:
-            guard elbVM.scope == currentMonitoringScope, let lb = elbVM.selectedLoadBalancer else { return nil }
-            resource = (lb.arn, lb.name)
-        case .targetGroups:
-            guard elbVM.scope == currentMonitoringScope, let group = elbVM.selectedTargetGroup else { return nil }
-            resource = (group.arn, group.name)
-        case .securityGroups:
-            guard securityGroupsVM.scope == currentMonitoringScope, let group = securityGroupsVM.selectedGroup else { return nil }
-            resource = (group.id, group.name)
-        case .ebsVolumes, .ebsSnapshots:
-            let vm = selectedService == .ebsVolumes ? volumesVM : snapshotsVM
-            guard vm.scope == currentMonitoringScope, let selected = vm.selectedResource else { return nil }
-            resource = (selected.id, selected.name)
-        }
-        let favorite = ResourceFavorite(
-            profileName: profileName, accountID: identity.account,
-            region: selectedService == .route53 ? "global" : profileVM.selectedRegion,
-            service: selectedService, resourceID: resource.id, displayName: resource.name
-        )
-        return favorite.isValid ? favorite : nil
-    }
-
-    private var currentRecentScope: RecentResourceScope? {
-        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
-              case .valid(let identity) = profileVM.profileStatus else { return nil }
-        return RecentResourceScope(profileName: profile.name, accountID: identity.account)
-    }
-
-    private var currentRecentResource: ResourceFavorite? {
-        guard destination == .resources, currentRecentScope != nil,
-              favoriteNavigation.target == nil, relatedNavigation.target == nil, elbNavigation.target == nil else { return nil }
-        return currentResource
-    }
-
-    private func openFavorite(_ favorite: ResourceFavorite) {
-        openSavedResource(favorite, source: .favorite)
-    }
-
-    private func openSavedResource(_ favorite: ResourceFavorite, source: FavoriteNavigation.Source) {
-        closeRelationships()
-        relatedNavigation.cancel()
-        elbNavigation.cancel()
-        profileVM.loadProfiles()
-        guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
-                                       selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
-        if favorite.service == .route53 {
-            route53VM.selectedZone = nil
-        } else {
-            profileVM.selectedRegion = favorite.region
-        }
-        selectedService = favorite.service
-        destination = .resources
-        reconfigureServices()
-    }
-
     private var currentRelationshipScope: SNSScope? {
         guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
               case .valid(let identity) = profileVM.profileStatus else { return nil }
         return SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
     }
 
-    private var currentMonitoringScope: MonitoringScope? {
+    var currentMonitoringScope: MonitoringScope? {
         guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
               case .valid(let identity) = profileVM.profileStatus else { return nil }
         return MonitoringScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
@@ -710,7 +649,7 @@ struct ContentView: View {
         logsVM.reset()
     }
 
-    private func closeRelationships() {
+    func closeRelationships() {
         relationshipTopic = nil
         relationshipsVM.reset()
         showsResourceRelationships = false
@@ -739,18 +678,13 @@ struct ContentView: View {
         destination = .resources
     }
 
-    private func cancelFavoriteIfScopeChanged() {
-        if !favoriteNavigation.matches(profileName: profileVM.selectedProfileID, region: profileVM.selectedRegion) {
-            favoriteNavigation.cancel()
-        }
-    }
-
     private var detailSelectionID: String {
         switch selectedService {
         case .ec2: return "ec2/" + (ec2VM.selectedInstance?.instanceId ?? "")
         case .lambda: return "lambda/" + (lambdaVM.selectedFunction?.functionName ?? "")
         case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
         case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
+        case .logs: return "logs/" + (cloudWatchLogsBrowserVM.selectedGroup?.id ?? "")
         case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
         case .codeCommit: return "codecommit/" + (codeCommitVM.selectedRepository?.id ?? "")
         case .rds: return "rds/" + (rdsVM.selectedDatabase?.id ?? "")
@@ -768,11 +702,13 @@ struct ContentView: View {
     private var detailPane: some View {
         switch selectedService {
         case .codeCommit:
-            CodeCommitRepositoryDetailView(vm: codeCommitVM)
+            CodeCommitRepositoryDetailView(vm: codeCommitVM, browserVM: codeCommitBrowserVM)
         case .rds:
-            RDSDatabaseDetailView(vm: rdsVM)
+            RDSDatabaseDetailView(vm: rdsVM, insightsVM: rdsInsightsVM, metricsVM: rdsMetricsVM)
         case .autoScaling:
-            AutoScalingGroupDetailView(vm: autoScalingVM)
+            AutoScalingGroupDetailView(vm: autoScalingVM, insightsVM: autoScalingInsightsVM, onOpen: openELBResource)
+        case .logs:
+            CloudWatchLogGroupDetailView(vm: cloudWatchLogsBrowserVM)
         case .ec2:
             if let instance = ec2VM.selectedInstance {
                 EC2DetailView(instance: instance, vm: ec2VM,
@@ -896,13 +832,23 @@ struct ContentView: View {
         codeCommitVM.reset()
         rdsVM.reset()
         autoScalingVM.reset()
+        resetSubmodules()
         elbVM.reset()
         securityGroupsVM.reset()
         volumesVM.reset()
         snapshotsVM.reset()
     }
 
-    private func reconfigureServices(forceRefresh: Bool = false) {
+    private func resetSubmodules() {
+        rdsInsightsVM.reset()
+        rdsMetricsVM.reset()
+        cloudWatchLogsBrowserVM.reset()
+        s3VersionsVM.reset()
+        codeCommitBrowserVM.reset()
+        autoScalingInsightsVM.reset()
+    }
+
+    func reconfigureServices(forceRefresh: Bool = false) {
         if forceRefresh {
             costVM.reset()
             healthVM.reset()
@@ -948,7 +894,10 @@ struct ContentView: View {
             configureEBS()
             guard let target else { return }
             switch target.service {
-            case .codeCommit, .rds, .autoScaling: break
+            case .logs: break
+            case .codeCommit: codeCommitVM.refresh(); await codeCommitVM.waitForLoading()
+            case .rds: rdsVM.refresh(); await rdsVM.waitForLoading()
+            case .autoScaling: autoScalingVM.refresh(); await autoScalingVM.waitForLoading()
             case .ec2: await ec2VM.loadInstances(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
             case .lambda: await lambdaVM.loadFunctions(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
             case .s3: await s3VM.loadBuckets()
@@ -969,7 +918,8 @@ struct ContentView: View {
             } else {
                 favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM,
                                            route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
-                                           volumes: volumesVM, snapshots: snapshotsVM)
+                                           volumes: volumesVM, snapshots: snapshotsVM, codeCommit: codeCommitVM,
+                                           rds: rdsVM, autoScaling: autoScalingVM, currentScope: currentMonitoringScope)
             }
         }
     }

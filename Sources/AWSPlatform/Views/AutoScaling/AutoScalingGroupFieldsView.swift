@@ -4,6 +4,7 @@ struct AutoScalingGroupFieldsView: View {
     @Environment(\.locale) private var locale
     let group: ASGGroup
     let scope: MonitoringScope?
+    var onOpen: (ELBResourceReference) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -32,6 +33,11 @@ struct AutoScalingGroupFieldsView: View {
                 .font(.caption).foregroundColor(.secondary)
             if group.members.isEmpty { Text(L10n.text("No group members returned.", locale: locale)).foregroundColor(.secondary) }
             ForEach(group.members) { member in
+                Button(L10n.format("Open EC2 instance %@", member.instanceID, locale: locale)) {
+                    guard let reference = ASGInsightsContext.memberReference(member, group: group, scope: scope) else { return }
+                    onOpen(reference)
+                }
+                .disabled(ASGInsightsContext.memberReference(member, group: group, scope: scope) == nil)
                 DetailFieldRows(items: [("Instance ID", member.instanceID), ("Instance type", value(member.instanceType)),
                     ("Availability Zone", value(member.availabilityZone)), ("Lifecycle state", value(member.lifecycleState)),
                     ("Health status", value(member.healthStatus)), ("Weighted capacity", value(member.weightedCapacity)),

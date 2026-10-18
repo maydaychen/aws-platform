@@ -6,11 +6,13 @@ struct ServiceSidebarView: View {
     @Binding var selectedService: AWSService
     @Binding var destination: WorkspaceDestination
     @AppStorage("sidebar.ec2Expanded") private var ec2Expanded = true
+    @AppStorage("sidebar.cloudWatchExpanded") private var cloudWatchExpanded = true
 
     init(selectedService: Binding<AWSService>, destination: Binding<WorkspaceDestination>, defaults: UserDefaults = .standard) {
         _selectedService = selectedService
         _destination = destination
         _ec2Expanded = AppStorage(wrappedValue: true, "sidebar.ec2Expanded", store: defaults)
+        _cloudWatchExpanded = AppStorage(wrappedValue: true, "sidebar.cloudWatchExpanded", store: defaults)
     }
 
     var body: some View {
@@ -107,6 +109,7 @@ struct ServiceSidebarView: View {
                         if ec2Expanded {
                             ForEach(AWSService.ec2Services) { service in serviceButton(service, child: true) }
                         }
+                        cloudWatchGroup
                         ForEach(AWSService.standaloneServices) { service in serviceButton(service) }
                     }
                 }
@@ -128,9 +131,42 @@ struct ServiceSidebarView: View {
         .background(.bar)
         .onChange(of: selectedService) { service in
             if destination == .resources && service.isEC2Service { ec2Expanded = true }
+            if destination == .resources && service.isCloudWatchService { cloudWatchExpanded = true }
         }
         .onChange(of: destination) { destination in
             if destination == .resources && selectedService.isEC2Service { ec2Expanded = true }
+            if destination == .resources && selectedService.isCloudWatchService { cloudWatchExpanded = true }
+        }
+    }
+
+    private var cloudWatchGroup: some View {
+        VStack(spacing: 2) {
+            Button {
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { cloudWatchExpanded.toggle() }
+            } label: {
+                HStack(spacing: WorkspaceLayout.controlSpacing) {
+                    Image(systemName: cloudWatchExpanded ? "chevron.down" : "chevron.right").font(.caption)
+                    Image(systemName: "chart.bar.xaxis")
+                    VStack(alignment: .leading, spacing: WorkspaceLayout.sidebarCaptionSpacing) {
+                        Text("CloudWatch").fontWeight(.medium)
+                        if !cloudWatchExpanded && destination == .resources && selectedService.isCloudWatchService {
+                            Text(L10n.text(selectedService.sidebarTitle, locale: locale))
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).padding(10).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sidebar.cloudwatch.group")
+            .accessibilityLabel(L10n.text(cloudWatchExpanded ? "Collapse CloudWatch group" : "Expand CloudWatch group", locale: locale))
+            .accessibilityValue(L10n.text(cloudWatchExpanded ? "Expanded" : "Collapsed", locale: locale))
+            if cloudWatchExpanded {
+                ForEach(AWSService.cloudWatchServices) { service in serviceButton(service, child: true) }
+            }
         }
     }
 

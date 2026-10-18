@@ -20,13 +20,13 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **EC2 实例浏览** - 查看实例状态、网络、AMI 和标签；通过详情页「连接」按钮在外部终端打开 SSM 会话
 - **EC2 资源分组** - 可折叠的实例、Auto Scaling 组、EBS 卷、快照、负载均衡、目标组和安全组入口；浏览当前账号的 EBS 卷及自有快照，支持搜索、状态筛选、收藏和最近访问
 - **Lambda 函数浏览** - 查看函数配置和部署包源码
-- **指标与日志** - 手动查询 EC2／Lambda 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
-- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；支持单文件上传／下载、进度与取消
-- **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
+- **指标与日志** - 手动查询 EC2／Lambda／RDS 的 CloudWatch 指标和当前 Lambda 函数日志，支持时间范围、日志过滤与继续加载
+- **S3 存储桶浏览** - 查看 Bucket 安全设置、对象和目录，支持可点击面包屑与按需分页；查看对象历史版本及删除标记；支持单文件上传／下载、进度与取消
+- **CloudWatch** - 可折叠的 CloudWatch 分组包含告警与日志入口，查看当前 Region 的 Metric／Composite Alarm、日志组与日志流，手动逐页查询日志事件
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
-- **CodeCommit 查询** - 搜索当前 Profile／Region 的仓库，查看仓库元数据、克隆地址、分支及最近查询的分支头提交
-- **RDS 查询** - 浏览当前 Profile／Region 的数据库实例与集群，查看引擎／状态、端点、网络、存储、保护、成员及标签
-- **EC2 Auto Scaling 查询** - 搜索当前 Profile／Region 的实例组，查看容量单位、成员、启动摘要、扩缩容策略摘要及近期活动
+- **CodeCommit 查询** - 查看仓库、分支及分支头提交；手动浏览固定提交 SHA 的文件、变更路径及前后内容预览、合并请求
+- **RDS 查询** - 浏览数据库实例、集群、元数据及成员；手动查询适用指标、近 14 天数据库事件和自有快照
+- **EC2 Auto Scaling 查询** - 查看实例组、容量、成员、策略及活动；手动查询引用的启动模板版本和实例刷新记录，支持成员跳转 EC2
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
 - **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
@@ -36,12 +36,14 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **Profile 搜索** - 在所选 session 内按 Profile 名称、账号 ID 和角色查找
 - **SSO 登录** - 应用内点击 `SSO Login`，由浏览器完成 session 授权；也支持复用终端登录缓存
 - **费用面板** - 按当前 Profile 账号查看本月／上月费用、日趋势与服务明细，支持独立日期／费用 Region 筛选、内存缓存和手动刷新
-- **资源收藏** - 本地保存 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
+- **资源收藏** - 本地保存 EC2 实例、Auto Scaling 组、EBS 卷／快照、Lambda 函数、S3 Bucket、CloudWatch Alarm、SNS Topic、CodeCommit 仓库、RDS 数据库、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组，在当前 Profile 内重新打开，区域型资源恢复保存的 Region
 - **最近访问** - 查看并重新打开当前 Profile／账号最近浏览的资源，支持本地历史、搜索和按范围删除
 - **界面语言**：跟随系统，或选择简体中文／English；即时切换，不重新加载 AWS 数据
 - **原生桌面布局** - 顶部 Session／Profile／区域栏填满窗口宽度，Profile 吸收剩余空间，空间不足时区域组自动换行；区域并列显示地点与代码，工作区／服务侧栏统一滚动，EC2 概览字段对齐，界面跟随系统深浅色
 
 应用不提供资源创建、修改、删除或 Lambda 调用能力。
+
+只读查询仍可能产生 AWS 费用。[AWS 查询费用说明](docs/aws-query-costs.md) 区分 CloudWatch 指标、S3 LIST、CodeCommit 访问，以及普通日志读取与 Logs Insights 的计费边界。
 
 以下是使用模拟资源渲染的应用组件示例：
 
@@ -168,23 +170,29 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 
 手动选择并验证 Profile、选择 Region 后，打开侧栏的 CodeCommit。仓库列表完整读取分页，支持按名称／ID 本地搜索、刷新和取消。选择仓库后，元数据和分支独立加载，某一部分权限不足时仍可查看另一部分。只有元数据返回默认分支且该分支存在于列表中时才自动选中；空仓库不会触发提交查询。
 
-详情包含仓库 ID、ARN、账号、描述、默认分支、克隆地址、创建／修改时间，以及所选分支最近查询的头提交 SHA、说明、作者、提交者、原始 Git 时间戳和父提交 SHA；字段支持选择复制。手动刷新分支头可检查更新。切换 Profile、Region、仓库或分支时丢弃旧结果。CodeCommit 保持只读，克隆地址仅供复制，不执行 Git clone／push 或编辑仓库；该服务暂不提供收藏和最近访问入口。
+概览包含仓库元数据、克隆地址，以及所选分支最近查询的头提交 SHA、说明、作者、提交者、原始 Git 时间戳和父提交 SHA。手动刷新分支头可检查更新。仓库支持收藏和最近访问，使用已验证 Profile／账号／Region 内的仓库 UUID 定位。
 
-需要 `codecommit:ListRepositories` 对 `"*"` 的权限，以及允许仓库 ARN 上的 `codecommit:GetRepository`、`codecommit:ListBranches`、`codecommit:GetBranch`、`codecommit:GetCommit`；加密仓库还取决于相应 KMS Key 的权限与状态。参考 [AWS CodeCommit 权限表](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html) 。
+在「源码文件」输入完整的 40 字符提交 SHA 和仓库目录路径，再加载目录并选择文件。预览绑定固定提交，上限为 512 KiB 和 5,000 行；二进制或非 UTF-8 内容不预览。「提交差异」手动比较固定的前后提交 SHA，列出新增、删除或修改的路径，并分别预览变更前后的内容，不提供逐行 diff；变更前 SHA 留空时列出变更后提交中的全部文件。「合并请求」加载未关闭、已关闭或全部请求 ID，点击 ID 查看元数据、描述、源／目标引用及提交。仓库内容不执行，也不保存为本地文件。切换范围或仓库时使旧内容请求失效；各项查询手动触发，不轮询。
+
+需要 `codecommit:ListRepositories` 对 `"*"` 的权限，以及允许仓库上的 `codecommit:GetRepository`、`codecommit:ListBranches`、`codecommit:GetBranch`、`codecommit:GetCommit`、`codecommit:GetFolder`、`codecommit:GetFile`、`codecommit:GetDifferences`、`codecommit:ListPullRequests` 和 `codecommit:GetPullRequest`；加密仓库还取决于相应 KMS Key 的权限与状态。CodeCommit 保持只读，不执行 clone／push、文件编辑或合并请求创建／合并。访问仓库可能产生活跃用户、请求或 KMS 费用，见 [AWS 查询费用说明](docs/aws-query-costs.md) 与 [AWS CodeCommit 权限表](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html) 。
 
 ### RDS 查询
 
-手动选择并验证 Profile、选择 Region 后，打开侧栏的 RDS。数据库实例和集群独立完整分页加载，一类查询失败时仍可查看另一类结果；可按标识符、ARN、引擎和端点本地搜索，或按资源类型筛选。选择数据库后查看返回的元数据；刷新重新加载两类列表，取消保留已经完成的结果。切换范围时清空旧数据并丢弃迟到响应，暂不提供 RDS 收藏和最近访问入口。
+手动选择并验证 Profile、选择 Region 后，打开侧栏的 RDS。数据库实例和集群独立完整分页加载，一类查询失败时仍可查看另一类结果；可按标识符、ARN、引擎和端点本地搜索，或按资源类型筛选。选择数据库后查看返回的元数据；刷新重新加载两类列表，取消保留已经完成的结果。切换范围时清空旧数据并丢弃迟到响应。实例和集群支持按 ARN 收藏和最近访问。
 
-只使用 `rds:DescribeDBInstances` 和 `rds:DescribeDBClusters` 及其返回的标签，排除共享集群、Neptune 和 DocumentDB；不连接数据库、执行 SQL、查询指标或修改资源。详情包含接口返回的引擎／版本／状态、实例规格、端点／端口、可用区、子网组／安全组、存储／加密、备份保留、删除保护、集群成员及 Serverless v2 容量。实例响应可含 VPC／子网 ID；集群只返回子网组名称，不包含 VPC／子网明细。缺失字段保持未知，不能仅根据 `engineMode=provisioned` 排除 Serverless v2。参考 [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html) 、[DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html) 和 [RDS IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html) 。
+概览使用 `rds:DescribeDBInstances` 和 `rds:DescribeDBClusters` 及其返回的标签，排除共享集群、Neptune 和 DocumentDB。详情包含接口返回的引擎／版本／状态、实例规格、端点／端口、可用区、子网组／安全组、存储／加密、备份保留、删除保护、集群成员及 Serverless v2 容量。实例响应可含 VPC／子网 ID；集群只返回子网组名称，不包含 VPC／子网明细。缺失字段保持未知，不能仅根据 `engineMode=provisioned` 排除 Serverless v2。
+
+详情页签仅在手动操作后查询。「指标」读取实例 CPU 使用率、连接数、可用内存、读写延迟，以及非 Aurora 实例的剩余存储空间。Aurora 集群显示存储卷已用字节数及读写 I/O 次数；CPU、内存和连接数需要查看成员实例。其他集群（包括 Multi-AZ 数据库集群）引导查看成员实例指标。「事件」读取所选实例或集群近 14 天的记录。「快照」列出当前账号拥有、属于所选数据库的自动／手动快照，排除共享／公共快照；查看列表不会创建备份，也不代表已验证恢复可用性。
+
+这些页签另需 `cloudwatch:GetMetricData`、`rds:DescribeEvents`，以及适用的 `rds:DescribeDBSnapshots` 或 `rds:DescribeDBClusterSnapshots`。指标查询可能产生费用，见 [AWS 查询费用说明](docs/aws-query-costs.md) 。应用不连接数据库、执行 SQL、启用监控／日志导出、创建／恢复快照或修改 RDS 资源。参考 [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html) 、[DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html) 和 [RDS IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html) 。
 
 ### EC2 Auto Scaling 查询
 
 手动选择并验证 Profile、选择 Region 后，打开「EC2 → Auto Scaling」。组列表完整分页，支持本地搜索、刷新和取消，不自动选择实例组。详情包含容量数值与类型、普通成员数、可用区／子网、启动配置／模板及混合实例摘要、健康检查、暂停进程、负载均衡关联、成员和标签。容量可能按权重、vCPU 或内存单位计量，不直接视为实例台数；缺失字段保持未知，启动模板保留 `$Latest` 等别名，组操作状态不解释为健康状态。
 
-选择组后独立加载扩缩容策略摘要和近六周活动，详情刷新按钮只重新读取这两部分，组元数据通过列表刷新重读；一类失败不影响另一类结果。切换 Profile、身份、Region 或实例组后丢弃旧响应。不查询 Warm Pool 成员、启动模板内容、指标或完整高级指标／预测策略配置，不修改容量或执行扩缩容动作；暂不提供该服务的收藏和最近访问入口。
+选择组后独立加载扩缩容策略摘要和近六周活动，详情刷新按钮只重新读取这两部分，组元数据通过列表刷新重读；一类失败不影响另一类结果。可手动加载组内引用的启动模板版本，包括混合实例／override 引用，保留 `$Latest`、`$Default` 等别名的原意；显示接口返回的配置字段，不解析 SSM AMI 别名，也不展示 UserData。另可手动加载近六周的实例刷新记录，未知开始时间的记录仍保留，不轮询，也不发起或取消实例刷新。成员链接在同一已验证范围内打开精确的 EC2 实例。组支持按 ARN 收藏和最近访问。
 
-需要 `autoscaling:DescribeAutoScalingGroups`、`autoscaling:DescribePolicies` 和 `autoscaling:DescribeScalingActivities` 对 `"*"` 的权限。参考 [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html) 、[DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html) 、[DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html) 和 [Auto Scaling IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html) 。
+切换 Profile、身份、Region 或实例组后丢弃旧响应。不查询 Warm Pool 成员、ASG 指标或完整高级指标／预测策略配置，不修改容量或执行扩缩容动作。需要 `autoscaling:DescribeAutoScalingGroups`、`autoscaling:DescribePolicies` 和 `autoscaling:DescribeScalingActivities` 对 `"*"` 的权限；新增详情另需 `ec2:DescribeLaunchTemplateVersions` 和 `autoscaling:DescribeInstanceRefreshes`，成员跳转使用既有 `ec2:DescribeInstances` 读取权限。参考 [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html) 、[DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html) 、[DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html) 和 [Auto Scaling IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html) 。
 
 ### S3 对象浏览
 
@@ -193,6 +201,12 @@ Bucket 列表完整读取当前账号的所有分页，支持已提高 Bucket �
 打开 Bucket 时只加载对象和文件夹的第一页，每次请求最多返回 1,000 项；点击「加载更多」才请求下一页，不再自动遍历整个目录。底部显示已加载数量，搜索只筛选当前目录已加载的项目，不查询尚未加载的页面或子目录。当前页没有可显示项目时，仍可能存在后续页。
 
 点击路径栏的「根目录」或任意祖先目录即可返回，长路径支持横向滚动；前缀中的斜杠、空格、Unicode 与百分号按原样保留。续页失败保留已有列表，可点击「重试」；权限拒绝或 Bucket 不存在时清空旧行。Bucket 浏览、详情和位置查询均限定 Bucket 属于当前已验证账号。刷新以及上传成功后的刷新都会从第一页重新开始，新上传对象可能位于后续页。切换目录、Bucket 或 Profile 时清除旧分页状态并丢弃迟到结果。浏览使用 `s3:ListBucket` 和现有 Bucket 区域查询，LIST 请求可能产生 S3 请求费用。参考 [ListObjectsV2](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html) 。
+
+### S3 对象历史版本
+
+选择对象后，点击工具栏或右键菜单中的「对象历史版本」，再点击「加载版本」。弹框读取此完整 Key 的版本及删除标记，每次手动请求最多 100 项；点击「加载更多」继续，搜索仅覆盖已加载的版本 ID，未读完时明确标记部分列表。版本 ID、最新标记、修改时间、大小、ETag 和存储类别未返回时保持未知。此入口仅查看版本，不下载历史版本、恢复、删除或修改版本控制；不支持目录 Bucket。
+
+查询绑定已验证 Profile／账号、Bucket 实际 Region 和预期所属账号。需要 `s3:ListBucketVersions`，实际区域未知时另需 `s3:GetBucketLocation`。范围、Bucket、前缀或所选对象变化时使旧分页失效。每次 `ListObjectVersions` 分页可能产生 S3 LIST 请求费用，已有版本的存储另行计费，见 [AWS 查询费用说明](docs/aws-query-costs.md) 。
 
 ### S3 文件传输
 
@@ -212,6 +226,8 @@ Bucket 列表完整读取当前账号的所有分页，支持已提高 Bucket �
 
 在资源详情顶部点击 `Add Favorite` 收藏，再次点击 `Remove Favorite` 取消。侧栏 `Favorites`（快捷键 `Cmd+Shift+F`）集中展示收藏，可按资源名称、ID、服务、Profile、账号或 Region 搜索；点击条目打开资源，点击星标或使用右键菜单移除收藏。
 
+支持 EC2 实例、Auto Scaling 组、EBS 卷与快照、Lambda 函数、S3 Bucket、CloudWatch 告警、SNS Topic、CodeCommit 仓库、RDS 实例／集群、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组。RDS 与 Auto Scaling 使用 ARN，CodeCommit 使用仓库 UUID 定位。日志组、对象版本、仓库文件／提交／合并请求、RDS 快照不单独保存为收藏目标。
+
 先手动选择 Profile，收藏列表才会显示。打开收藏时，应用要求当前 Profile 与收藏一致，再恢复保存的 Region、校验账号并定位资源；不会通过收藏自动选择其他 Profile。Profile 不一致或缺失、账号不匹配、资源已删除或访问失败时会显示提示，收藏仍会保留。S3 收藏保存的是收藏时的浏览 Region，Bucket 实际位置由现有加载流程另行解析。
 
 收藏通过本机 UserDefaults 保存，重启后恢复，同一应用进程的多个窗口共享收藏列表。保存内容仅包含 Profile 名称、账号 ID、Region、服务、资源 ID 和显示名称；不保存凭据、资源详情或环境变量，不进行云端同步。相同资源在不同 Profile、账号或浏览 Region 下分别保存。
@@ -220,7 +236,7 @@ Route 53 Hosted Zone 使用固定的 `global` 范围和规范化 Zone ID；重�
 
 ### 最近访问
 
-选择并验证 Profile 后，打开侧栏 `Recent`（`Cmd+Shift+R`），按最近访问时间查看该 Profile 当前账号在各浏览 Region 的资源历史。每个 Profile／账号最多保留 50 条 EC2 实例、Lambda 函数、S3 Bucket、CloudWatch 告警、SNS Topic、Route 53 Hosted Zone、负载均衡器、Target Group 和安全组记录，按服务、资源 ID 和保存的 Region（Route 53 为 `global`）去重；再次访问会置顶并更新名称、访问时间。只有实际显示详情的资源才记入历史，包括服务页当前可见的默认首项；后台加载但未展示的选择、S3 对象、单条 DNS 记录、监听器和规则不记录。
+选择并验证 Profile 后，打开侧栏 `Recent`（`Cmd+Shift+R`），按最近访问时间查看该 Profile 当前账号在各浏览 Region 的资源历史。每个 Profile／账号最多保留 50 条记录，资源类型与收藏相同，包括 EBS 卷／快照、CodeCommit 仓库、RDS 实例／集群和 Auto Scaling 组；按服务、资源 ID 和保存的 Region（Route 53 为 `global`）去重。再次访问会置顶并更新名称、访问时间。只有实际显示详情的资源才记入历史，包括服务页当前可见的默认首项；后台加载但未展示的选择、S3 对象、日志组、单条 DNS 记录、监听器和规则不记录。
 
 支持按名称、资源 ID、服务、Profile、账号或 Region 搜索。点击条目沿用收藏导航，重新核验账号并定位资源；区域型资源恢复保存的 Region，Route 53 保留当前资源 Region。不自动选择其他 Profile，也不增加收藏。资源不存在、账号变化或权限不足会提示并保留记录；可删除单条，或确认 `Clear history` 后仅清空当前 Profile／账号的历史。
 
@@ -336,7 +352,7 @@ AWS Health API 要求账号具备符合条件的 AWS Support 计划；不满足�
 
 ### CloudWatch Alarms
 
-手动选择 Profile 和 Region 后，打开侧栏 `CloudWatch` 查看当前账号、当前区域的 Metric Alarm 与 Composite Alarm。首次进入加载列表，支持名称／ARN／指标搜索、状态和类型筛选、手动刷新与取消。返回同一已加载页面不会重复请求，不进行定时轮询；未选 Profile 不查询，切换 Profile、Region 或 session 会清空旧列表和详情。
+手动选择 Profile 和 Region 后，打开侧栏「CloudWatch → 告警」查看当前账号、当前区域的 Metric Alarm 与 Composite Alarm。首次进入加载列表，支持名称／ARN／指标搜索、状态和类型筛选、手动刷新与取消。返回同一已加载页面不会重复请求，不进行定时轮询；未选 Profile 不查询，切换 Profile、Region 或 session 会清空旧列表和详情。
 
 列表不会自动选中第一个告警。选择告警后可查看：
 
@@ -349,11 +365,19 @@ AWS Health API 要求账号具备符合条件的 AWS Support 计划；不满足�
 
 角色需具备 `cloudwatch:DescribeAlarms`，历史与标签分别需要 `cloudwatch:DescribeAlarmHistory`、`cloudwatch:ListTagsForResource`。为获取 Composite Alarm，前两个权限必须允许 `Resource: "*"`，不能只限定单个告警 ARN。可见范围仍由当前角色权限决定。详见 [DescribeAlarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html) 、[DescribeAlarmHistory](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarmHistory.html) 和 [ListTagsForResource](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListTagsForResource.html) 。
 
-告警页只读取 Metric／Composite Alarm 的配置和历史，不支持 Log Alarm；指标曲线位于 EC2／Lambda 详情的 `Metrics` 页。应用不创建、删除、启停告警或改变告警状态，也不向 SNS 发布消息。
+告警页只读取 Metric／Composite Alarm 的配置和历史，不支持 Log Alarm；指标曲线位于 EC2／Lambda 及适用的 RDS 详情 `Metrics` 页。应用不创建、删除、启停告警或改变告警状态，也不向 SNS 发布消息。
 
 以下为模拟告警数据的组件示例：
 
 ![CloudWatch 告警](docs/ui-alarms-light.png)
+
+### CloudWatch 日志
+
+打开「CloudWatch → 日志」，浏览所选 Profile／账号／Region 的日志组，不包含 linked account 日志组。选择日志组后读取日志流及可用元数据，包括保留时间、存储字节数、日志类别和 KMS Key。选择全部或单个日志流、最近 1／6／24 小时，按需输入 AWS filter pattern，再点击「搜索」。使用普通 `FilterLogEvents`，不调用 Logs Insights 或 Live Tail，保留 AWS 数据遮罩。
+
+每次手动请求最多 500 条事件，点击「加载更多」继续；未读完时标记不完整，已加载事件按时间倒序展示。最多展示 5,000 条事件或 4 MiB 的 UTF-8 正文，单条消息预览最多 2,000 个字符；达到上限时缩小时间范围或增加过滤条件。更改日志流／时间范围／过滤条件会清空旧搜索，切换范围或日志组使旧请求失效。结果只留在内存，不自动搜索或轮询。
+
+需要 `logs:DescribeLogGroups`、`logs:DescribeLogStreams` 和 `logs:FilterLogEvents`。此入口不创建日志组、启用日志导出或修改保留时间；既有日志采集与存储另行计费，普通读取的计费边界见 [AWS 查询费用说明](docs/aws-query-costs.md) 。
 
 ### SNS Topics
 
@@ -386,9 +410,9 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 
 ![SNS 配置调用链，模拟数据与默认收起的资源节点](docs/ui-sns-relationships-light.png)
 
-### EC2／Lambda 指标与 Lambda 日志
+### 资源指标与 Lambda 日志
 
-在资源详情中打开 `Metrics`，选择最近 1／6／24 小时，再点击 `Load metrics`。每次按 5 分钟聚合，一次批量读取四项指标；窗口截至最近一个完整的 5 分钟边界，所有时间显示为 UTC。`Refresh` 手动重新读取，不进行轮询。空样本保留为空，缺失时段断开曲线，部分数据或权限失败分别标注。
+在 EC2、Lambda 或适用的 RDS 详情中打开 `Metrics`，选择最近 1／6／24 小时，再点击 `Load metrics`。每次按 5 分钟聚合，批量读取适用指标；窗口截至最近一个完整的 5 分钟边界，所有时间显示为 UTC。`Refresh` 手动重新读取，不进行轮询。空样本保留为空，缺失时段断开曲线，部分数据或权限失败分别标注。
 
 | 资源 | 指标 | 聚合与单位 |
 | --- | --- | --- |
@@ -397,6 +421,11 @@ Endpoint 默认隐藏，手动显示后可复制，切换 Topic 后重新隐藏�
 | EC2 | StatusCheckFailed | Maximum，状态检查失败值 |
 | Lambda | Invocations／Errors／Throttles | Sum，每 5 分钟的次数 |
 | Lambda | Duration | Average，毫秒 |
+| RDS 实例 | CPUUtilization／DatabaseConnections | Average，百分比／连接数 |
+| RDS 实例 | FreeableMemory／ReadLatency／WriteLatency | Average，字节／秒／秒 |
+| 非 Aurora 的 RDS 实例 | FreeStorageSpace | Average，字节 |
+| Aurora 集群 | VolumeBytesUsed | Average，字节 |
+| Aurora 集群 | VolumeReadIOPs／VolumeWriteIOPs | Sum，每 5 分钟的次数 |
 
 Lambda 指标使用函数名维度，包含该函数的版本和别名。指标需要 `cloudwatch:GetMetricData`；缺失数据不推断为零。参考 [EC2 指标](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/viewing_metrics_with_cloudwatch.html) 、[Lambda 指标](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics-types.html) 和 [GetMetricData](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html) 。
 

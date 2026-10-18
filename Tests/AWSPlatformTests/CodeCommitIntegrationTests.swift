@@ -71,7 +71,7 @@ final class CodeCommitIntegrationTests: XCTestCase {
         XCTAssertEqual(AWSService.codeCommit.sidebarTitle, "CodeCommit")
     }
 
-    func testSavedCodeCommitNavigationFinishesWithUnsupportedErrorForFavoritesAndRecents() {
+    func testSavedCodeCommitNavigationWithoutResourceContextFailsForFavoritesAndRecents() {
         let selected = profile()
         let resource = ResourceFavorite(profileName: selected.name, accountID: "111122223333", region: "eu-west-1",
                                         service: .codeCommit, resourceID: "example", displayName: "example")
@@ -88,7 +88,7 @@ final class CodeCommitIntegrationTests: XCTestCase {
             XCTAssertNotNil(navigation.target)
             navigation.resolve(ec2: ec2, lambda: lambda, s3: s3, alarms: alarms, sns: sns)
             XCTAssertNil(navigation.target)
-            XCTAssertEqual(navigation.error, "Unable to open example: Saved CodeCommit navigation is not available. Open CodeCommit and select a repository. The \(source.noun) is still saved.")
+            XCTAssertEqual(navigation.error, "Unable to open example: The saved resource list is not ready. Refresh the selected profile and try again. The \(source.noun) is still saved.")
             XCTAssertNil(ec2.selectedInstance)
             XCTAssertNil(lambda.selectedFunction)
             XCTAssertNil(s3.selectedBucket)

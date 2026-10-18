@@ -90,7 +90,7 @@ final class AutoScalingIntegrationTests: XCTestCase {
         XCTAssertFalse(AWSService.standaloneServices.contains(.autoScaling))
         XCTAssertEqual(AWSService.autoScaling.sidebarTitle, "Auto Scaling")
         XCTAssertEqual(Set(AWSService.allCases.map(\.id)).count, AWSService.allCases.count)
-        let sidebar = AWSService.ec2Services + AWSService.standaloneServices
+        let sidebar = AWSService.ec2Services + AWSService.cloudWatchServices + AWSService.standaloneServices
         XCTAssertEqual(Set(sidebar), Set(AWSService.allCases))
         XCTAssertEqual(sidebar.count, AWSService.allCases.count)
     }
@@ -144,7 +144,7 @@ final class AutoScalingIntegrationTests: XCTestCase {
             navigation.resolve(ec2: ec2, lambda: lambda, s3: s3, alarms: alarms, sns: sns, route53: route53,
                                elb: elb, securityGroups: securityGroups, volumes: volumes, snapshots: snapshots)
             XCTAssertNil(navigation.target)
-            XCTAssertEqual(navigation.error, "Unable to open example: Saved Auto Scaling navigation is not available. Open Auto Scaling and select a group. The \(source.noun) is still saved.")
+            XCTAssertEqual(navigation.error, "Unable to open example: The saved resource list is not ready. Refresh the selected profile and try again. The \(source.noun) is still saved.")
             XCTAssertNil(ec2.selectedInstance)
             XCTAssertNil(lambda.selectedFunction)
             XCTAssertNil(s3.selectedBucket)

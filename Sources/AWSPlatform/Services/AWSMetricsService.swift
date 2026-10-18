@@ -37,7 +37,7 @@ struct AWSMetricsService: Sendable {
             if let pageLoader {
                 loader = pageLoader
             } else if let provider {
-                let client = try await provider.cloudWatchClient(profile: scope.profile, paths: scope.paths, region: scope.region)
+                let client = try await provider.cloudWatchClient(scope: scope)
                 loader = { try await client.getMetricData($0) }
             } else {
                 throw ResourceMetricsError.invalidContext
@@ -137,6 +137,33 @@ struct AWSMetricsService: Sendable {
                       dimension: "FunctionName", statistic: "Sum", unit: .count),
                 .init(id: "duration", title: "Average duration", namespace: "AWS/Lambda", metric: "Duration",
                       dimension: "FunctionName", statistic: "Average", unit: .milliseconds)
+            ]
+        case .rdsInstance:
+            var values: [Definition] = [
+                .init(id: "cpu", title: "CPU utilization", namespace: "AWS/RDS", metric: "CPUUtilization",
+                      dimension: "DBInstanceIdentifier", statistic: "Average", unit: .percent),
+                .init(id: "connections", title: "Database connections", namespace: "AWS/RDS", metric: "DatabaseConnections",
+                      dimension: "DBInstanceIdentifier", statistic: "Average", unit: .count),
+                .init(id: "freeable_memory", title: "Freeable memory", namespace: "AWS/RDS", metric: "FreeableMemory",
+                      dimension: "DBInstanceIdentifier", statistic: "Average", unit: .bytes),
+                .init(id: "read_latency", title: "Read latency", namespace: "AWS/RDS", metric: "ReadLatency",
+                      dimension: "DBInstanceIdentifier", statistic: "Average", unit: .seconds),
+                .init(id: "write_latency", title: "Write latency", namespace: "AWS/RDS", metric: "WriteLatency",
+                      dimension: "DBInstanceIdentifier", statistic: "Average", unit: .seconds)
+            ]
+            if !target.isAurora {
+                values.append(.init(id: "free_storage", title: "Free storage space", namespace: "AWS/RDS", metric: "FreeStorageSpace",
+                                    dimension: "DBInstanceIdentifier", statistic: "Average", unit: .bytes))
+            }
+            return values
+        case .rdsCluster:
+            return [
+                .init(id: "volume_bytes", title: "Aurora volume bytes used", namespace: "AWS/RDS", metric: "VolumeBytesUsed",
+                      dimension: "DBClusterIdentifier", statistic: "Average", unit: .bytes),
+                .init(id: "volume_read_iops", title: "Aurora volume read I/O operations", namespace: "AWS/RDS", metric: "VolumeReadIOPs",
+                      dimension: "DBClusterIdentifier", statistic: "Sum", unit: .count),
+                .init(id: "volume_write_iops", title: "Aurora volume write I/O operations", namespace: "AWS/RDS", metric: "VolumeWriteIOPs",
+                      dimension: "DBClusterIdentifier", statistic: "Sum", unit: .count)
             ]
         }
     }

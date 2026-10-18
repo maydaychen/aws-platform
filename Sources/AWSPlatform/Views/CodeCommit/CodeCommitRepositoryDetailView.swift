@@ -3,25 +3,49 @@ import SwiftUI
 struct CodeCommitRepositoryDetailView: View {
     @Environment(\.locale) private var locale
     @ObservedObject var vm: CodeCommitViewModel
+    var browserVM: CodeCommitBrowserViewModel? = nil
+    @State private var section = "Overview"
 
     var body: some View {
-        if let repository = vm.selectedRepository {
-            VStack(spacing: 0) {
-                header(repository)
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        metadata
-                        branches
+        VStack(spacing: 0) {
+            if let repository = vm.selectedRepository {
+                VStack(spacing: 0) {
+                    header(repository)
+                    if browserVM != nil {
+                        Picker(L10n.text("Repository section", locale: locale), selection: $section) {
+                            ForEach(["Overview", "Source files", "Commit differences", "Pull requests"], id: \.self) {
+                                Text(L10n.text($0, locale: locale)).tag($0)
+                            }
+                        }.pickerStyle(.segmented).padding(.horizontal, 16).padding(.bottom, 8)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
+                    Divider()
+                    if section != "Overview", let browserVM {
+                        CodeCommitBrowserView(vm: browserVM, section: section)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                metadata
+                                branches
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                        }
+                        .id(repository.id)
+                    }
                 }
-                .id(repository.id)
+            } else {
+                EmptyStateView(text: "Select a CodeCommit repository", icon: "chevron.left.forwardslash.chevron.right")
             }
-        } else {
-            EmptyStateView(text: "Select a CodeCommit repository", icon: "chevron.left.forwardslash.chevron.right")
         }
+        .onAppear(perform: configureBrowser)
+        .onChange(of: vm.scope) { _ in configureBrowser() }
+        .onChange(of: vm.selectedRepository) { _ in section = "Overview"; configureBrowser() }
+        .onChange(of: vm.commit) { _ in configureBrowser() }
+        .onDisappear { browserVM?.reset() }
+    }
+
+    private func configureBrowser() {
+        browserVM?.configure(scope: vm.scope, repository: vm.selectedRepository, commit: vm.commit)
     }
 
     private func header(_ repository: CodeCommitRepository) -> some View {

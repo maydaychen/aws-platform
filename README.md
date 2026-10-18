@@ -20,13 +20,13 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **EC2 instances** - View instance state, networking, AMIs, and tags; open an SSM session in an external terminal with Connect
 - **EC2 resource group** - Expand or collapse instances, Auto Scaling groups, EBS volumes, snapshots, load balancers, Target Groups, and security groups; browse current-account EBS volumes and owned snapshots with search, state filters, favorites, and recent visits
 - **Lambda functions** - View function configuration and source code from deployment packages
-- **Metrics and logs** - Manually query CloudWatch metrics for EC2 and Lambda, and logs for the current Lambda function, with time ranges, log filters, and pagination
-- **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; upload or download individual files with progress and cancellation
-- **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
+- **Metrics and logs** - Manually query CloudWatch metrics for EC2, Lambda, and RDS, and logs for the current Lambda function, with time ranges, log filters, and pagination
+- **S3 buckets** - Browse bucket security settings, objects, and folders with clickable breadcrumbs and on-demand pagination; inspect an object's versions and delete markers; upload or download individual files with progress and cancellation
+- **CloudWatch** - Browse Alarms and Logs in an expandable sidebar group, with Metric/Composite Alarms, log groups and streams, and manually paginated log events in the current Region
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
-- **CodeCommit** - Search repositories in the selected Profile and Region; inspect repository metadata, clone URLs, branches, and the last queried branch-head commit
-- **RDS** - Browse DB instances and clusters in the selected Profile and Region, with engine/status, endpoints, network, storage, protection, members, and tags
-- **EC2 Auto Scaling** - Search groups in the selected Profile and Region; inspect capacity units, members, launch settings, scaling policy summaries, and recent scaling activities
+- **CodeCommit** - Inspect repositories, branches, and branch-head commits; manually browse files at a fixed commit SHA, changed paths with before/after previews, and pull requests
+- **RDS** - Browse DB instances and clusters, metadata, and members; manually load applicable metrics, the last 14 days of database events, and owned snapshots
+- **EC2 Auto Scaling** - Inspect groups, capacity, members, policies, and scaling activities; manually read referenced launch template versions and instance refresh history, and open member EC2 instances
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
@@ -36,12 +36,14 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **Searchable Profiles** - Search Profile names, account IDs, and roles within the selected session
 - **SSO login** - Click `SSO Login` in the app to authorize a session through your browser, or reuse a login cached by the CLI
 - **Cost dashboard** - View current-month and previous-month costs, daily trends, and service breakdowns for the current Profile's account, with independent date and billing Region filters, in-memory caching, and manual refresh
-- **Resource favorites** - Save EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
+- **Resource favorites** - Save EC2 instances, Auto Scaling groups, EBS volumes/snapshots, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, CodeCommit repositories, RDS databases, Route 53 Hosted Zones, load balancers, Target Groups, and security groups locally; reopen them within the current Profile, restoring the saved Region for regional resources
 - **Recent resources** - Reopen recently viewed resources in the current Profile and account, with local history, search, and scoped deletion
 - **Interface language** - Follow the system language, or choose Simplified Chinese or English; switch instantly without reloading AWS data
 - **Native desktop layout** - A full-width Session/Profile/Region bar gives extra space to Profile and moves Region to a second row when space is limited; Region names include codes, with a shared scrolling workspace/service sidebar, aligned EC2 overview fields, and system-aware light and dark themes
 
 The app does not create, modify, or delete resources, or invoke Lambda functions.
+
+Read queries can still incur AWS charges. See [AWS query costs](docs/aws-query-costs.md) for CloudWatch metrics, S3 LIST requests, CodeCommit access, and the distinction between ordinary log reads and Logs Insights.
 
 The following component previews use mock resources:
 
@@ -158,7 +160,7 @@ The script resolves credentials once through AWS CLI using the selected Profile 
 
 ### EC2 Navigation, EBS Volumes, and Snapshots
 
-The EC2 sidebar group contains `Instances`, `EBS Volumes`, `Snapshots`, `Load balancers`, `Target groups`, and `Security groups`. Its expansion preference is saved locally. Collapsing the group keeps the current page and shows its name beneath EC2; opening a saved or related resource reveals its child entry. Existing EC2 favorites and startup service preferences retain their original identifiers.
+The EC2 sidebar group contains `Instances`, `Auto Scaling`, `EBS Volumes`, `Snapshots`, `Load balancers`, `Target groups`, and `Security groups`. Its expansion preference is saved locally. Collapsing the group keeps the current page and shows its name beneath EC2; opening a saved or related resource reveals its child entry. Existing EC2 favorites and startup service preferences retain their original identifiers.
 
 After selecting and verifying a Profile, EBS pages query that Profile's current Region. Volumes include attached and unattached volumes; details show size, type, state, encryption, KMS key, source snapshot, attachments, and tags when returned. Snapshot requests always use `OwnerIds=self`; the page lists only snapshots owned by the current account, including archived snapshots, and shows source volume, progress, storage tier, description, and tags. Shared and public snapshots are excluded. Both lists use complete pagination, local search and state filters, manual refresh/cancel, favorites, and recent visits. Scope changes clear old data; a failed refresh labels a retained list as potentially out of date.
 
@@ -168,23 +170,29 @@ Required read permissions are `ec2:DescribeVolumes` and `ec2:DescribeSnapshots`.
 
 Select and verify a Profile, choose a Region, then open **CodeCommit** in the sidebar. The repository list loads all pages and supports local name/ID search, refresh, and cancellation. Select a repository to read its metadata and branches independently; a permission failure in one section leaves the other available. The default branch is selected only when returned by repository metadata and present in the branch list. Empty repositories do not trigger commit queries.
 
-Details include repository ID, ARN, account, description, default branch, clone URLs, creation/modification dates, and the selected branch's last queried head commit with SHA, message, author, committer, raw Git timestamps, and parent SHAs. Text fields can be selected and copied. Refresh the branch head to check for changes. Switching Profile, Region, repository, or branch invalidates old results. CodeCommit is read-only; clone URLs are displayed for copying, with no Git clone/push or repository editing. Favorites and recent visits are not available for this service.
+The overview includes repository metadata, clone URLs, and the selected branch's last queried head commit with SHA, message, author, committer, raw Git timestamps, and parent SHAs. Refresh the branch head to check for changes. Repositories support favorites and recent visits using their repository UUID within the verified Profile/account/Region.
 
-Required permissions are `codecommit:ListRepositories` on `"*"`, plus `codecommit:GetRepository`, `codecommit:ListBranches`, `codecommit:GetBranch`, and `codecommit:GetCommit` on the allowed repository ARNs. Encrypted repositories also depend on the relevant KMS key permissions/status. See the [AWS CodeCommit permissions reference](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html).
+Use `Source files` to enter a full 40-character commit SHA and repository folder path, then load folders and select files. Previews are fixed to that commit and limited to 512 KiB and 5,000 lines; binary and non-UTF-8 content is not previewed. `Commit differences` manually compares fixed before/after SHAs, listing added, deleted, or modified paths with separate before/after content previews rather than a line diff. Leave the before SHA empty to list files at the after commit. `Pull requests` loads open, closed, or all request IDs; click an ID to read its metadata, description, and source/destination references and commits. Content is never executed or saved as local files. Switching scope or repository invalidates previous content requests; each query is initiated manually, without polling.
+
+Required permissions are `codecommit:ListRepositories` on `"*"`, plus `codecommit:GetRepository`, `codecommit:ListBranches`, `codecommit:GetBranch`, `codecommit:GetCommit`, `codecommit:GetFolder`, `codecommit:GetFile`, `codecommit:GetDifferences`, `codecommit:ListPullRequests`, and `codecommit:GetPullRequest` for the allowed repositories. Encrypted repositories also depend on the relevant KMS key permissions/status. CodeCommit remains read-only, without clone/push, file editing, or pull request creation/merge. Repository access may incur active-user, request, or KMS charges; see [AWS query costs](docs/aws-query-costs.md) and the [AWS CodeCommit permissions reference](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html).
 
 ### RDS Queries
 
-Open **RDS** after selecting and verifying a Profile and choosing a Region. DB instances and clusters load independently with complete pagination; a failed instance or cluster query leaves the other list available. Search identifiers, ARNs, engines, and endpoints locally, or filter by resource type. Select a database to view the returned metadata. Refresh reloads both lists; cancellation preserves already completed results. Scope changes clear old data and reject late responses. RDS favorites and recent visits are not available.
+Open **RDS** after selecting and verifying a Profile and choosing a Region. DB instances and clusters load independently with complete pagination; a failed instance or cluster query leaves the other list available. Search identifiers, ARNs, engines, and endpoints locally, or filter by resource type. Select a database to view the returned metadata. Refresh reloads both lists; cancellation preserves already completed results. Scope changes clear old data and reject late responses. Instances and clusters support favorites and recent visits by ARN.
 
-The app uses only `rds:DescribeDBInstances` and `rds:DescribeDBClusters`, including their returned tags. It excludes shared clusters, Neptune, and DocumentDB. It does not connect to databases, execute SQL, query metrics, or change resources. Details include engine/version/status, instance class, endpoints/port, availability, subnet group/security groups, storage/encryption, backup retention, deletion protection, cluster members, and Serverless v2 capacity when returned. Instance responses can include VPC/subnet IDs; cluster responses supply the subnet group name without VPC/subnet details. Missing values remain unknown. An engine mode of `provisioned` does not rule out Serverless v2. See [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html), [DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html), and the [RDS IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html).
+The overview uses `rds:DescribeDBInstances` and `rds:DescribeDBClusters`, including their returned tags, and excludes shared clusters, Neptune, and DocumentDB. Details include engine/version/status, instance class, endpoints/port, availability, subnet group/security groups, storage/encryption, backup retention, deletion protection, cluster members, and Serverless v2 capacity when returned. Instance responses can include VPC/subnet IDs; cluster responses supply the subnet group name without VPC/subnet details. Missing values remain unknown. An engine mode of `provisioned` does not rule out Serverless v2.
+
+The detail tabs load only when requested. `Metrics` reads instance CPU utilization, connections, freeable memory, read/write latency, and non-Aurora instance free storage space. Aurora cluster metrics show volume bytes used and read/write I/O operations; CPU, memory, and connections belong to member instances. Other clusters, including Multi-AZ DB clusters, direct you to member-instance metrics. `Events` reads the selected instance or cluster's last 14 days. `Snapshots` lists automatic/manual snapshots owned by the current account for that database, excluding shared/public snapshots; listing does not create a backup or verify restoration.
+
+These tabs additionally require `cloudwatch:GetMetricData`, `rds:DescribeEvents`, and the applicable `rds:DescribeDBSnapshots` or `rds:DescribeDBClusterSnapshots`. Metrics queries can incur charges; see [AWS query costs](docs/aws-query-costs.md). The app does not connect to databases, execute SQL, enable monitoring/log export, create/restore snapshots, or modify RDS resources. See [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html), [DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html), and the [RDS IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html).
 
 ### EC2 Auto Scaling
 
 Open **EC2 → Auto Scaling** after selecting and verifying a Profile and choosing a Region. The group list loads all pages and supports local search, refresh, and cancellation without automatically selecting a group. Details include capacity values and type, regular member count, AZs/subnets, launch configuration/template and mixed-instance summaries, health settings, suspended processes, load-balancer associations, members, and tags. Capacity values may represent weighted, vCPU, or memory units rather than instance counts. Missing values remain unknown; template aliases such as `$Latest` are preserved, and group operation status is not interpreted as health.
 
-Selecting a group independently loads scaling policy summaries and activities from the last six weeks. The detail refresh button reloads these two sections; use list refresh to reload group metadata. One section's failure leaves the other readable. Profile, identity, Region, or group changes invalidate old responses. The app does not query warm-pool members, template contents, metrics, or full advanced metric/predictive policy configurations, and does not change capacity or execute scaling actions. Favorites and recent visits are not available for this service.
+Selecting a group independently loads scaling policy summaries and activities from the last six weeks. The detail refresh button reloads these two sections; use list refresh to reload group metadata. One section's failure leaves the other readable. Manually load launch template versions referenced by the group, including mixed-instance/override references, while preserving aliases such as `$Latest` and `$Default`. The app displays returned configuration fields without resolving SSM AMI aliases or exposing UserData. Separately load instance refresh records from the last six weeks; records with an unknown start time remain visible. There is no polling, and the app does not initiate or cancel an AWS instance refresh. Member links open the exact EC2 instance within the same verified scope. Groups support favorites and recent visits by ARN.
 
-Required permissions are `autoscaling:DescribeAutoScalingGroups`, `autoscaling:DescribePolicies`, and `autoscaling:DescribeScalingActivities` on `"*"`. See [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html), [DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html), [DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html), and the [Auto Scaling IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html).
+Profile, identity, Region, or group changes invalidate old responses. The app does not query warm-pool members, ASG metrics, or full advanced metric/predictive policy configurations, and does not change capacity or execute scaling actions. Required permissions are `autoscaling:DescribeAutoScalingGroups`, `autoscaling:DescribePolicies`, and `autoscaling:DescribeScalingActivities` on `"*"`; the new detail queries additionally use `ec2:DescribeLaunchTemplateVersions` and `autoscaling:DescribeInstanceRefreshes`. Member navigation uses the existing `ec2:DescribeInstances` read permission. See [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html), [DescribePolicies](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html), [DescribeScalingActivities](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html), and the [Auto Scaling IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_autoscaling.html).
 
 ### S3 Object Browsing
 
@@ -193,6 +201,12 @@ The Bucket list loads all pages for the current account, including accounts with
 Open a Bucket to load the first page of objects and folders (up to 1,000 entries per request). Click `Load more` to request the next page; the app does not automatically enumerate the whole directory. The footer counts loaded entries, and search only filters those entries in the current directory, not unloaded pages or subdirectories. A page with no visible entries can still have more pages.
 
 Click `Root` or an ancestor in the breadcrumb bar to return to that directory; long paths scroll horizontally. Prefixes keep their literal slashes, spaces, Unicode, and percent characters. A failed next page keeps the existing list and offers `Retry`, except that access denial or a missing Bucket clears the old rows. Bucket browsing, details, and location requests require the current verified account to remain the Bucket owner. Refreshing, including after an upload, starts again at the first page; an uploaded key may be on a later page. Switching directory, Bucket, or Profile discards the previous pagination state and late results. Browsing uses `s3:ListBucket` and the existing Bucket Region lookup; LIST requests can incur S3 request charges. See [ListObjectsV2](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html).
+
+### S3 Object Versions
+
+Select an object and use `Object versions` in the toolbar or its context menu, then click `Load versions`. The sheet reads versions and delete markers for that exact key, up to 100 entries per requested page. Click `Load more` to continue; search covers loaded version IDs only, and partial lists are labeled. Version ID, latest flag, modification time, size, ETag, and storage class remain unknown when not returned. This is a version listing, without historical-version download, restore, deletion, or changes to versioning. Directory Buckets are not supported.
+
+Queries use the verified Profile/account, the Bucket's actual Region, and the expected Bucket owner. They require `s3:ListBucketVersions`; an unknown Bucket Region additionally requires `s3:GetBucketLocation`. Scope, Bucket, prefix, or selected-object changes invalidate old pages. Each `ListObjectVersions` page can incur S3 LIST charges; existing version storage is billed separately. See [AWS query costs](docs/aws-query-costs.md).
 
 ### S3 File Transfers
 
@@ -212,6 +226,8 @@ Uploads require `s3:PutObject`; downloads and the ETag check for an overwrite re
 
 Click `Add Favorite` at the top of a resource's details to save it, or `Remove Favorite` to remove it. The sidebar's `Favorites` view (`Cmd+Shift+F`) collects your favorites and supports searching by resource name, ID, service, Profile, account, or Region. Click an entry to open the resource; click its star or use the context menu to remove it.
 
+Supported targets are EC2 instances, Auto Scaling groups, EBS volumes and snapshots, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, CodeCommit repositories, RDS instances/clusters, Route 53 Hosted Zones, load balancers, Target Groups, and security groups. RDS and Auto Scaling use ARNs; CodeCommit uses the repository UUID. Log groups, object versions, repository files/commits/pull requests, and RDS snapshots are not separate saved targets.
+
 Favorites appear only after you manually select a Profile. When opening a favorite, the app requires the current Profile to match the saved one, then restores the saved Region, verifies the account, and locates the resource. Opening a favorite never selects another Profile automatically. A missing or mismatched Profile, an account mismatch, a deleted resource, or an access failure produces a message without removing the favorite. S3 favorites store the browsing Region at the time they were saved; the existing loading flow resolves the bucket's actual location separately.
 
 Favorites are stored locally in UserDefaults, restored after restart, and shared by windows within the same app process. Only the Profile name, account ID, Region, service, resource ID, and display name are saved. Credentials, resource details, and environment variables are not stored, and favorites are not synced to the cloud. The same resource is saved separately for different Profiles, accounts, or browsing Regions.
@@ -220,7 +236,7 @@ Route 53 Hosted Zones use a fixed `global` scope and the canonical Zone ID. Open
 
 ### Recent Resources
 
-Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for EC2 instances, Lambda functions, S3 Buckets, CloudWatch Alarms, SNS Topics, Route 53 Hosted Zones, load balancers, Target Groups, and security groups. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, individual DNS records, listeners, and rules are not recorded.
+Open `Recent` in the sidebar (`Cmd+Shift+R`) after selecting and verifying a Profile. It shows only that Profile's current account, across browsing Regions, ordered by the most recent visit. The app keeps up to 50 entries per Profile/account for the same resource types supported by favorites, including EBS volumes/snapshots, CodeCommit repositories, RDS instances/clusters, and Auto Scaling groups. Entries are identified by service, resource ID, and saved Region (`global` for Route 53). Viewing the same entry again moves it to the top and updates its name and visit time. A resource counts as visited when its details are shown, including the visible first selection on a service page; background-loaded selections, S3 objects, log groups, individual DNS records, listeners, and rules are not recorded.
 
 Search by name, resource ID, service, Profile, account, or Region. Click a row to reverify the account and locate the resource using the same navigation as favorites. Regional resources restore their saved Region; Route 53 keeps your resource Region unchanged. This never selects another Profile or adds a favorite. Missing resources, changed accounts, and access failures produce a message while preserving the history entry. You can remove individual entries or confirm `Clear history` to clear only the current Profile/account.
 
@@ -336,7 +352,7 @@ The following component previews use mock Health data:
 
 ### CloudWatch Alarms
 
-After manually selecting a Profile and Region, open `CloudWatch` in the sidebar to view Metric and Composite Alarms for the current account and Region. The list loads on first entry and supports searching by name, ARN, or metric, filtering by state and type, manual refresh, and cancellation. Returning to the same loaded page does not repeat requests, and there is no scheduled polling. No queries run without a selected Profile. Changing the Profile, Region, or session clears the old list and details.
+After manually selecting a Profile and Region, open **CloudWatch → Alarms** in the sidebar to view Metric and Composite Alarms for the current account and Region. The list loads on first entry and supports searching by name, ARN, or metric, filtering by state and type, manual refresh, and cancellation. Returning to the same loaded page does not repeat requests, and there is no scheduled polling. No queries run without a selected Profile. Changing the Profile, Region, or session clears the old list and details.
 
 The first alarm is not selected automatically. Select an alarm to view:
 
@@ -349,11 +365,19 @@ Tags and history are fetched only for the selected alarm. Each shows its own err
 
 The role needs `cloudwatch:DescribeAlarms`; history and tags additionally require `cloudwatch:DescribeAlarmHistory` and `cloudwatch:ListTagsForResource`, respectively. To retrieve Composite Alarms, the first two permissions must allow `Resource: "*"` rather than being restricted to individual alarm ARNs. Visibility remains subject to the current role's permissions. See [DescribeAlarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarms.html), [DescribeAlarmHistory](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_DescribeAlarmHistory.html), and [ListTagsForResource](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListTagsForResource.html).
 
-The alarm page reads only Metric and Composite Alarm configuration and history; Log Alarms are not supported. Metric charts are available in the `Metrics` tab of EC2 and Lambda details. The app does not create, delete, enable, disable, or change the state of alarms, or publish messages to SNS.
+The alarm page reads only Metric and Composite Alarm configuration and history; Log Alarms are not supported. Metric charts are available in the `Metrics` tab of EC2, Lambda, and applicable RDS details. The app does not create, delete, enable, disable, or change the state of alarms, or publish messages to SNS.
 
 The following component preview uses mock alarm data:
 
 ![CloudWatch alarms](docs/ui-alarms-light.png)
+
+### CloudWatch Logs
+
+Open **CloudWatch → Logs** to browse log groups in the selected Profile/account/Region; linked-account groups are excluded. Selecting a group reads its log streams and available metadata, including retention, stored bytes, log class, and KMS key. Choose all streams or one stream, select the last 1, 6, or 24 hours, optionally enter an AWS filter pattern, then click `Search`. This uses ordinary `FilterLogEvents`, without Logs Insights queries or Live Tail, and preserves AWS data masking.
+
+Each requested event page contains up to 500 events. Use `Load more` to continue; incomplete results remain labeled, with loaded events shown newest first. Display is bounded at 5,000 events or 4 MiB of UTF-8 message text; message previews show up to 2,000 characters. Narrow the range or filter when limits are reached. Changing the stream/range/filter clears the old search; switching scope/group invalidates old requests. Results stay in memory, and there is no automatic search or polling.
+
+Required permissions are `logs:DescribeLogGroups`, `logs:DescribeLogStreams`, and `logs:FilterLogEvents`. This view does not create groups, enable log exports, or change retention. Existing log collection/storage remains separately billed; see [AWS query costs](docs/aws-query-costs.md) for log-read pricing boundaries.
 
 ### SNS Topics
 
@@ -386,9 +410,9 @@ The following component previews use mock SNS data:
 
 ![Configured SNS relationships with mock data and resource nodes collapsed by default](docs/ui-sns-relationships-light.png)
 
-### EC2 and Lambda Metrics, and Lambda Logs
+### Resource Metrics and Lambda Logs
 
-Open `Metrics` in resource details, select the last 1, 6, or 24 hours, then click `Load metrics`. Each query retrieves four metrics in one batch with five-minute aggregation. The window ends at the most recent complete five-minute boundary, and all times are displayed in UTC. `Refresh` reloads data manually; there is no polling. Empty samples remain empty, gaps in data break the chart lines, and partial data and permission failures are labeled separately.
+Open `Metrics` in EC2, Lambda, or applicable RDS details, select the last 1, 6, or 24 hours, then click `Load metrics`. Each query batches the applicable metrics with five-minute aggregation. The window ends at the most recent complete five-minute boundary, and all times are displayed in UTC. `Refresh` reloads data manually; there is no polling. Empty samples remain empty, gaps in data break the chart lines, and partial data and permission failures are labeled separately.
 
 | Resource | Metric | Aggregation and unit |
 | --- | --- | --- |
@@ -397,6 +421,11 @@ Open `Metrics` in resource details, select the last 1, 6, or 24 hours, then clic
 | EC2 | StatusCheckFailed | Maximum, status check failure value |
 | Lambda | Invocations / Errors / Throttles | Sum, count per five minutes |
 | Lambda | Duration | Average, milliseconds |
+| RDS instance | CPUUtilization / DatabaseConnections | Average, percent / count |
+| RDS instance | FreeableMemory / ReadLatency / WriteLatency | Average, bytes / seconds / seconds |
+| Non-Aurora RDS instance | FreeStorageSpace | Average, bytes |
+| Aurora cluster | VolumeBytesUsed | Average, bytes |
+| Aurora cluster | VolumeReadIOPs / VolumeWriteIOPs | Sum, count per five minutes |
 
 Lambda metrics use the function-name dimension and include that function's versions and aliases. Metrics require `cloudwatch:GetMetricData`; missing data is not assumed to be zero. See [EC2 metrics](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/viewing_metrics_with_cloudwatch.html), [Lambda metrics](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics-types.html), and [GetMetricData](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html).
 

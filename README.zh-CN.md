@@ -25,6 +25,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - **CloudWatch 告警** - 查看当前 Region 的 Metric／Composite Alarm、状态、配置、动作目标、标签和近 30 天历史
 - **SNS Topic 浏览** - 查看 Standard／FIFO Topic、属性、策略、标签和订阅，订阅 Endpoint 默认遮罩
 - **CodeCommit 查询** - 搜索当前 Profile／Region 的仓库，查看仓库元数据、克隆地址、分支及最近查询的分支头提交
+- **RDS 查询** - 浏览当前 Profile／Region 的数据库实例与集群，查看引擎／状态、端点、网络、存储、保护、成员及标签
 - **Route 53** - 查看当前账号的公有／私有 Hosted Zones、DNS 记录、委派 NS、VPC 关联和标签
 - **负载均衡** - 查看 ALB、NLB、GWLB、监听器、ALB 规则、Target Groups 和目标健康状态，支持关联资源跳转及 EC2 手动反查注册目标组
 - **安全组** - 浏览当前 Profile／Region 可见的安全组、所属账号、VPC、标签及入站／出站规则
@@ -169,6 +170,12 @@ EC2 侧栏分组包含「实例」「EBS 卷」「快照」「负载均衡器」
 详情包含仓库 ID、ARN、账号、描述、默认分支、克隆地址、创建／修改时间，以及所选分支最近查询的头提交 SHA、说明、作者、提交者、原始 Git 时间戳和父提交 SHA；字段支持选择复制。手动刷新分支头可检查更新。切换 Profile、Region、仓库或分支时丢弃旧结果。CodeCommit 保持只读，克隆地址仅供复制，不执行 Git clone／push 或编辑仓库；该服务暂不提供收藏和最近访问入口。
 
 需要 `codecommit:ListRepositories` 对 `"*"` 的权限，以及允许仓库 ARN 上的 `codecommit:GetRepository`、`codecommit:ListBranches`、`codecommit:GetBranch`、`codecommit:GetCommit`；加密仓库还取决于相应 KMS Key 的权限与状态。参考 [AWS CodeCommit 权限表](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html) 。
+
+### RDS 查询
+
+手动选择并验证 Profile、选择 Region 后，打开侧栏的 RDS。数据库实例和集群独立完整分页加载，一类查询失败时仍可查看另一类结果；可按标识符、ARN、引擎和端点本地搜索，或按资源类型筛选。选择数据库后查看返回的元数据；刷新重新加载两类列表，取消保留已经完成的结果。切换范围时清空旧数据并丢弃迟到响应，暂不提供 RDS 收藏和最近访问入口。
+
+只使用 `rds:DescribeDBInstances` 和 `rds:DescribeDBClusters` 及其返回的标签，排除共享集群、Neptune 和 DocumentDB；不连接数据库、执行 SQL、查询指标或修改资源。详情包含接口返回的引擎／版本／状态、实例规格、端点／端口、可用区、子网组／安全组、存储／加密、备份保留、删除保护、集群成员及 Serverless v2 容量。实例响应可含 VPC／子网 ID；集群只返回子网组名称，不包含 VPC／子网明细。缺失字段保持未知，不能仅根据 `engineMode=provisioned` 排除 Serverless v2。参考 [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html) 、[DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html) 和 [RDS IAM 动作表](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html) 。
 
 ### S3 对象浏览
 

@@ -118,6 +118,8 @@ final class FavoriteNavigation: ObservableObject {
         switch target.service {
         case .codeCommit:
             finish(found: false, loadError: "Saved CodeCommit navigation is not available. Open CodeCommit and select a repository.")
+        case .rds:
+            finish(found: false, loadError: "Saved RDS navigation is not available. Open RDS and select a database.")
         case .ec2:
             ec2.searchText = ""
             ec2.stateFilter = "All"

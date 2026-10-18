@@ -25,6 +25,7 @@ Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both buil
 - **CloudWatch alarms** - View Metric and Composite Alarms in the current Region, including state, configuration, action targets, tags, and the last 30 days of history
 - **SNS topics** - Browse Standard and FIFO Topics, attributes, policies, tags, and subscriptions, with subscription endpoints hidden by default
 - **CodeCommit** - Search repositories in the selected Profile and Region; inspect repository metadata, clone URLs, branches, and the last queried branch-head commit
+- **RDS** - Browse DB instances and clusters in the selected Profile and Region, with engine/status, endpoints, network, storage, protection, members, and tags
 - **Route 53** - Browse public and private Hosted Zones, DNS record sets, delegation name servers, VPC associations, and tags for the current account
 - **Load balancing** - Browse ALB, NLB, GWLB, listeners, ALB rules, Target Groups, and target health; follow resource links and manually find an EC2 instance's registered Target Groups
 - **Security groups** - Browse visible groups, owners, VPCs, tags, and inbound/outbound rules in the current Profile and Region
@@ -169,6 +170,12 @@ Select and verify a Profile, choose a Region, then open **CodeCommit** in the si
 Details include repository ID, ARN, account, description, default branch, clone URLs, creation/modification dates, and the selected branch's last queried head commit with SHA, message, author, committer, raw Git timestamps, and parent SHAs. Text fields can be selected and copied. Refresh the branch head to check for changes. Switching Profile, Region, repository, or branch invalidates old results. CodeCommit is read-only; clone URLs are displayed for copying, with no Git clone/push or repository editing. Favorites and recent visits are not available for this service.
 
 Required permissions are `codecommit:ListRepositories` on `"*"`, plus `codecommit:GetRepository`, `codecommit:ListBranches`, `codecommit:GetBranch`, and `codecommit:GetCommit` on the allowed repository ARNs. Encrypted repositories also depend on the relevant KMS key permissions/status. See the [AWS CodeCommit permissions reference](https://docs.aws.amazon.com/codecommit/latest/userguide/auth-and-access-control-permissions-reference.html).
+
+### RDS Queries
+
+Open **RDS** after selecting and verifying a Profile and choosing a Region. DB instances and clusters load independently with complete pagination; a failed instance or cluster query leaves the other list available. Search identifiers, ARNs, engines, and endpoints locally, or filter by resource type. Select a database to view the returned metadata. Refresh reloads both lists; cancellation preserves already completed results. Scope changes clear old data and reject late responses. RDS favorites and recent visits are not available.
+
+The app uses only `rds:DescribeDBInstances` and `rds:DescribeDBClusters`, including their returned tags. It excludes shared clusters, Neptune, and DocumentDB. It does not connect to databases, execute SQL, query metrics, or change resources. Details include engine/version/status, instance class, endpoints/port, availability, subnet group/security groups, storage/encryption, backup retention, deletion protection, cluster members, and Serverless v2 capacity when returned. Instance responses can include VPC/subnet IDs; cluster responses supply the subnet group name without VPC/subnet details. Missing values remain unknown. An engine mode of `provisioned` does not rule out Serverless v2. See [DescribeDBInstances](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html), [DescribeDBClusters](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html), and the [RDS IAM action reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_rds.html).
 
 ### S3 Object Browsing
 

@@ -8,6 +8,7 @@ import SotoCloudWatch
 import SotoCloudWatchLogs
 import SotoSNS
 import SotoCodeCommit
+import SotoRDS
 import SotoHealth
 import SotoRoute53
 import SotoElasticLoadBalancingV2
@@ -176,6 +177,12 @@ actor AWSServiceProvider {
         try await requireIdentity(scope: scope, regional: true)
         guard let awsClient else { throw AWSServiceError.notConfigured }
         return CodeCommit(client: awsClient, region: .init(rawValue: scope.region))
+    }
+
+    func rdsClient(scope: MonitoringScope) async throws -> RDS {
+        try await requireIdentity(scope: scope, regional: true)
+        guard let awsClient else { throw AWSServiceError.notConfigured }
+        return RDS(client: awsClient, region: .init(rawValue: scope.region))
     }
 
     func validateIdentity() async throws -> AWSIdentity {

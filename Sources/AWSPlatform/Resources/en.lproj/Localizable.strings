@@ -1896,3 +1896,10 @@
 "View before content" = "View before content";
 "Write latency" = "Write latency";
 "Open pull requests" = "Open pull requests";
+
+// Progressive resource and detail loading.
+"Loading function status and tags. State filters and tag search currently use loaded summaries." = "Loading function status and tags. State filters and tag search currently use loaded summaries.";
+"No matching functions. Status and tag summaries are still loading." = "No matching functions. Status and tag summaries are still loading.";
+"Loading Lambda section…" = "Loading Lambda section…";
+"Lambda section loading was cancelled." = "Lambda section loading was cancelled.";
+"Unable to load EC2 detail section." = "Unable to load EC2 detail section.";

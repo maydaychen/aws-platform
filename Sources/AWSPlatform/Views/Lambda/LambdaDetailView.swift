@@ -61,10 +61,23 @@ struct LambdaDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onAppear { vm.selectDetailSection(selectedDetailSection) }
+        .onChange(of: selectedTab) { _ in vm.selectDetailSection(selectedDetailSection) }
         .onChange(of: function.functionName) { _ in
             selectedTab = .overview
             revealedEnvironmentKeys = []
+            vm.selectDetailSection(nil)
+        }
+    }
+
+    private var selectedDetailSection: LambdaDetailSection? {
+        switch selectedTab {
+        case .configuration: return .configuration
+        case .triggers: return .triggers
+        case .versions: return .versions
+        default: return nil
         }
     }
 
@@ -134,9 +147,9 @@ struct LambdaDetailView: View {
         case .configuration:
             configurationTab
         case .triggers:
-            triggersTab
+            detailSection(.triggers) { triggersTab }
         case .versions:
-            versionsTab
+            detailSection(.versions) { versionsTab }
         case .code:
             codeTab
         case .metrics:
@@ -229,7 +242,44 @@ struct LambdaDetailView: View {
                 layerSection
                 fileSystemSection
                 imageConfigurationSection
-                policySection
+                detailSection(.configuration) { policySection }
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private func detailSection<Content: View>(
+        _ section: LambdaDetailSection,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        switch vm.detailSectionState(section) {
+        case .loaded:
+            VStack(spacing: 0) {
+                if !(vm.detailSectionIssues[section] ?? []).isEmpty {
+                    HStack {
+                        NoticeBanner(message: "Some Lambda details could not be loaded")
+                        Button(L10n.text("Retry", locale: locale)) { vm.retryDetailSection(section) }
+                    }
+                    .padding()
+                }
+                content()
+            }
+        case .idle, .loading:
+            ProgressView(L10n.text("Loading Lambda section…", locale: locale))
+                .padding()
+                .frame(maxWidth: .infinity)
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 8) {
+                NoticeBanner(message: message)
+                Button(L10n.text("Retry", locale: locale)) { vm.retryDetailSection(section) }
+            }
+            .padding()
+        case .cancelled:
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.text("Lambda section loading was cancelled.", locale: locale))
+                    .foregroundColor(.secondary)
+                Button(L10n.text("Retry", locale: locale)) { vm.retryDetailSection(section) }
             }
             .padding()
         }
@@ -265,7 +315,7 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No event source mappings")
+                    componentEmptyState(.eventSources, empty: "No event source mappings")
                 }
 
                 sectionTitle("Asynchronous Invocation")
@@ -282,7 +332,7 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No asynchronous invocation configuration")
+                    componentEmptyState(.asyncInvokeConfigs, empty: "No asynchronous invocation configuration")
                 }
 
                 sectionTitle("Function URLs")
@@ -312,7 +362,7 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No function URLs")
+                    componentEmptyState(.functionURLs, empty: "No function URLs")
                 }
             }
             .padding()
@@ -324,9 +374,9 @@ struct LambdaDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 DetailGrid(items: [
                     ("Reserved Concurrency", number(detail?.reservedConcurrency)),
-                    ("Published Versions", "\(detail?.versions.filter { $0.version != "$LATEST" }.count ?? 0)"),
-                    ("Aliases", "\(detail?.aliases.count ?? 0)"),
-                    ("Provisioned Configs", "\(detail?.provisionedConcurrency.count ?? 0)")
+                    ("Published Versions", componentCount(.versions, count: detail?.versions.filter { $0.version != "$LATEST" }.count ?? 0)),
+                    ("Aliases", componentCount(.aliases, count: detail?.aliases.count ?? 0)),
+                    ("Provisioned Configs", componentCount(.provisionedConcurrency, count: detail?.provisionedConcurrency.count ?? 0))
                 ])
 
                 sectionTitle("Aliases")
@@ -342,7 +392,7 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No aliases")
+                    componentEmptyState(.aliases, empty: "No aliases")
                 }
 
                 sectionTitle("Provisioned Concurrency")
@@ -360,7 +410,7 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No provisioned concurrency")
+                    componentEmptyState(.provisionedConcurrency, empty: "No provisioned concurrency")
                 }
 
                 sectionTitle("Versions")
@@ -380,11 +430,24 @@ struct LambdaDetailView: View {
                         }
                     }
                 } else {
-                    emptyDetail("No function versions")
+                    componentEmptyState(.versions, empty: "No function versions")
                 }
             }
             .padding()
         }
+    }
+
+    @ViewBuilder
+    private func componentEmptyState(_ component: LambdaDetailComponent, empty text: String) -> some View {
+        if let issue = vm.detailSectionIssue(component) {
+            NoticeBanner(message: "\(L10n.text(component.rawValue, locale: locale)): \(L10n.text(issue.message, locale: locale))")
+        } else {
+            emptyDetail(text)
+        }
+    }
+
+    private func componentCount(_ component: LambdaDetailComponent, count: Int) -> String {
+        vm.detailSectionIssue(component) == nil ? String(count) : "-"
     }
 
     private var codeTab: some View {

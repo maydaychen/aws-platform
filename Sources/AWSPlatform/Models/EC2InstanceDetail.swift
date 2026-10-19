@@ -83,11 +83,14 @@ struct EC2InstanceDetailModel: Hashable {
     let metadataHopLimit: Int?
     let metadataTags: String?
     let networkInterfaces: [EC2NetworkInterfaceModel]
-    let volumes: [EC2VolumeModel]
-    let securityGroups: [EC2SecurityGroupModel]
-    let health: EC2InstanceHealth?
+    var volumes: [EC2VolumeModel]
+    var securityGroups: [EC2SecurityGroupModel]
+    var health: EC2InstanceHealth?
     let warnings: [String]
     var cpuCreditMode: EC2CPUCreditMode? = nil
+    var volumeIDs: [String] = []
+    var securityGroupIDs: [String] = []
+    var volumeAttachmentHints: [EC2VolumeAttachmentHint] = []
 }
 
 struct EC2NetworkInterfaceModel: Identifiable, Hashable {
@@ -149,4 +152,10 @@ struct EC2SecurityRuleModel: Identifiable, Hashable {
     var id: String {
         [protocolName, portRange, source, description ?? ""].joined(separator: "|")
     }
+}
+
+struct EC2VolumeAttachmentHint: Hashable {
+    let volumeID: String
+    let device: String?
+    let deleteOnTermination: Bool?
 }

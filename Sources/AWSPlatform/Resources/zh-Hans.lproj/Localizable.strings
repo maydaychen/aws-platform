@@ -1896,3 +1896,10 @@
 "View before content" = "查看变更前内容";
 "Write latency" = "写入延迟";
 "Open pull requests" = "未关闭的合并请求";
+
+// Progressive resource and detail loading.
+"Loading function status and tags. State filters and tag search currently use loaded summaries." = "正在补充函数状态和标签。状态筛选和标签搜索暂时仅使用已加载的摘要。";
+"No matching functions. Status and tag summaries are still loading." = "暂无匹配函数，状态和标签摘要仍在加载。";
+"Loading Lambda section…" = "正在加载 Lambda 当前页签…";
+"Lambda section loading was cancelled." = "Lambda 页签加载已取消。";
+"Unable to load EC2 detail section." = "无法加载 EC2 当前页签。";

@@ -63,8 +63,10 @@ struct S3ObjectPaginationFooter: View {
     @Environment(\.locale) private var locale
     @ObservedObject var vm: S3ViewModel
     let bucket: String
+    var visibleObjectCount: Int? = nil
 
     var body: some View {
+        let visibleCount = visibleObjectCount ?? vm.filteredObjects.count
         VStack(alignment: .leading, spacing: WorkspaceLayout.controlSpacing) {
             if let error = vm.objectPageError {
                 Text(L10n.text(error, locale: locale))
@@ -72,9 +74,9 @@ struct S3ObjectPaginationFooter: View {
                     .help(L10n.text(error, locale: locale))
             }
             HStack(spacing: WorkspaceLayout.controlSpacing) {
-                Text(vm.filteredObjects.count == vm.objects.count
+                Text(visibleCount == vm.objects.count
                      ? L10n.format("%@ loaded items", String(vm.objects.count), locale: locale)
-                     : L10n.format("%@ of %@ loaded items", String(vm.filteredObjects.count), String(vm.objects.count), locale: locale))
+                     : L10n.format("%@ of %@ loaded items", String(visibleCount), String(vm.objects.count), locale: locale))
                 Spacer(minLength: 0)
                 if vm.hasMoreObjects {
                     Button(L10n.text(vm.isLoadingMoreObjects ? "Loading…" : vm.objectPageError == nil ? "Load more" : "Retry", locale: locale)) {

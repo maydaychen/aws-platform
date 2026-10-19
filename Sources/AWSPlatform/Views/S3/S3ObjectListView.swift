@@ -24,6 +24,7 @@ struct S3ObjectListView: View {
     }
 
     var body: some View {
+        let filteredObjects = vm.filteredObjects
         VStack(spacing: 0) {
             ListToolbar(
                 title: "Objects",
@@ -57,7 +58,7 @@ struct S3ObjectListView: View {
             }
             Divider()
 
-            List(vm.filteredObjects, selection: objectSelection) { object in
+            List(filteredObjects, selection: objectSelection) { object in
                 HStack {
                     Image(systemName: object.isPrefix ? "folder" : "doc")
                         .foregroundColor(object.isPrefix ? .blue : .secondary)
@@ -102,13 +103,13 @@ struct S3ObjectListView: View {
             .overlay {
                 if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error, icon: "exclamationmark.triangle")
-                } else if !vm.isLoading && vm.filteredObjects.isEmpty {
+                } else if !vm.isLoading && filteredObjects.isEmpty {
                     EmptyStateView(text: vm.hasMoreObjects
                                    ? "No matching objects in the pages loaded so far. Use Load more to continue."
                                    : vm.objects.isEmpty ? "No objects at this prefix" : "No matching objects", icon: "folder")
                 }
             }
-            S3ObjectPaginationFooter(vm: vm, bucket: bucketName)
+            S3ObjectPaginationFooter(vm: vm, bucket: bucketName, visibleObjectCount: filteredObjects.count)
         }
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             guard let context = transferContext else { return false }

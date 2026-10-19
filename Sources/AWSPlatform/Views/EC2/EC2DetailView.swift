@@ -64,16 +64,20 @@ struct EC2DetailView: View {
 
             ZStack {
                 tabContent
-                if selectedTab != .metrics && selectedTab != .targetGroups && vm.isDetailLoading && detail == nil {
+                if (selectedTab == .overview || selectedTab == .network) && vm.isDetailLoading && detail == nil {
                     ProgressView(L10n.text("Loading EC2 details…", locale: locale))
                         .padding()
                         .background(.regularMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onAppear { requestSelectedSection() }
+        .onChange(of: selectedTab) { _ in requestSelectedSection() }
         .onChange(of: instance.instanceId) { _ in
             selectedTab = .overview
+            vm.showDetailSection(nil)
         }
     }
 
@@ -123,7 +127,7 @@ struct EC2DetailView: View {
 
     @ViewBuilder
     private var statusBadge: some View {
-        let health = detail?.health ?? vm.instanceHealth[instance.instanceId]
+        let health = vm.instanceHealth[instance.instanceId] ?? detail?.health
         HStack(spacing: 6) {
             Circle()
                 .fill(stateColor)
@@ -150,11 +154,11 @@ struct EC2DetailView: View {
         case .network:
             networkTab
         case .storage:
-            storageTab
+            detailSection(.storage) { storageTab }
         case .security:
-            securityTab
+            detailSection(.security) { securityTab }
         case .status:
-            statusTab
+            detailSection(.status) { statusTab }
         case .metrics:
             if let metricsVM {
                 ResourceMetricsView(vm: metricsVM, scope: monitoringScope, target: .ec2(instance.instanceId))
@@ -162,6 +166,38 @@ struct EC2DetailView: View {
         case .targetGroups:
             if let membershipsVM {
                 EC2TargetGroupsView(vm: membershipsVM, scope: monitoringScope, instanceID: instance.instanceId, onOpen: onOpenELB)
+            }
+        }
+    }
+
+    private func requestSelectedSection() {
+        let section: EC2DetailSection?
+        switch selectedTab {
+        case .storage: section = .storage
+        case .security: section = .security
+        case .status: section = .status
+        default: section = nil
+        }
+        vm.showDetailSection(section)
+    }
+
+    @ViewBuilder
+    private func detailSection<Content: View>(_ section: EC2DetailSection, @ViewBuilder content: () -> Content) -> some View {
+        switch vm.sectionStates[section] ?? .notLoaded {
+        case .loaded:
+            content()
+        case .failed(let message):
+            VStack {
+                NoticeBanner(message: message)
+                Button(L10n.text("Retry", locale: locale)) { vm.retryDetailSection(section) }
+            }
+            .padding()
+        case .notLoaded, .loading:
+            if let error = vm.detailError {
+                emptyDetail(error)
+            } else {
+                ProgressView(L10n.text("Loading EC2 details…", locale: locale))
+                    .padding()
             }
         }
     }
@@ -348,7 +384,7 @@ struct EC2DetailView: View {
     private var statusTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                let health = detail?.health ?? vm.instanceHealth[instance.instanceId]
+                let health = vm.instanceHealth[instance.instanceId] ?? detail?.health
                 DetailGrid(items: [
                     ("System Status", health?.systemStatus ?? "-"),
                     ("Instance Status", health?.instanceStatus ?? "-"),

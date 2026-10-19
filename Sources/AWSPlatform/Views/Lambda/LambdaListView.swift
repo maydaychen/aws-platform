@@ -5,10 +5,11 @@ struct LambdaListView: View {
     @ObservedObject var vm: LambdaViewModel
 
     var body: some View {
+        let filteredFunctions = vm.filteredFunctions
         VStack(spacing: 0) {
             ListToolbar(
                 title: "Lambda Functions",
-                isLoading: vm.isLoading,
+                isLoading: vm.isLoading || vm.isSummaryLoading,
                 searchText: $vm.searchText,
                 onRefresh: { vm.refresh() },
                 onCancel: { vm.cancelLoading() }
@@ -31,13 +32,19 @@ struct LambdaListView: View {
             .padding(.vertical, 8)
             Divider()
 
+            if vm.isSummaryLoading {
+                NoticeBanner(message: "Loading function status and tags. State filters and tag search currently use loaded summaries.")
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+
             if let warning = vm.summaryWarning {
                 NoticeBanner(message: warning)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
             }
 
-            List(vm.filteredFunctions, selection: $vm.selectedFunction) { function in
+            List(filteredFunctions, selection: $vm.selectedFunction) { function in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(function.functionName)
@@ -67,12 +74,18 @@ struct LambdaListView: View {
             .overlay {
                 if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error, icon: "exclamationmark.triangle")
-                } else if !vm.isLoading && vm.filteredFunctions.isEmpty {
-                    EmptyStateView(text: vm.functions.isEmpty ? "No Lambda functions in this region" : "No matching functions. Try another search or filter.", icon: "function")
+                } else if !vm.isLoading && filteredFunctions.isEmpty {
+                    EmptyStateView(text: emptyListMessage, icon: "function")
                 }
             }
-            ResourceListFooter(visible: vm.filteredFunctions.count, total: vm.functions.count)
+            ResourceListFooter(visible: filteredFunctions.count, total: vm.functions.count)
         }
+    }
+
+    private var emptyListMessage: String {
+        if vm.functions.isEmpty { return "No Lambda functions in this region" }
+        if vm.isSummaryLoading { return "No matching functions. Status and tag summaries are still loading." }
+        return "No matching functions. Try another search or filter."
     }
 
     @ViewBuilder

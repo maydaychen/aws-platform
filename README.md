@@ -145,7 +145,11 @@ For contributor guidance on display strings and resource packaging, see [Localiz
 
 ### EC2 Status Checks
 
-The instance list loads status checks for all listed instances without requiring selection. It reads every status page in the selected Profile and Region, then makes one bounded follow-up pass for missing instances while retaining successful results. A green check means checks passed, an orange triangle needs attention, and an orange question mark means the checks could not be read; the row tooltip and list warning show the reason. Refresh retries the checks. A gray minus means checks are not applicable. Running state remains a separate indicator.
+The basic instance list appears before AMI names and status checks finish. Names and checks load independently, and checks cover all listed instances without requiring selection. The app reads every status page in the selected Profile and Region, then makes one bounded follow-up pass for missing instances while retaining successful results. A green check means checks passed, an orange triangle needs attention, and an orange question mark means the checks could not be read; the row tooltip and list warning show the reason. Refresh retries the checks. A gray minus means checks are not applicable. Running state remains a separate indicator.
+
+### EC2 and Lambda Detail Loading
+
+Selecting a resource first loads its basic configuration. EC2 Storage, Security, and Status details load on first entry to those tabs; the overview retains networking and applicable CPU Credit information. Lambda policy, triggers, and versions load when their respective Configuration, Triggers, and Versions tabs are opened. Returning to a loaded tab reuses its result; a failed read can be retried without clearing the overview. Partial Lambda permissions preserve readable components and identify failed components separately. Changing the resource, Profile, or Region invalidates old responses. Metrics, logs, registered Target Groups, and source downloads retain their explicit query controls.
 
 ### EC2 CPU Credit Mode
 
@@ -597,11 +601,13 @@ Replace the example values with your configuration, then run `aws sso login --ss
 
 The Region list includes commonly used regions known to the SDK and regions found in your configuration. Known regions show a localized location and the unchanged code, for example `Singapore · ap-southeast-1`; unknown codes remain visible verbatim. You can also enter another Region code using the edit button beside the Region selector. Region activation, partition membership, and service permissions remain governed by AWS.
 
-The Lambda list uses `GetFunction` to supplement function state and tags, fetching at most four functions concurrently. If some functions cannot be read or access is denied, the list remains available with a message. State filters exclude functions with unknown state. Required permissions include at least `lambda:ListFunctions` and `lambda:GetFunction` for the additional information.
+The Lambda list appears as soon as basic functions are available, then uses `GetFunction` in batches of at most four concurrent reads to supplement state and tags. The selected function stays selected as summaries arrive. During this stage, state filters and tag searches use summaries loaded so far, as indicated in the list. If some functions cannot be read or access is denied, the list remains available with a message. State filters exclude functions with unknown state. Required permissions include at least `lambda:ListFunctions` and `lambda:GetFunction` for the additional information.
 
 When you manually load Lambda source code, the app streams the ZIP into a private system temporary directory, reads its contents in memory, and attempts to remove the temporary directory on success, failure, or cancellation. Archive entries are never extracted to filesystem paths. Viewing source code still creates a temporary ZIP on the local machine.
 
 Source preview is limited to a 50 MiB download, 250 MiB of expanded data, 10,000 file/directory entries, and 10 MiB of cumulative text preview. Each text file retains the existing 200,000-byte preview limit; binary and larger files remain listed without content. Hidden entries are not displayed but still count toward archive limits. Downloads time out after 60 seconds; ZIP processing has a 30-second limit. Use `Cancel` while loading to stop the operation. Switching functions or clearing/changing the Profile invalidates old requests.
+
+Only the current function's source is retained. Switching to another function releases the previous source; load it manually again when returning. Highlighting is reused for the current file, and changing the appearance reuses the parsed content without downloading source again.
 
 Preview supports ordinary, unencrypted, single-disk ZIPs using Store or Deflate. ZIP64, symbolic links, special file entries, alternate path/link metadata, unsafe or duplicate paths, paths over 1,024 bytes or 32 components, and inconsistent sizes or CRCs are rejected with an error. These are local preview limits, not AWS deployment quotas. Container-image functions continue to display image information rather than ZIP source.
 

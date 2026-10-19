@@ -5,6 +5,7 @@ struct S3BucketListView: View {
     @ObservedObject var vm: S3ViewModel
 
     var body: some View {
+        let filteredBuckets = vm.filteredBuckets
         VStack(spacing: 0) {
             ListToolbar(
                 title: "S3 Buckets",
@@ -14,7 +15,7 @@ struct S3BucketListView: View {
                 onCancel: { vm.cancelLoading() }
             )
             Divider()
-            List(vm.filteredBuckets, selection: $vm.selectedBucket) { bucket in
+            List(filteredBuckets, selection: $vm.selectedBucket) { bucket in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(bucket.name)
                         .fontWeight(.medium)
@@ -41,11 +42,11 @@ struct S3BucketListView: View {
             .overlay {
                 if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error, icon: "exclamationmark.triangle")
-                } else if !vm.isLoading && vm.filteredBuckets.isEmpty {
+                } else if !vm.isLoading && filteredBuckets.isEmpty {
                     EmptyStateView(text: vm.buckets.isEmpty ? "No S3 buckets" : "No matching buckets", icon: "externaldrive")
                 }
             }
-            ResourceListFooter(visible: vm.filteredBuckets.count, total: vm.buckets.count)
+            ResourceListFooter(visible: filteredBuckets.count, total: vm.buckets.count)
         }
     }
 }

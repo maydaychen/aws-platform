@@ -1,11 +1,13 @@
 import SwiftUI
 
+@MainActor
 struct LambdaCodeView: View {
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
     let function: LambdaFunctionModel
 
     @State private var selectedFileID: LambdaCodeFile.ID?
+    @StateObject private var preview = LambdaCodePreviewState()
 
     var body: some View {
         Group {
@@ -37,6 +39,10 @@ struct LambdaCodeView: View {
                 }
             }
         }
+        .task(id: previewRequest) {
+            await preview.update(previewRequest)
+        }
+        .onDisappear { preview.cancel() }
     }
 
     private var containerImageView: some View {
@@ -70,15 +76,21 @@ struct LambdaCodeView: View {
                     .padding(8)
                     .background(Color(nsColor: .controlBackgroundColor))
                 Divider()
-                if let content = file.content {
+                if file.content != nil, let request = previewRequest {
                     ScrollView([.horizontal, .vertical]) {
-                        highlightedText(content, path: file.path)
-                            .font(.system(size: 12, design: .monospaced))
-                            .lineSpacing(4)
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: true, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                            .padding(12)
+                        if let text = preview.text(for: request) {
+                            text
+                                .font(.system(size: 12, design: .monospaced))
+                                .lineSpacing(4)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: true, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                                .padding(12)
+                        } else {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(12)
+                        }
                     }
                 } else {
                     EmptyStateView(text: "Binary or large file preview is unavailable")
@@ -99,55 +111,11 @@ struct LambdaCodeView: View {
         selectedFileID = function.codeFiles.first?.id
     }
 
-    private func highlightedText(_ content: String, path: String) -> Text {
-        guard Self.highlightedExtensions.contains(
-            URL(fileURLWithPath: path).pathExtension.lowercased()
-        ) else {
-            return Text(content)
-        }
-
-        let pattern = #""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|#[^\n]*|\b(?:actor|async|await|break|case|catch|class|const|continue|def|do|else|enum|extension|false|for|from|func|function|guard|if|import|in|interface|internal|let|nil|null|private|protocol|public|return|static|struct|switch|throw|throws|true|try|var|while)\b|\b\d+(?:\.\d+)?\b"#
-
-        guard let expression = try? NSRegularExpression(pattern: pattern) else {
-            return Text(content)
-        }
-
-        var result = Text("")
-        var cursor = content.startIndex
-        let range = NSRange(content.startIndex..<content.endIndex, in: content)
-
-        for match in expression.matches(in: content, range: range) {
-            guard let matchRange = Range(match.range, in: content) else { continue }
-            if cursor < matchRange.lowerBound {
-                result = result + Text(String(content[cursor..<matchRange.lowerBound]))
-            }
-
-            let token = String(content[matchRange])
-            result = result + Text(token).foregroundColor(color(for: token))
-            cursor = matchRange.upperBound
-        }
-
-        if cursor < content.endIndex {
-            result = result + Text(String(content[cursor...]))
-        }
-        return result
+    private var previewRequest: LambdaCodeHighlightRequest? {
+        guard let file = selectedFile, let content = file.content else { return nil }
+        return LambdaCodeHighlightRequest(
+            source: .init(functionID: function.arn ?? function.functionName, path: file.path, content: content),
+            appearance: colorScheme == .dark ? .dark : .light
+        )
     }
-
-    private func color(for token: String) -> Color {
-        if token.hasPrefix("//") || token.hasPrefix("#") {
-            return .secondary
-        }
-        if token.hasPrefix("\"") || token.hasPrefix("'") {
-            return colorScheme == .dark ? .orange : .brown
-        }
-        if token.first?.isNumber == true {
-            return .blue
-        }
-        return .purple
-    }
-
-    private static let highlightedExtensions: Set<String> = [
-        "c", "cpp", "cs", "go", "h", "java", "js", "jsx", "kt", "mjs",
-        "php", "py", "rb", "rs", "sh", "swift", "ts", "tsx"
-    ]
 }

@@ -25,17 +25,21 @@ final class EC2ViewModel: ObservableObject {
     typealias HealthLoader = ([String]) async throws -> [String: EC2InstanceHealth]
     typealias HealthResultLoader = ([String]) async throws -> EC2InstanceHealthResult
     typealias DetailLoader = (String) async throws -> EC2InstanceDetailModel
+    typealias SectionLoader = (EC2InstanceDetailModel, EC2DetailSection) async throws -> EC2DetailSectionResult
 
     @Published var instances: [EC2InstanceModel] = []
     @Published var selectedInstance: EC2InstanceModel? {
         didSet {
             guard oldValue?.instanceId != selectedInstance?.instanceId else { return }
+            displayedDetailSection = nil
             loadDetailForSelection()
         }
     }
     @Published var instanceHealth: [String: EC2InstanceHealth] = [:]
     @Published var instanceHealthErrors: [String: String] = [:]
     @Published var isHealthLoading = false
+    @Published var isImageNameLoading = false
+    @Published private(set) var sectionStates: [EC2DetailSection: EC2DetailSectionState] = [:]
     @Published var instanceDetail: EC2InstanceDetailModel?
     @Published var isLoading = false
     @Published var isDetailLoading = false
@@ -53,6 +57,13 @@ final class EC2ViewModel: ObservableObject {
     private var healthLoader: HealthLoader?
     private var healthResultLoader: HealthResultLoader?
     private var detailLoader: DetailLoader?
+    private var sectionLoader: SectionLoader?
+    private var sectionTasks: [EC2DetailSection: Task<Void, Never>] = [:]
+    private var sectionGenerations: [EC2DetailSection: Int] = [:]
+    private var requestedSections: Set<EC2DetailSection> = []
+    private var displayedDetailSection: EC2DetailSection?
+    private var detailGeneration = 0
+    private var healthRevision = 0
     private var listGeneration = 0
     private var hasAttemptedLoad = false
 
@@ -61,13 +72,15 @@ final class EC2ViewModel: ObservableObject {
         imageNameLoader: ImageNameLoader? = nil,
         healthLoader: HealthLoader? = nil,
         healthResultLoader: HealthResultLoader? = nil,
-        detailLoader: DetailLoader? = nil
+        detailLoader: DetailLoader? = nil,
+        sectionLoader: SectionLoader? = nil
     ) {
         self.instanceLoader = instanceLoader
         self.imageNameLoader = imageNameLoader
         self.healthLoader = healthLoader
         self.healthResultLoader = healthResultLoader
         self.detailLoader = detailLoader
+        self.sectionLoader = sectionLoader
     }
 
     var availableStates: [String] {
@@ -104,11 +117,11 @@ final class EC2ViewModel: ObservableObject {
     func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         instanceLoader = {
             let client = try await provider.ec2Client(scope: scope)
-            return try await Self.fetchInstances(client: client)
+            return try await EC2DataLoader.fetchInstances(client: client)
         }
         imageNameLoader = { ids in
             let client = try await provider.ec2Client(scope: scope)
-            return try await Self.fetchImageNames(ids: ids, client: client)
+            return try await EC2DataLoader.fetchImageNames(ids: ids, client: client)
         }
         healthLoader = nil
         healthResultLoader = { ids in
@@ -117,7 +130,11 @@ final class EC2ViewModel: ObservableObject {
         }
         detailLoader = { instanceId in
             let client = try await provider.ec2Client(scope: scope)
-            return try await Self.fetchDetail(instanceId: instanceId, client: client)
+            return try await EC2DataLoader.fetchDetail(instanceId: instanceId, client: client)
+        }
+        sectionLoader = { base, section in
+            let client = try await provider.ec2Client(scope: scope)
+            return try await EC2DataLoader.fetchSection(base: base, section: section, client: client)
         }
         reset()
         self.scope = scope
@@ -132,7 +149,9 @@ final class EC2ViewModel: ObservableObject {
     func refresh() {
         guard instanceLoader != nil else { return }
         hasAttemptedLoad = true
+        listGeneration += 1
         loadTask?.cancel()
+        invalidateDetail()
         loadTask = Task { await loadInstances() }
     }
 
@@ -146,26 +165,39 @@ final class EC2ViewModel: ObservableObject {
         }
         listGeneration += 1
         loadTask?.cancel()
+        detailGeneration += 1
         detailTask?.cancel()
+        if isDetailLoading { detailError = "Loading cancelled. Use Refresh to try again." }
+        for section in requestedSections where sectionStates[section] == nil {
+            sectionStates[section] = .failed("Loading cancelled. Use Refresh to try again.")
+        }
+        for (section, task) in sectionTasks {
+            task.cancel()
+            if sectionStates[section] == .loading {
+                sectionStates[section] = .failed("Loading cancelled. Use Refresh to try again.")
+            }
+        }
+        sectionTasks = [:]
+        requestedSections = []
         isLoading = false
         isDetailLoading = false
         isHealthLoading = false
+        isImageNameLoading = false
     }
 
     func reset() {
         scope = nil
         cancelLoading()
         hasAttemptedLoad = false
-        detailTask?.cancel()
         instances = []
         selectedInstance = nil
         instanceHealth = [:]
         instanceHealthErrors = [:]
-        isHealthLoading = false
         instanceDetail = nil
+        sectionStates = [:]
+        displayedDetailSection = nil
         error = nil
         detailError = nil
-        isDetailLoading = false
         stateFilter = "All"
         healthFilter = .all
     }
@@ -175,19 +207,18 @@ final class EC2ViewModel: ObservableObject {
         hasAttemptedLoad = true
         listGeneration += 1
         let generation = listGeneration
-        detailTask?.cancel()
-        instanceDetail = nil
-        detailError = nil
-        isDetailLoading = false
+        invalidateDetail()
         instanceHealth = [:]
         instanceHealthErrors = [:]
         isHealthLoading = true
+        isImageNameLoading = false
         isLoading = true
         error = nil
         defer {
             if generation == listGeneration {
                 isLoading = false
                 isHealthLoading = false
+                isImageNameLoading = false
             }
         }
 
@@ -195,80 +226,19 @@ final class EC2ViewModel: ObservableObject {
             let rows = try await instanceLoader()
             try Task.checkCancellation()
             guard generation == listGeneration else { return }
-
-            let imageIDs = Array(Set(rows.compactMap(\.imageId)))
-            let imageNames: [String: String]
-            do {
-                imageNames = try await imageNameLoader?(imageIDs) ?? [:]
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                imageNames = [:]
-            }
-
-            try Task.checkCancellation()
-            guard generation == listGeneration else { return }
-            let loadedInstances = rows.map { row in
-                EC2InstanceModel(
-                    instanceId: row.instanceId,
-                    name: row.name,
-                    instanceType: row.instanceType,
-                    state: row.state,
-                    privateIP: row.privateIP,
-                    publicIP: row.publicIP,
-                    platformDetails: row.platformDetails,
-                    architecture: row.architecture,
-                    vpcId: row.vpcId,
-                    subnetId: row.subnetId,
-                    availabilityZone: row.availabilityZone,
-                    securityGroups: row.securityGroups,
-                    imageId: row.imageId,
-                    imageName: row.imageId.flatMap { imageNames[$0] } ?? row.imageName,
-                    keyName: row.keyName,
-                    launchTime: row.launchTime,
-                    tags: row.tags
-                )
-            }
-
-            instances = loadedInstances
-            let ids = loadedInstances.map(\.instanceId)
-            let loadedHealth: EC2InstanceHealthResult
-            do {
-                if let healthResultLoader {
-                    loadedHealth = try await healthResultLoader(ids)
-                } else {
-                    loadedHealth = .init(health: try await healthLoader?(ids) ?? [:], errors: [:])
-                }
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                let message = EC2InstanceHealthService.errorMessage(error)
-                loadedHealth = .init(health: [:], errors: Dictionary(ids.map { ($0, message) }, uniquingKeysWith: { first, _ in first }))
-            }
-
-            try Task.checkCancellation()
-            guard generation == listGeneration else { return }
             let selectedID = selectedInstance?.instanceId
-            let wanted = Set(ids)
-            var mergedHealth = loadedHealth.health.filter { wanted.contains($0.key) }
-            for (id, value) in instanceHealth where wanted.contains(id) && mergedHealth[id]?.hasStatusChecks != true {
-                mergedHealth[id] = value
-            }
-            instanceHealth = mergedHealth
-            instanceHealthErrors = loadedHealth.errors.filter { wanted.contains($0.key) && mergedHealth[$0.key]?.hasStatusChecks != true }
-            for id in ids where mergedHealth[id]?.hasStatusChecks != true && instanceHealthErrors[id] == nil {
-                instanceHealthErrors[id] = EC2InstanceHealthResult.notReturned
-            }
-            selectedInstance = selectedID.flatMap { id in
-                loadedInstances.first { $0.instanceId == id }
-            } ?? (selectFirstIfNeeded ? loadedInstances.first : nil)
-            if selectedID == selectedInstance?.instanceId, instanceDetail == nil, !isDetailLoading {
+            instances = rows
+            selectedInstance = selectedID.flatMap { id in rows.first { $0.instanceId == id } }
+                ?? (selectFirstIfNeeded ? rows.first : nil)
+            if selectedID == selectedInstance?.instanceId, selectedInstance != nil {
                 loadDetailForSelection()
             }
+            if !availableStates.contains(stateFilter) { stateFilter = "All" }
 
-            if !availableStates.contains(stateFilter) {
-                stateFilter = "All"
-            }
+            // Publish the basic list before either independent enrichment request finishes.
+            async let images: Void = loadImageNames(rows: rows, generation: generation)
+            async let health: Void = loadHealth(ids: rows.map(\.instanceId), generation: generation)
+            _ = await (images, health)
         } catch {
             guard generation == listGeneration, !Task.isCancelled,
                   !(error is CancellationError) else { return }
@@ -280,191 +250,181 @@ final class EC2ViewModel: ObservableObject {
         }
     }
 
-    func loadDetailForSelection() {
+    private func loadImageNames(rows: [EC2InstanceModel], generation: Int) async {
+        guard let imageNameLoader, !Task.isCancelled, generation == listGeneration else { return }
+        isImageNameLoading = true
+        defer { if generation == listGeneration { isImageNameLoading = false } }
+        do {
+            let names = try await imageNameLoader(Array(Set(rows.compactMap(\.imageId))))
+            try Task.checkCancellation()
+            guard generation == listGeneration else { return }
+            let selectedID = selectedInstance?.instanceId
+            instances = rows.map { row in
+                EC2InstanceModel(
+                    instanceId: row.instanceId, name: row.name, instanceType: row.instanceType, state: row.state,
+                    privateIP: row.privateIP, publicIP: row.publicIP, platformDetails: row.platformDetails,
+                    architecture: row.architecture, vpcId: row.vpcId, subnetId: row.subnetId,
+                    availabilityZone: row.availabilityZone, securityGroups: row.securityGroups, imageId: row.imageId,
+                    imageName: row.imageId.flatMap { names[$0] } ?? row.imageName,
+                    keyName: row.keyName, launchTime: row.launchTime, tags: row.tags
+                )
+            }
+            selectedInstance = selectedID.flatMap { id in instances.first { $0.instanceId == id } }
+        } catch {
+            // AMI names are optional; the instance rows and health request remain usable.
+        }
+    }
+
+    private func loadHealth(ids: [String], generation: Int) async {
+        guard !Task.isCancelled, generation == listGeneration else { return }
+        defer { if generation == listGeneration { isHealthLoading = false } }
+        let loaded: EC2InstanceHealthResult
+        do {
+            if let healthResultLoader { loaded = try await healthResultLoader(ids) }
+            else { loaded = .init(health: try await healthLoader?(ids) ?? [:], errors: [:]) }
+        } catch {
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            let message = EC2InstanceHealthService.errorMessage(error)
+            loaded = .init(health: [:], errors: Dictionary(ids.map { ($0, message) }, uniquingKeysWith: { first, _ in first }))
+        }
+        guard !Task.isCancelled, generation == listGeneration else { return }
+        healthRevision += 1
+        let wanted = Set(ids)
+        var merged = loaded.health.filter { wanted.contains($0.key) }
+        for (id, value) in instanceHealth where wanted.contains(id) && merged[id]?.hasStatusChecks != true {
+            merged[id] = value
+        }
+        instanceHealth = merged
+        instanceHealthErrors = loaded.errors.filter { wanted.contains($0.key) && merged[$0.key]?.hasStatusChecks != true }
+        for id in ids where merged[id]?.hasStatusChecks != true && instanceHealthErrors[id] == nil {
+            instanceHealthErrors[id] = EC2InstanceHealthResult.notReturned
+        }
+        if let id = instanceDetail?.instanceId, let health = merged[id] { instanceDetail?.health = health }
+    }
+
+    private func invalidateDetail() {
+        detailGeneration += 1
         detailTask?.cancel()
+        sectionTasks.values.forEach { $0.cancel() }
+        sectionTasks = [:]
+        sectionGenerations = [:]
+        sectionStates = [:]
+        requestedSections = Set(displayedDetailSection.map { [$0] } ?? [])
         instanceDetail = nil
         detailError = nil
+        isDetailLoading = false
+    }
 
-        guard let instanceId = selectedInstance?.instanceId, detailLoader != nil else {
-            isDetailLoading = false
-            return
-        }
-
+    @discardableResult
+    func loadDetailForSelection() -> Task<Void, Never>? {
+        invalidateDetail()
+        guard let instanceID = selectedInstance?.instanceId, detailLoader != nil else { return nil }
         isDetailLoading = true
-        detailTask = Task { await loadDetail(instanceId: instanceId) }
+        let list = listGeneration, detail = detailGeneration
+        let task = Task { await performLoadDetail(instanceId: instanceID, list: list, detail: detail) }
+        detailTask = task
+        return task
     }
 
     func loadDetail(instanceId: String) async {
-        guard !Task.isCancelled, let detailLoader else { return }
-        let generation = listGeneration
+        guard selectedInstance?.instanceId == instanceId, detailLoader != nil, !Task.isCancelled else { return }
+        invalidateDetail()
+        isDetailLoading = true
+        await performLoadDetail(instanceId: instanceId, list: listGeneration, detail: detailGeneration)
+    }
 
+    private func performLoadDetail(instanceId: String, list: Int, detail: Int) async {
+        guard let detailLoader, !Task.isCancelled,
+              isCurrent(instanceId: instanceId, list: list, detail: detail) else { return }
+        let revision = healthRevision
         do {
-            let detail = try await detailLoader(instanceId)
+            var value = try await detailLoader(instanceId)
             try Task.checkCancellation()
-            guard generation == listGeneration, selectedInstance?.instanceId == instanceId else { return }
-            instanceDetail = detail
-            if let health = detail.health {
-                instanceHealth[instanceId] = health
-                if health.hasStatusChecks { instanceHealthErrors[instanceId] = nil }
-                else { instanceHealthErrors[instanceId] = EC2InstanceHealthResult.notReturned }
-            } else if instanceHealth[instanceId]?.hasStatusChecks != true, instanceHealthErrors[instanceId] == nil {
-                instanceHealthErrors[instanceId] = EC2InstanceHealthResult.notReturned
-            }
-        } catch {
-            if Task.isCancelled || error is CancellationError { return }
-            guard generation == listGeneration, selectedInstance?.instanceId == instanceId else { return }
-            detailError = UserFacingError.message(for: error)
-        }
-
-        if generation == listGeneration, selectedInstance?.instanceId == instanceId {
+            guard isCurrent(instanceId: instanceId, list: list, detail: detail) else { return }
+            if revision == healthRevision { mergeHealth(value.health, instanceId: instanceId) }
+            else { value.health = instanceHealth[instanceId] }
+            instanceDetail = value
             isDetailLoading = false
+            for section in requestedSections { startSectionIfNeeded(section) }
+        } catch {
+            guard isCurrent(instanceId: instanceId, list: list, detail: detail) else { return }
+            isDetailLoading = false
+            detailError = error is CancellationError
+                ? "Loading cancelled. Use Refresh to try again." : UserFacingError.message(for: error)
         }
     }
 
-    private static func fetchInstances(client: EC2) async throws -> [EC2InstanceModel] {
-        var rows: [EC2InstanceModel] = []
-        var nextToken: String?
+    func showDetailSection(_ section: EC2DetailSection?) {
+        displayedDetailSection = section
+        if instanceDetail == nil { requestedSections = Set(section.map { [$0] } ?? []) }
+        guard let section else { return }
+        requestedSections.insert(section)
+        startSectionIfNeeded(section)
+    }
 
-        repeat {
-            try Task.checkCancellation()
-            let response = try await client.describeInstances(.init(nextToken: nextToken))
-            nextToken = response.nextToken
+    @discardableResult
+    func loadDetailSectionIfNeeded(_ section: EC2DetailSection) -> Task<Void, Never>? {
+        requestedSections.insert(section)
+        startSectionIfNeeded(section)
+        return sectionTasks[section]
+    }
 
-            for reservation in response.reservations ?? [] {
-                for instance in reservation.instances ?? [] {
-                    let instanceId = instance.instanceId ?? "unknown"
-                    let tags = dictionary(from: instance.tags)
+    func retryDetailSection(_ section: EC2DetailSection) {
+        guard sectionStates[section] != .loading else { return }
+        sectionStates[section] = .notLoaded
+        loadDetailSectionIfNeeded(section)
+    }
 
-                    rows.append(
-                        EC2InstanceModel(
-                            instanceId: instanceId,
-                            name: tags["Name"] ?? instanceId,
-                            instanceType: instance.instanceType?.rawValue ?? "-",
-                            state: instance.state?.name?.rawValue ?? "-",
-                            privateIP: instance.privateIpAddress,
-                            publicIP: instance.publicIpAddress,
-                            platformDetails: instance.platformDetails,
-                            architecture: instance.architecture?.rawValue,
-                            vpcId: instance.vpcId,
-                            subnetId: instance.subnetId,
-                            availabilityZone: instance.placement?.availabilityZone,
-                            securityGroups: (instance.securityGroups ?? []).compactMap {
-                                $0.groupId ?? $0.groupName
-                            },
-                            imageId: instance.imageId,
-                            imageName: nil,
-                            keyName: instance.keyName,
-                            launchTime: instance.launchTime,
-                            tags: tags
-                        )
-                    )
+    func waitForCurrentDetail() async { await detailTask?.value }
+    func waitForDetailSection(_ section: EC2DetailSection) async { await sectionTasks[section]?.value }
+
+    private func startSectionIfNeeded(_ section: EC2DetailSection) {
+        guard sectionStates[section] == nil || sectionStates[section] == .notLoaded,
+              let base = instanceDetail, base.instanceId == selectedInstance?.instanceId else { return }
+        // Legacy injected DetailLoader values are complete snapshots and need no second loader.
+        guard let sectionLoader else { sectionStates[section] = .loaded; return }
+        sectionStates[section] = .loading
+        let list = listGeneration, detail = detailGeneration, revision = healthRevision
+        let request = (sectionGenerations[section] ?? 0) + 1
+        sectionGenerations[section] = request
+        sectionTasks[section] = Task {
+            guard !Task.isCancelled, self.isCurrent(instanceId: base.instanceId, list: list, detail: detail),
+                  self.sectionGenerations[section] == request else { return }
+            do {
+                let result = try await sectionLoader(base, section)
+                try Task.checkCancellation()
+                guard self.isCurrent(instanceId: base.instanceId, list: list, detail: detail),
+                      self.sectionGenerations[section] == request else { return }
+                guard result.section == section else { throw EC2SectionError.unexpectedSection }
+                switch result {
+                case .storage(let volumes): self.instanceDetail?.volumes = volumes
+                case .security(let groups): self.instanceDetail?.securityGroups = groups
+                case .status(let health):
+                    guard let health else { throw EC2SectionError.statusNotReturned }
+                    if revision == self.healthRevision {
+                        self.instanceDetail?.health = health
+                        self.mergeHealth(health, instanceId: base.instanceId)
+                    } else { self.instanceDetail?.health = self.instanceHealth[base.instanceId] }
                 }
+                self.sectionStates[section] = .loaded
+            } catch {
+                guard self.isCurrent(instanceId: base.instanceId, list: list, detail: detail),
+                      self.sectionGenerations[section] == request else { return }
+                self.sectionStates[section] = .failed(error is CancellationError
+                    ? "Loading cancelled. Use Refresh to try again." : UserFacingError.message(for: error))
             }
-        } while nextToken != nil
-
-        return rows
+        }
     }
 
-    private static func fetchImageNames(ids: [String], client: EC2) async throws -> [String: String] {
-        guard !ids.isEmpty else { return [:] }
-        let response = try await client.describeImages(.init(imageIds: ids))
-        return Dictionary(
-            uniqueKeysWithValues: (response.images ?? []).compactMap { image in
-                guard let imageId = image.imageId else { return nil }
-                return (imageId, image.name ?? image.description ?? "Unknown")
-            }
-        )
+    private func isCurrent(instanceId: String, list: Int, detail: Int) -> Bool {
+        list == listGeneration && detail == detailGeneration && selectedInstance?.instanceId == instanceId
     }
 
-    private static func fetchDetail(
-        instanceId: String,
-        client: EC2
-    ) async throws -> EC2InstanceDetailModel {
-        let response = try await client.describeInstances(.init(instanceIds: [instanceId]))
-        guard let instance = response.reservations?.first?.instances?.first else {
-            throw EC2DetailError.instanceNotFound
+    private func mergeHealth(_ health: EC2InstanceHealth?, instanceId: String) {
+        if let health {
+            instanceHealth[instanceId] = health
+            instanceHealthErrors[instanceId] = health.hasStatusChecks ? nil : EC2InstanceHealthResult.notReturned
         }
-
-        var warnings: [String] = []
-        let status: EC2InstanceHealth?
-        do {
-            status = try await EC2InstanceHealthService(client: client).loadDetail(instanceId: instanceId)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            status = nil
-            warnings.append("Status checks: \(UserFacingError.message(for: error))")
-        }
-
-        try Task.checkCancellation()
-        let mappings = instance.blockDeviceMappings ?? []
-        let volumeIds = mappings.compactMap(\.ebs?.volumeId)
-        let volumes: [EC2VolumeModel]
-        do {
-            volumes = try await fetchVolumes(
-                instanceId: instanceId,
-                volumeIds: volumeIds,
-                mappings: mappings,
-                client: client
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            volumes = []
-            warnings.append("EBS volumes: \(UserFacingError.message(for: error))")
-        }
-
-        try Task.checkCancellation()
-        let groupIds = Array(
-            Set((instance.securityGroups ?? []).compactMap(\.groupId))
-        )
-        let securityGroups: [EC2SecurityGroupModel]
-        do {
-            securityGroups = try await fetchSecurityGroups(ids: groupIds, client: client)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            securityGroups = []
-            warnings.append("Security groups: \(UserFacingError.message(for: error))")
-        }
-
-        let cpuCreditMode = try await fetchCPUCreditMode(
-            instanceId: instanceId,
-            instanceType: instance.instanceType?.rawValue ?? "",
-            request: { try await client.describeInstanceCreditSpecifications($0) }
-        )
-
-        return EC2InstanceDetailModel(
-            instanceId: instanceId,
-            privateDNSName: instance.privateDnsName,
-            publicDNSName: instance.publicDnsName,
-            ipv6Address: instance.ipv6Address,
-            monitoringState: instance.monitoring?.state?.rawValue,
-            stateTransitionReason: instance.stateTransitionReason,
-            iamProfileARN: instance.iamInstanceProfile?.arn,
-            rootDeviceName: instance.rootDeviceName,
-            rootDeviceType: instance.rootDeviceType?.rawValue,
-            virtualizationType: instance.virtualizationType?.rawValue,
-            hypervisor: instance.hypervisor?.rawValue,
-            lifecycle: instance.instanceLifecycle?.rawValue,
-            spotRequestId: instance.spotInstanceRequestId,
-            capacityReservationId: instance.capacityReservationId,
-            cpuCoreCount: instance.cpuOptions?.coreCount,
-            threadsPerCore: instance.cpuOptions?.threadsPerCore,
-            ebsOptimized: instance.ebsOptimized,
-            enaSupport: instance.enaSupport,
-            sourceDestCheck: instance.sourceDestCheck,
-            metadataHttpEndpoint: instance.metadataOptions?.httpEndpoint?.rawValue,
-            metadataHttpTokens: instance.metadataOptions?.httpTokens?.rawValue,
-            metadataHopLimit: instance.metadataOptions?.httpPutResponseHopLimit,
-            metadataTags: instance.metadataOptions?.instanceMetadataTags?.rawValue,
-            networkInterfaces: (instance.networkInterfaces ?? []).map(networkInterface(from:)),
-            volumes: volumes,
-            securityGroups: securityGroups,
-            health: status,
-            warnings: warnings,
-            cpuCreditMode: cpuCreditMode
-        )
     }
 
     static func fetchCPUCreditMode(
@@ -472,192 +432,16 @@ final class EC2ViewModel: ObservableObject {
         instanceType: String,
         request: (EC2.DescribeInstanceCreditSpecificationsRequest) async throws -> EC2.DescribeInstanceCreditSpecificationsResult
     ) async throws -> EC2CPUCreditMode? {
-        guard EC2CPUCreditMode.applies(to: instanceType) else { return nil }
-        try Task.checkCancellation()
-        do {
-            let response = try await request(.init(instanceIds: [instanceId]))
-            try Task.checkCancellation()
-            let credits = response.instanceCreditSpecifications?.first { $0.instanceId == instanceId }?.cpuCredits
-            switch credits {
-            case "standard": return .standard
-            case "unlimited": return .unlimited
-            default: return .unknown
-            }
-        } catch {
-            try Task.checkCancellation()
-            if error is CancellationError { throw error }
-            let code = (error as? AWSErrorType)?.errorCode ?? ""
-            if ["UnauthorizedOperation", "AccessDenied", "AccessDeniedException", "Forbidden", "ForbiddenException"].contains(code) {
-                return .permissionDenied
-            }
-            return .readFailed
-        }
-    }
-
-    private static func fetchVolumes(
-        instanceId: String,
-        volumeIds: [String],
-        mappings: [EC2.InstanceBlockDeviceMapping],
-        client: EC2
-    ) async throws -> [EC2VolumeModel] {
-        guard !volumeIds.isEmpty else { return [] }
-        let response = try await client.describeVolumes(.init(volumeIds: volumeIds))
-        let mappingByVolumeId: [String: EC2.InstanceBlockDeviceMapping] = Dictionary(
-            uniqueKeysWithValues: mappings.compactMap { mapping in
-                guard let volumeId = mapping.ebs?.volumeId else { return nil }
-                return (volumeId, mapping)
-            }
-        )
-
-        return (response.volumes ?? []).compactMap { volume -> EC2VolumeModel? in
-            guard let volumeId = volume.volumeId else { return nil }
-            let mapping = mappingByVolumeId[volumeId]
-            let attachment = volume.attachments?.first { $0.instanceId == instanceId }
-            let tags = dictionary(from: volume.tags)
-            return EC2VolumeModel(
-                volumeId: volumeId,
-                name: tags["Name"],
-                device: attachment?.device ?? mapping?.deviceName,
-                state: volume.state?.rawValue,
-                type: volume.volumeType?.rawValue,
-                sizeGiB: volume.size,
-                iops: volume.iops,
-                throughputMiBps: volume.throughput,
-                encrypted: volume.encrypted,
-                deleteOnTermination: attachment?.deleteOnTermination
-                    ?? mapping?.ebs?.deleteOnTermination,
-                availabilityZone: volume.availabilityZone,
-                snapshotId: volume.snapshotId
-            )
-        }
-        .sorted { ($0.device ?? $0.volumeId) < ($1.device ?? $1.volumeId) }
-    }
-
-    private static func fetchSecurityGroups(
-        ids: [String],
-        client: EC2
-    ) async throws -> [EC2SecurityGroupModel] {
-        guard !ids.isEmpty else { return [] }
-        let response = try await client.describeSecurityGroups(.init(groupIds: ids))
-        return (response.securityGroups ?? []).compactMap { group in
-            guard let groupId = group.groupId else { return nil }
-            return EC2SecurityGroupModel(
-                groupId: groupId,
-                name: group.groupName,
-                description: group.description,
-                vpcId: group.vpcId,
-                inboundRules: (group.ipPermissions ?? []).flatMap(securityRules(from:)),
-                outboundRules: (group.ipPermissionsEgress ?? []).flatMap(securityRules(from:))
-            )
-        }
-        .sorted { $0.groupId < $1.groupId }
-    }
-
-    private static func networkInterface(
-        from interface: EC2.InstanceNetworkInterface
-    ) -> EC2NetworkInterfaceModel {
-        let privateAddresses = interface.privateIpAddresses ?? []
-        let associatedAddress = privateAddresses.compactMap(\.association).first
-        return EC2NetworkInterfaceModel(
-            interfaceId: interface.networkInterfaceId ?? "unknown",
-            description: interface.description,
-            status: interface.status?.rawValue,
-            interfaceType: interface.interfaceType,
-            macAddress: interface.macAddress,
-            privateIP: interface.privateIpAddress,
-            privateDNSName: interface.privateDnsName,
-            publicIP: interface.association?.publicIp ?? associatedAddress?.publicIp,
-            publicDNSName: interface.association?.publicDnsName
-                ?? associatedAddress?.publicDnsName,
-            privateIPs: privateAddresses.compactMap(\.privateIpAddress),
-            ipv6Addresses: (interface.ipv6Addresses ?? []).compactMap(\.ipv6Address),
-            vpcId: interface.vpcId,
-            subnetId: interface.subnetId,
-            securityGroupIds: (interface.groups ?? []).compactMap {
-                $0.groupId ?? $0.groupName
-            },
-            deviceIndex: interface.attachment?.deviceIndex,
-            deleteOnTermination: interface.attachment?.deleteOnTermination,
-            sourceDestCheck: interface.sourceDestCheck
-        )
-    }
-
-    private static func securityRules(
-        from permission: EC2.IpPermission
-    ) -> [EC2SecurityRuleModel] {
-        let protocolName = permission.ipProtocol == "-1"
-            ? "All"
-            : permission.ipProtocol ?? "-"
-        let portRange: String
-        if permission.ipProtocol == "-1" {
-            portRange = "All"
-        } else if let fromPort = permission.fromPort, let toPort = permission.toPort {
-            portRange = fromPort == toPort ? "\(fromPort)" : "\(fromPort)-\(toPort)"
-        } else {
-            portRange = "All"
-        }
-
-        var rules: [EC2SecurityRuleModel] = []
-        rules += (permission.ipRanges ?? []).map {
-            EC2SecurityRuleModel(
-                protocolName: protocolName,
-                portRange: portRange,
-                source: $0.cidrIp ?? "-",
-                description: $0.description
-            )
-        }
-        rules += (permission.ipv6Ranges ?? []).map {
-            EC2SecurityRuleModel(
-                protocolName: protocolName,
-                portRange: portRange,
-                source: $0.cidrIpv6 ?? "-",
-                description: $0.description
-            )
-        }
-        rules += (permission.prefixListIds ?? []).map {
-            EC2SecurityRuleModel(
-                protocolName: protocolName,
-                portRange: portRange,
-                source: $0.prefixListId ?? "-",
-                description: $0.description
-            )
-        }
-        rules += (permission.userIdGroupPairs ?? []).map {
-            EC2SecurityRuleModel(
-                protocolName: protocolName,
-                portRange: portRange,
-                source: $0.groupId ?? $0.groupName ?? "-",
-                description: $0.description
-            )
-        }
-
-        if rules.isEmpty {
-            rules.append(
-                EC2SecurityRuleModel(
-                    protocolName: protocolName,
-                    portRange: portRange,
-                    source: "-",
-                    description: nil
-                )
-            )
-        }
-        return rules
-    }
-
-    private static func dictionary(from tags: [EC2.Tag]?) -> [String: String] {
-        Dictionary(
-            uniqueKeysWithValues: (tags ?? []).compactMap { tag in
-                guard let key = tag.key else { return nil }
-                return (key, tag.value ?? "")
-            }
-        )
+        try await EC2DataLoader.fetchCPUCreditMode(instanceId: instanceId, instanceType: instanceType, request: request)
     }
 }
 
-private enum EC2DetailError: LocalizedError {
-    case instanceNotFound
-
+private enum EC2SectionError: LocalizedError {
+    case unexpectedSection, statusNotReturned
     var errorDescription: String? {
-        "The selected EC2 instance is no longer available."
+        switch self {
+        case .unexpectedSection: return "Unable to load EC2 detail section."
+        case .statusNotReturned: return EC2InstanceHealthResult.notReturned
+        }
     }
 }

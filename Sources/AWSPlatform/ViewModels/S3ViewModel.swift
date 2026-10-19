@@ -7,6 +7,7 @@ final class S3ViewModel: ObservableObject {
     typealias BucketLoader = () async throws -> [S3BucketModel]
     typealias DetailLoader = (S3BucketModel) async throws -> S3BucketModel
     typealias ObjectLoader = (String, String, String?) async throws -> S3ObjectPage
+    typealias ObjectMerger = @Sendable ([S3ObjectModel], [S3ObjectModel]) async throws -> [S3ObjectModel]
 
     @Published var buckets: [S3BucketModel] = []
     @Published var selectedBucket: S3BucketModel?
@@ -27,9 +28,11 @@ final class S3ViewModel: ObservableObject {
     private var loadTask: Task<Void, Never>?
     private var detailLoadTask: Task<Void, Never>?
     private var objectLoadTask: Task<Void, Never>?
+    private var objectMergeTask: Task<[S3ObjectModel], Error>?
     private var bucketLoader: BucketLoader?
     private var detailLoader: DetailLoader?
     private var objectLoader: ObjectLoader?
+    private let objectMerger: ObjectMerger
     private var listGeneration = 0
     private var detailGeneration = 0
     private var objectGeneration = 0
@@ -42,11 +45,15 @@ final class S3ViewModel: ObservableObject {
     init(
         bucketLoader: BucketLoader? = nil,
         detailLoader: DetailLoader? = nil,
-        objectLoader: ObjectLoader? = nil
+        objectLoader: ObjectLoader? = nil,
+        objectMerger: @escaping ObjectMerger = { existing, page in
+            try await S3ObjectListing.mergeSortedInBackground(existing, with: page)
+        }
     ) {
         self.bucketLoader = bucketLoader
         self.detailLoader = detailLoader
         self.objectLoader = objectLoader
+        self.objectMerger = objectMerger
     }
 
     var filteredBuckets: [S3BucketModel] {
@@ -106,6 +113,8 @@ final class S3ViewModel: ObservableObject {
         loadTask?.cancel()
         detailLoadTask?.cancel()
         objectLoadTask?.cancel()
+        objectMergeTask?.cancel()
+        objectMergeTask = nil
         isLoading = false
         isLoadingMoreObjects = false
     }
@@ -329,6 +338,7 @@ final class S3ViewModel: ObservableObject {
             if generation == objectGeneration {
                 isLoading = false
                 isLoadingMoreObjects = false
+                objectMergeTask = nil
             }
         }
         do {
@@ -350,9 +360,21 @@ final class S3ViewModel: ObservableObject {
                next.isEmpty || Data(next.utf8) == token.map({ Data($0.utf8) }) || consumedObjectTokens.contains(Data(next.utf8)) {
                 throw S3PaginationError.invalidContinuation
             }
+            let existing = append ? objects : []
+            let merger = objectMerger
+            let mergeTask = Task { try await merger(existing, page.objects) }
+            objectMergeTask = mergeTask
+            let merged = try await withTaskCancellationHandler {
+                try await mergeTask.value
+            } onCancel: {
+                mergeTask.cancel()
+            }
+            try Task.checkCancellation()
+            guard generation == objectGeneration else { return }
             if let token { consumedObjectTokens.insert(Data(token.utf8)) }
+            // Selection can change while the background merge runs; preserve the latest choice.
             let selection = selectedObject?.id
-            objects = S3ObjectListing.merge(append ? objects : [], with: page.objects)
+            objects = merged
             nextObjectToken = page.nextContinuationToken
             hasLoadedObjectPage = true
             if append {
@@ -387,6 +409,8 @@ final class S3ViewModel: ObservableObject {
     }
 
     private func clearObjectBrowser() {
+        objectMergeTask?.cancel()
+        objectMergeTask = nil
         objects = []
         selectedObject = nil
         currentPrefix = ""

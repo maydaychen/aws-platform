@@ -43,15 +43,80 @@ struct LambdaFunctionDetailModel: Hashable {
     let repositoryType: String?
     let reservedConcurrency: Int?
     let tags: [String: String]
-    let eventSources: [LambdaEventSourceModel]
-    let asyncInvokeConfigs: [LambdaAsyncInvokeConfigModel]
-    let functionURLs: [LambdaFunctionURLModel]
-    let versions: [LambdaVersionModel]
-    let aliases: [LambdaAliasModel]
-    let provisionedConcurrency: [LambdaProvisionedConcurrencyModel]
-    let policyRevisionId: String?
-    let policyStatements: [LambdaPolicyStatementModel]
+    var eventSources: [LambdaEventSourceModel]
+    var asyncInvokeConfigs: [LambdaAsyncInvokeConfigModel]
+    var functionURLs: [LambdaFunctionURLModel]
+    var versions: [LambdaVersionModel]
+    var aliases: [LambdaAliasModel]
+    var provisionedConcurrency: [LambdaProvisionedConcurrencyModel]
+    var policyRevisionId: String?
+    var policyStatements: [LambdaPolicyStatementModel]
     let warnings: [String]
+}
+
+enum LambdaDetailSection: CaseIterable, Hashable {
+    case configuration
+    case triggers
+    case versions
+}
+
+enum LambdaDetailSectionState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed(String)
+    case cancelled
+}
+
+enum LambdaDetailComponent: String, Hashable {
+    case eventSources = "Event Source Mappings"
+    case asyncInvokeConfigs = "Asynchronous Invocation"
+    case functionURLs = "Function URLs"
+    case versions = "Versions"
+    case aliases = "Aliases"
+    case provisionedConcurrency = "Provisioned Concurrency"
+
+    var section: LambdaDetailSection {
+        switch self {
+        case .eventSources, .asyncInvokeConfigs, .functionURLs: return .triggers
+        case .versions, .aliases, .provisionedConcurrency: return .versions
+        }
+    }
+}
+
+struct LambdaDetailSectionIssue: Equatable {
+    let component: LambdaDetailComponent
+    let message: String
+}
+
+struct LambdaDetailSectionData {
+    var eventSources: [LambdaEventSourceModel] = []
+    var asyncInvokeConfigs: [LambdaAsyncInvokeConfigModel] = []
+    var functionURLs: [LambdaFunctionURLModel] = []
+    var versions: [LambdaVersionModel] = []
+    var aliases: [LambdaAliasModel] = []
+    var provisionedConcurrency: [LambdaProvisionedConcurrencyModel] = []
+    var policyRevisionId: String? = nil
+    var policyStatements: [LambdaPolicyStatementModel] = []
+    var issues: [LambdaDetailSectionIssue] = []
+
+    func merging(into detail: LambdaFunctionDetailModel, section: LambdaDetailSection) -> LambdaFunctionDetailModel {
+        var updated = detail
+        switch section {
+        case .configuration:
+            updated.policyRevisionId = policyRevisionId
+            updated.policyStatements = policyStatements
+        case .triggers:
+            updated.eventSources = eventSources
+            updated.asyncInvokeConfigs = asyncInvokeConfigs
+            updated.functionURLs = functionURLs
+        case .versions:
+            updated.versions = versions
+            updated.aliases = aliases
+            updated.provisionedConcurrency = provisionedConcurrency
+        }
+        return updated
+    }
 }
 
 struct LambdaLayerModel: Identifiable, Hashable {

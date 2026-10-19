@@ -5,6 +5,7 @@ struct EC2ListView: View {
     @ObservedObject var vm: EC2ViewModel
 
     var body: some View {
+        let filteredInstances = vm.filteredInstances
         VStack(spacing: 0) {
             ListToolbar(
                 title: "EC2 Instances",
@@ -30,7 +31,7 @@ struct EC2ListView: View {
             .padding(.vertical, 8)
             Divider()
 
-            List(vm.filteredInstances, selection: $vm.selectedInstance) { instance in
+            List(filteredInstances, selection: $vm.selectedInstance) { instance in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(instance.name)
@@ -67,14 +68,14 @@ struct EC2ListView: View {
             .overlay {
                 if !vm.isLoading, let error = vm.error {
                     EmptyStateView(text: error, icon: "exclamationmark.triangle")
-                } else if !vm.isLoading && vm.filteredInstances.isEmpty {
+                } else if !vm.isLoading && filteredInstances.isEmpty {
                     EmptyStateView(text: vm.instances.isEmpty ? "No EC2 instances in this region" : "No matching instances. Try another search or filter.", icon: "server.rack")
                 }
             }
             if !vm.instanceHealthErrors.isEmpty {
                 EC2HealthReadWarning(errors: vm.instanceHealthErrors)
             }
-            ResourceListFooter(visible: vm.filteredInstances.count, total: vm.instances.count)
+            ResourceListFooter(visible: filteredInstances.count, total: vm.instances.count)
         }
     }
 

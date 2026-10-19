@@ -6,14 +6,14 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 
 ## 下载
 
-[0.4.0 版本](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.0) 需要 **macOS 13 或更高版本**，请按 Mac 的芯片选择安装包：
+[0.4.1 版本](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.1) 需要 **macOS 13 或更高版本**，请按 Mac 的芯片选择安装包：
 
 | Mac | 安装包 | 压缩包 |
 | --- | --- | --- |
-| Apple Silicon（M 系列，`arm64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.zip) |
-| Intel（`x86_64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.zip) |
+| Apple Silicon（M 系列，`arm64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-arm64.zip) |
+| Intel（`x86_64`） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-x86_64.zip) |
 
-打开 DMG 后将 AWSPlatform 拖入 Applications，或解压 ZIP。两个版本均已完成 Developer ID 签名和 Apple 公证；Release 附有 [SHA-256 校验文件](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/SHA256SUMS.txt) 。SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
+打开 DMG 后将 AWSPlatform 拖入 Applications，或解压 ZIP。两个版本均已完成 Developer ID 签名和 Apple 公证；Release 附有 [SHA-256 校验文件](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/SHA256SUMS.txt) 。SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
 
 ## 功能
 

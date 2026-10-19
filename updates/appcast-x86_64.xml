@@ -3,6 +3,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <item>
+      <title>AWSPlatform 0.4.1</title>
+      <pubDate>Mon, 19 Oct 2026 23:31:30 +0000</pubDate>
+      <sparkle:version>18</sparkle:version>
+      <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <link>https://github.com/maydaychen/aws-platform/releases/tag/v0.4.1</link>
+      <enclosure url="https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-x86_64.zip" length="38335892" type="application/octet-stream" sparkle:edSignature="JcY1YACHBhIk8/H44b6ZJyaJ4y8ckE5Ep0AfJgx19APuocvERezWh+zJOvop8nK1w9F92ZjxRQuo++bXxkAcCg=="></enclosure>
+    </item>
+    <item>
       <title>AWSPlatform 0.4.0</title>
       <pubDate>Sun, 18 Oct 2026 16:21:18 +0000</pubDate>
       <sparkle:version>17</sparkle:version>
@@ -26,6 +35,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <language>en</language>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: kS9JpsmEqZh1aoIE95DguOEZ1JCZMjy5z3B8bK311Y/iflunhKK3FO7NCMs1qnJwRGq5PwTlP8y5mibFPkf8DA==
-length: 1980
+edSignature: hB8KeVm5M3NSVVIfxEl3nvOrXPE7mfkdmchxRBj2uJ7RbPJXWwEMArMOPlIy39S03C+ldfMdROdtIvmmWsSsCw==
+length: 2660
 -->

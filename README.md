@@ -6,14 +6,14 @@ A native macOS app for browsing AWS resources and costs, with explicit S3 file t
 
 ## Download
 
-[Version 0.4.0](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.0) requires **macOS 13 or later**. Choose the package for your Mac:
+[Version 0.4.1](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.1) requires **macOS 13 or later**. Choose the package for your Mac:
 
 | Mac | Installer | Archive |
 | --- | --- | --- |
-| Apple Silicon (M-series, `arm64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-arm64.zip) |
-| Intel (`x86_64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/AWSPlatform-0.4.0-x86_64.zip) |
+| Apple Silicon (M-series, `arm64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-arm64.zip) |
+| Intel (`x86_64`) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/AWSPlatform-0.4.1-x86_64.zip) |
 
-Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both builds are Developer ID signed and notarized by Apple. [SHA-256 checksums](https://github.com/maydaychen/aws-platform/releases/download/v0.4.0/SHA256SUMS.txt) are available with the release. AWS CLI v2 is required for SSO sign-in; see [Prerequisites](#prerequisites).
+Open the DMG and drag AWSPlatform to Applications, or extract the ZIP. Both builds are Developer ID signed and notarized by Apple. [SHA-256 checksums](https://github.com/maydaychen/aws-platform/releases/download/v0.4.1/SHA256SUMS.txt) are available with the release. AWS CLI v2 is required for SSO sign-in; see [Prerequisites](#prerequisites).
 
 ## Features
 

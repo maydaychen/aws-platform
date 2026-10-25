@@ -6,7 +6,14 @@ A native macOS app for browsing AWS resources and costs, with explicit S3 file t
 
 ## Download
 
-There is currently no public GitHub repository or release download. Build from an existing source checkout using the instructions below. The app requires **macOS 13 or later**; AWS CLI v2 is required for SSO sign-in. See [Prerequisites](#prerequisites).
+Download **[v0.4.2 (26)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.2)**. The app requires **macOS 13 or later**; AWS CLI v2 is required for SSO sign-in. See [Prerequisites](#prerequisites).
+
+| Mac | Installer | Archive |
+| --- | --- | --- |
+| Apple Silicon | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.zip) |
+| Intel | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.zip) |
+
+Both distributions are Developer ID signed and Apple notarized. Verify downloads with [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/SHA256SUMS.txt).
 
 ## Features
 
@@ -75,8 +82,8 @@ On Apple Silicon, use an AWS CLI version that runs natively. Starting with versi
 ### Build and Run
 
 ```bash
-# From an existing source checkout
-cd /path/to/aws-platform
+git clone https://github.com/maydaychen/aws-platform.git
+cd aws-platform
 
 # Build
 swift build
@@ -125,7 +132,7 @@ Development continues directly in this sanitized repository, with nickname and `
 
 Installers from `v0.3.1` onward provide **AWSPlatform → Check for Updates…** and an **Updates** section in Settings. Automatic checks are off by default; enabling them checks for new releases without automatically downloading or installing them. Installation requires confirmation and waits for S3 transfers across the app's windows and an active AWS CLI update to actually finish, including transfers whose cancellation was requested. New transfers are paused while a restart is pending. Close any separately launched app instances before updating.
 
-Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates require an Ed25519-signed feed and verify the final ZIP before extraction, retaining the existing bundle identity and local preferences. Feed verification failures stop the update; signatures authenticate content but do not guarantee that the server provides the newest release. If the signing key is lost, recovery requires a manually installed release with a reviewed new key. Version `v0.3.0` and earlier predate this updater. Install `v0.3.1` manually to enable future in-app updates. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
+Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates require an Ed25519-signed feed and verify the final ZIP before extraction, retaining the existing bundle identity and local preferences. Feed verification failures stop the update; signatures authenticate content but do not guarantee that the server provides the newest release. If the signing key is lost, recovery requires a manually installed release with a reviewed new key. Version `v0.3.0` and earlier predate this updater. Install the latest release manually to enable future in-app updates. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
 
 ### AWS CLI Updates
 

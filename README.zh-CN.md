@@ -6,7 +6,14 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 
 ## 下载
 
-当前没有公开的 GitHub 仓库或 Release 下载，请从已有源码副本按下文构建。应用需要 **macOS 13 或更高版本**，SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
+下载 **[v0.4.2 (26)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.2)**。应用需要 **macOS 13 或更高版本**，SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
+
+| Mac | 安装镜像 | 压缩包 |
+| --- | --- | --- |
+| Apple Silicon | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.zip) |
+| Intel | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.zip) |
+
+两套分发包均使用 Developer ID 签名并通过 Apple 公证，校验值见 [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/SHA256SUMS.txt) 。
 
 ## 功能
 
@@ -75,8 +82,8 @@ Apple Silicon 上应使用能原生运行的 AWS CLI。AWS CLI v2 从 2.30.0 起
 ### 构建运行
 
 ```bash
-# 从已有源码副本进入项目
-cd /path/to/aws-platform
+git clone https://github.com/maydaychen/aws-platform.git
+cd aws-platform
 
 # 构建
 swift build
@@ -125,7 +132,7 @@ open Package.swift
 
 `v0.3.1` 及更新版本的安装包提供「AWSPlatform → 检查更新…」菜单和设置中的「更新」分组。自动检查默认关闭；开启后只检查新版本，不自动下载或安装。安装需要确认，并等待应用各窗口中的 S3 任务和正在进行的 AWS CLI 更新实际结束，包括已经请求取消的传输任务；等待重启期间暂停新传输。更新前请先关闭另行启动的其他应用实例。
 
-Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架构选择。更新要求 Ed25519 签名的清单，并在解包前校验最终 ZIP，延续现有 Bundle ID 和本地偏好。清单验签失败会停止更新；签名验证内容来源，不保证服务器提供的是最新版本。签名密钥丢失时，需要手动安装经过审查、包含新公钥的版本。`v0.3.0` 及更早版本尚未集成更新器，需要先手动安装 `v0.3.1`，后续才能在应用内升级。签名、打包和清单生成见 [打包说明](scripts/README.md#应用更新与发布清单) 。
+Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架构选择。更新要求 Ed25519 签名的清单，并在解包前校验最终 ZIP，延续现有 Bundle ID 和本地偏好。清单验签失败会停止更新；签名验证内容来源，不保证服务器提供的是最新版本。签名密钥丢失时，需要手动安装经过审查、包含新公钥的版本。`v0.3.0` 及更早版本尚未集成更新器，需要先手动安装最新版本，后续才能在应用内升级。签名、打包和清单生成见 [打包说明](scripts/README.md#应用更新与发布清单) 。
 
 ### AWS CLI 更新
 

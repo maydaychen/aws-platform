@@ -119,7 +119,7 @@ For distribution, use `scripts/package-distribution.py` with the same architectu
 
 ### Release Privacy
 
-Packaging maps workspace paths in Swift and C/C++ source strings and debug metadata to `/build/aws-platform`. Privacy checks run before signing and on expanded archive contents. A separate source exporter copies only a clean committed tree, preserving the original repository and its history. See [release privacy](docs/release-privacy.md) for local deny patterns, export commands, checks, and certificate identity limits.
+Development continues directly in this sanitized repository, with nickname and `noreply` commit identities. Packaging maps workspace paths in Swift and C/C++ source strings and debug metadata to `/build/aws-platform`. Privacy checks run before signing and on expanded archive contents. The source exporter copies only a clean committed tree without Git history or local configuration. See [release privacy](docs/release-privacy.md) for local deny patterns, export commands, checks, and certificate identity limits.
 
 ### Application Updates
 

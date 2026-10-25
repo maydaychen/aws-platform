@@ -1,62 +1,64 @@
-# Repository Guidelines
+# 代理执行手册
 
-## Project Structure & Module Organization
+AWS Platform 是面向 AWS 使用者的原生 macOS 资源与费用浏览工具，采用 SwiftUI、Swift Package 和 Soto，按用户显式选择的 AWS CLI Profile 隔离查询，并支持用户主动发起的 S3 文件传输与外部 EC2 SSM 会话。本文件是代理执行手册，不是项目介绍；产品介绍与使用方式见 `README.md`。
 
-This repository is a Swift Package for a macOS SwiftUI app, `AWSPlatform`.
+## 项目结构与模块组织
 
-- `Package.swift` defines the executable target, macOS 13 minimum, Swift 5.9 tools, and Soto dependencies.
-- `Sources/AWSPlatform/App.swift` is the app entry point; `ContentView.swift` hosts the main shell.
-- `Sources/AWSPlatform/Models/` contains lightweight domain models for AWS profiles, EC2, Lambda, and S3.
-- `Sources/AWSPlatform/Services/` owns AWS client/provider integration.
-- `Sources/AWSPlatform/ViewModels/` contains observable UI state.
-- `Sources/AWSPlatform/Views/` contains SwiftUI views, grouped by AWS service plus shared shell components.
-- `Tests/AWSPlatformTests/` contains config parsing and view model unit tests.
-- `docs/superpowers/` contains design specs and implementation planning notes.
-- `ROADMAP.md` is the source of truth for current progress and validation status.
+本仓库通过 Swift Package 组织 macOS SwiftUI 应用 `AWSPlatform`。
 
-Keep non-trivial parsing and view model state transitions covered by the existing test target.
+- `Package.swift`：定义可执行目标、macOS 13 最低版本、Swift 5.9 工具版本和 Soto 依赖。
+- `Sources/AWSPlatform/App.swift`：应用入口；`ContentView.swift` 承载主界面框架。
+- `Sources/AWSPlatform/Models/`：AWS Profile、EC2、Lambda 和 S3 等轻量领域模型。
+- `Sources/AWSPlatform/Services/`：AWS 客户端与服务提供方集成。
+- `Sources/AWSPlatform/ViewModels/`：可观察的界面状态。
+- `Sources/AWSPlatform/Views/`：按 AWS 服务组织的 SwiftUI 视图及共享框架组件。
+- `Tests/AWSPlatformTests/`：配置解析与视图模型单元测试。
+- `docs/superpowers/`：设计式样与实施规划记录。
+- `ROADMAP.md`：当前进度和验证状态的事实源。
 
-## Build, Test, and Development Commands
+非简单解析逻辑和视图模型状态流转须由现有测试目标覆盖。
+
+## 构建、测试与开发命令
 
 ```bash
 swift build
 ```
-Builds the Swift package and resolves Soto dependencies.
+构建 Swift 包并解析 Soto 依赖。
 
 ```bash
 swift run
 ```
-Builds and launches the macOS app from the command line.
+从命令行构建并启动 macOS 应用。
 
 ```bash
 swift test
 ```
-Runs the package test suite.
+运行包内测试套件。
 
 ```bash
 open Package.swift
 ```
-Opens the package in Xcode for interactive SwiftUI development and Cmd+R runs.
+在 Xcode 中打开包，进行交互式 SwiftUI 开发并通过 Cmd+R 运行。
 
-## Coding Style & Naming Conventions
+## 代码风格与命名约定
 
-Use standard Swift API Design Guidelines: types in `UpperCamelCase`, methods and properties in `lowerCamelCase`, and clear nouns for models/view models. Keep SwiftUI view files focused on composition; move AWS calls and async state into services or view models. Use 4-space indentation, prefer `let` over `var`, and keep service-specific UI inside `Views/<Service>/`.
+遵循标准 Swift API 设计指南：类型使用 `UpperCamelCase`，方法和属性使用 `lowerCamelCase`，模型与视图模型使用含义清晰的名词。SwiftUI 视图文件聚焦界面组合，AWS 调用和异步状态放到服务或视图模型。使用四个空格缩进，优先使用 `let`，服务专属 UI 放在 `Views/<Service>/`。
 
-## Testing Guidelines
+## 测试指南
 
-When adding tests, create a `Tests/AWSPlatformTests/` target in `Package.swift`. Name test files after the unit under test, such as `ConfigReaderTests.swift`, and use behavior-focused `test...` method names. Prefer unit tests for parsing, model mapping, and view model state transitions. Avoid live AWS calls; inject mock service providers.
+`Package.swift` 已定义测试目标 `AWSPlatformTests`；新增测试放入现有 `Tests/AWSPlatformTests/`，无需重复创建目标。文件按被测单元命名，例如 `ConfigReaderTests.swift`，方法以 `test...` 开头并描述行为。优先对解析、模型映射和视图模型状态流转编写单元测试；注入模拟服务提供方，不调用真实 AWS。
 
-## Commit & Pull Request Guidelines
+## 提交与 Pull Request 规范
 
-Recent history uses concise messages with either Conventional Commit style (`docs: add README.md...`) or a short imperative summary (`Initial commit: ...`). Continue with messages like `feat: add EC2 refresh action` or `fix: handle missing AWS region`.
+已有历史使用简短的 Conventional Commit 或动作摘要；提交示例为 `feat: 增加 EC2 刷新入口`、`fix: 处理 AWS 区域缺失`。
 
-Pull requests should include a short description, verification steps (`swift build`, `swift test` when available), screenshots for UI changes, and notes for AWS credential, region, or permission assumptions.
+PR 应包含简要说明、验证步骤（适用时运行 `swift build`、`swift test`）、UI 变更截图，以及 AWS 凭据、区域或权限假设说明。
 
-## Security & Configuration Tips
+## 安全与配置提示
 
-Do not commit AWS credentials, generated local config, or Xcode user state. The app expects AWS CLI profiles in `~/.aws/config` and `~/.aws/credentials`; keep examples sanitized and use profile names rather than secrets in docs and tests.
+不得提交 AWS 凭据、生成的本地配置或 Xcode 用户状态。应用使用 `~/.aws/config` 和 `~/.aws/credentials` 中的 AWS CLI Profile；示例必须脱敏，文档和测试使用 Profile 名称而非密钥。
 
-## AWS Query Scope
+## AWS 查询作用域
 
 - 当前及后续新增的 AWS 数据查询（包括资源、Cost、指标和日志）统一以用户显式选择的当前 Profile 为单位；查询凭据、调用账号和角色由该 Profile 决定。Region 按服务语义使用当前选择或资源实际区域（如 S3 Bucket），区域解析不得改变 Profile 查询作用域；实际可见范围仍受 AWS 服务和该角色权限约束。
 - Session 只负责 SSO 登录与授权缓存，不作为数据查询单位；不得因多个 Profile 共用 Session 而自动查询或聚合这些 Profile 的数据。
@@ -65,7 +67,7 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 - 切换或清空 Profile 时，清空旧数据并取消旧请求或使其结果失效；查询状态和缓存按 Profile 隔离，区域型查询同时按 Region 隔离，防止跨 Profile 展示数据。
 - 凭据续期必须使用新取得的同一组凭据验证账号与稳定主体后才允许业务请求；账号或角色变化时使整个验证代次失效并要求重新验证。正常续期的 STS session 名变化不代表角色变化，凭据内容不得写入日志。
 
-## S3 File Transfers
+## S3 文件传输
 
 - S3 允许用户主动发起当前已验证 Profile 的单文件上传与下载；EC2 另允许下述用户主动发起的外部 SSM 会话，其他服务继续只读。不调用对象删除、ACL／标签写入或 Bucket 配置写入接口；覆盖上传不复制原对象的元数据、标签及 ACL，必须在确认提示中说明。
 - 传输绑定 Profile、STS 账号／角色、配置路径与 Bucket 实际 Region，未选或未验证 Profile 时禁用入口；切换、清空或重新验证范围时取消旧任务并使旧回调／确认弹窗失效。取消不能撤销已由 AWS 接收的写入，不自动回滚远端对象。
@@ -74,13 +76,13 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 - 下载由用户选择本地目标，使用同目录临时文件，完整成功后提交；新文件使用排他提交。覆盖现有本地文件时原子交换并保留被替换文件为同目录恢复副本，完成提示提供位置；检查与提交之间的并发编辑不得被静默丢弃。提交前失败或取消清理临时文件并保留原文件，交换后的恢复副本不得按临时文件删除。云端 Key 不直接作为本地路径拼接。
 - 自动化验证只使用模拟传输和任务临时文件；不得为测试向真实 S3 写入、覆盖或删除数据。
 
-## EC2 SSM Connections
+## EC2 SSM 连接
 
 - 仅用户点击当前运行实例的 Connect 后，通过系统对 `.command` 的默认关联程序启动外部 SSM 会话；不内置终端、不自动连接、不修改实例、IAM 或 SSM 配置。
 - 连接绑定当前已验证 Profile、账号／角色、Region、AWS 配置路径和实例 ID；从显式 Profile 解析一次凭据，使用同一组内存凭据核对身份并发起连接，业务调用不得重新解析 Profile 或受继承凭据／配置影响。凭据不写入脚本、磁盘、命令行参数或日志。未选／未验证 Profile 或旧实例范围失效时禁用入口；移交终端后会话由终端管理，切换应用范围不终止已移交会话。
 - 生成的私有一次性脚本只保存定位信息，不写入凭据；执行结束或移交失败时清理。自动化测试注入启动器与本地 CLI 替身，不调用真实 AWS 或建立远程会话。
 
-## Update Distribution Trust
+## 更新分发信任边界
 
 - Sparkle 框架与发布助手只从固定官方包校验值验证过的私有暂存目录消费；不得直接执行或重新签名普通构建缓存中的助手／框架。组件版本、校验值与依赖锁文件保持一致，校验失败先停止再进入签名步骤。
 - 更新包与 Feed 都必须使用专用 Ed25519 公钥验证，Feed 变动后重新签名，安装前先验证归档再解压；签名不证明服务器始终提供最新内容。测试不访问真实签名密钥，密钥丢失时保留手动安装的恢复路径。
@@ -88,12 +90,12 @@ Do not commit AWS credentials, generated local config, or Xcode user state. The 
 <!-- CODEGRAPH_START -->
 ## CodeGraph
 
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+仓库根目录存在 `.codegraph/` 时，理解或定位代码必须先使用 CodeGraph，再使用文本检索或直接读取源码：
 
-- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+- **MCP 工具**（可用时）：`codegraph_explore` 通常一次调用即可返回相关符号的原始源码及其调用路径，包括文本检索难以追踪的动态分派。查询中指定文件或符号，可读取当前带行号的源码；工具已列出但尚未加载时，按名称搜索并加载。
+- **Shell 命令**：`codegraph explore "<symbol names or question>"` 返回相同信息。
 
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+不存在 `.codegraph/` 时跳过 CodeGraph；是否建立索引由用户决定。
 <!-- CODEGRAPH_END -->
 
 <!-- HARNESS_VERIFICATION_START -->

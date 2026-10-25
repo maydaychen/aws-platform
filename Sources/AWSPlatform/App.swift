@@ -57,7 +57,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         AppUpdateController.shared.start()
-        Task { await S3UploadLease.cleanupOrphans() }
+        Task {
+            await S3UploadLease.cleanupOrphans()
+            await SSMScriptLease.cleanupOrphans()
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

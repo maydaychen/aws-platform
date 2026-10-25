@@ -57,6 +57,10 @@ final class EC2SSMConnectionTests: XCTestCase {
             let attrs = try FileManager.default.attributesOfItem(atPath: path.path)
             XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o700)
         }
+        let marker = url.deletingLastPathComponent().appendingPathComponent(SSMScriptLease.markerName)
+        let markerAttributes = try FileManager.default.attributesOfItem(atPath: marker.path)
+        XCTAssertEqual((markerAttributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertEqual(try Data(contentsOf: marker), SSMScriptLease.marker)
         let script = try String(contentsOf: url)
         XCTAssertTrue(script.contains("ssm start-session --target 'i-0123456789abcdef0'"))
         XCTAssertTrue(script.contains("configure export-credentials --format process"))
@@ -279,7 +283,7 @@ final class EC2SSMConnectionTests: XCTestCase {
     }
 
     private func makeDirectory() throws -> URL {
-        let base = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".tmp/ec2-ssm/tests")
+        let base = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".tmp/ssm-script-cleanup/ec2-tests")
         let root = base.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
@@ -316,6 +320,9 @@ final class EC2SSMConnectionTests: XCTestCase {
         let stub = """
         #!/bin/bash
         set -euo pipefail
+        for pending in \(quote(root.path))/AWSPlatform-SSM-*; do
+            [[ ! -e "$pending/Connect.command" && ! -e "$pending/.awsplatform-ssm-lease" ]] || exit 89
+        done
         if [[ "$1" == --version ]]; then
             [[ "${AWS_ACCESS_KEY_ID-unset}/${AWS_SECRET_ACCESS_KEY-unset}/${AWS_SESSION_TOKEN-unset}" == unset/unset/unset ]] || exit 96
             printf '%s\\n' \(quote(cliVersion)); exit \(cliVersionExit)

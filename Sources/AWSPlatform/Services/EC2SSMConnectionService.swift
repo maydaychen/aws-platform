@@ -58,29 +58,32 @@ struct EC2SSMConnectionService {
     var gate: AWSCLIOperationGate = .shared
 
     func connect(_ request: EC2SSMConnectionRequest, locale: Locale) throws {
+        let root = temporaryDirectory
+        Task { await SSMScriptLease.cleanupOrphans(in: root) }
         let lease = try gate.beginOperation()
         defer { gate.endOperation(lease) }
         guard let cli = cli() else { throw EC2SSMConnectionError.cliMissing }
         guard let plugin = plugin() else { throw EC2SSMConnectionError.pluginMissing }
-        let directory = temporaryDirectory.appendingPathComponent("AWSPlatform-SSM-\(UUID().uuidString)", isDirectory: true)
-        let scriptURL = directory.appendingPathComponent("Connect.command")
+        var scriptLease: SSMScriptLease?
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
-                                                    attributes: [.posixPermissions: 0o700])
-            let script = Self.script(request, cli: cli, plugin: plugin, home: homeDirectory, locale: locale)
-            try Data(script.utf8).write(to: scriptURL, options: .withoutOverwriting)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+            let pending = try SSMScriptLease(root: temporaryDirectory)
+            scriptLease = pending
+            let script = Self.script(request, cli: cli, plugin: plugin, home: homeDirectory,
+                                     directory: pending.directory, directoryIdentity: pending.directoryIdentity, locale: locale)
+            try pending.writeScript(script)
+            try pending.releaseForHandoff()
+            guard open(pending.scriptURL) else { throw EC2SSMConnectionError.openFailed }
+        } catch let failure as EC2SSMConnectionError {
+            scriptLease?.discard()
+            throw failure
         } catch {
-            try? FileManager.default.removeItem(at: directory)
+            scriptLease?.discard()
             throw EC2SSMConnectionError.prepareFailed
-        }
-        guard open(scriptURL) else {
-            try? FileManager.default.removeItem(at: directory)
-            throw EC2SSMConnectionError.openFailed
         }
     }
 
-    static func script(_ request: EC2SSMConnectionRequest, cli: URL, plugin: URL, home: URL, locale: Locale) -> String {
+    static func script(_ request: EC2SSMConnectionRequest, cli: URL, plugin: URL, home: URL,
+                       directory: URL, directoryIdentity: String, locale: Locale) -> String {
         let scope = request.scope
         let path = [plugin.deletingLastPathComponent().path, cli.deletingLastPathComponent().path,
                     "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].joined(separator: ":")
@@ -93,12 +96,35 @@ struct EC2SSMConnectionService {
         #!/bin/bash
         set +x
         set -euo pipefail
-        trap '/bin/rm -f -- "$0"; /bin/rmdir -- "${0%/*}"' EXIT
+        unset connect_json connect_access connect_secret connect_token
+        for connect_name in "${!AWS_@}"; do unset "$connect_name"; done
+        connect_directory=\(quote(directory.path))
+        connect_directory_identity=\(quote(directoryIdentity))
+        connect_marker=\(quote(SSMScriptLease.markerName))
+        connect_check_directory() (
+            cd -P -- "$connect_directory" || exit 1
+            [[ "$(/usr/bin/stat -f '%d:%i' .)" == "$connect_directory_identity" ]]
+        )
+        if [[ "${1:-}" != --awsplatform-ssm-locked ]]; then
+            connect_check_directory || exit 1
+            exec /usr/bin/lockf -k -n -t 0 "$connect_directory/$connect_marker" \\
+                /bin/bash --noprofile --norc "$0" --awsplatform-ssm-locked
+        fi
+        shift
+        connect_cleanup() (
+            [[ -d "$connect_directory" ]] || exit 0
+            cd -P -- "$connect_directory" || exit 1
+            [[ "$(/usr/bin/stat -f '%d:%i' .)" == "$connect_directory_identity" ]] || exit 1
+            /bin/rm -f -- \(quote(SSMScriptLease.scriptName)) "$connect_marker"
+            [[ ! -L "$connect_directory" && "$(/usr/bin/stat -f '%d:%i' "$connect_directory" 2>/dev/null)" == "$connect_directory_identity" ]] || exit 0
+            /bin/rmdir -- "$connect_directory" 2>/dev/null || [[ ! -d "$connect_directory" ]]
+        )
+        trap 'connect_exit=$?; connect_cleanup || :; exit "$connect_exit"' EXIT
         trap 'exit 129' HUP
         trap 'exit 130' INT
         trap 'exit 143' TERM
-        unset connect_json connect_access connect_secret connect_token
-        for connect_name in "${!AWS_@}"; do unset "$connect_name"; done
+        cd /
+        connect_cleanup
         dependencies_failed() {
             printf '%s\\n' \(quote(dependencyError)) >&2
             exit 1

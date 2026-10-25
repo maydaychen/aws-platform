@@ -178,7 +178,7 @@ T 系列实例概览的「CPU 与访问」区域显示当前 `Standard`／`Unlim
 
 AWS CLI v2 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/bin`；[Session Manager 插件](https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html) 需位于 `/opt/homebrew/bin`、`/usr/local/bin` 或 `/usr/local/sessionmanagerplugin/bin`。应用检查可执行文件是否存在；脚本在解析凭据前要求 AWS CLI v2 为 2.37.9 或更新版本、Session Manager 插件 v1 高于 1.2.497.0，未知版本格式会被拒绝，以保证敏感 SSM 会话响应通过环境变量传递。安装损坏或运行时错误显示在终端中。实例需要正常的 SSM Agent、实例权限及 Systems Manager 网络连通性；当前角色需要相应的 [Session Manager 权限](https://docs.aws.amazon.com/systems-manager/latest/userguide/getting-started-restrict-access-quickstart.html) 。EC2 处于运行状态不代表 SSM 一定可用。
 
-脚本通过当前 Profile 和 AWS 配置路径仅解析一次凭据，核对账号和去除会话后缀的主体 ARN 后，使用同一组内存凭据及所选 Region 发起 SSM；这两次调用不重新解析 Profile 或共享配置。凭据不写入脚本、磁盘、命令行参数、日志或终端历史。登录过期、权限不足、目标离线等错误由 CLI 显示。脚本执行退出或移交失败时清理；若关联程序始终未执行脚本，文件可能留在私有系统临时目录。应用不安装 Agent 或修改 IAM／SSM 配置。参考 [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html) 。
+脚本通过当前 Profile 和 AWS 配置路径仅解析一次凭据，核对账号和去除会话后缀的主体 ARN 后，使用同一组内存凭据及所选 Region 发起 SSM；这两次调用不重新解析 Profile 或共享配置。凭据不写入脚本、磁盘、命令行参数、日志或终端历史。登录过期、权限不足、目标离线等错误由 CLI 显示。一次性文件在解析凭据前移除，移交失败时也会清理。若关联程序始终未执行脚本，应用会在启动或后续点击连接时，通过有界后台扫描回收超过 24 小时且不在启动中的自有标记目录；无法确认归属或没有标记的旧格式目录保守保留。应用不安装 Agent 或修改 IAM／SSM 配置。参考 [start-session](https://docs.aws.amazon.com/cli/latest/reference/ssm/start-session.html) 。
 
 ### EC2 导航、EBS 卷与快照
 

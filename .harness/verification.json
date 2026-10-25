@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "verifierVersion": 2,
+  "profiles": [],
+  "adapters": [],
+  "capabilities": [],
+  "policies": {
+    "fileLines": {
+      "enabled": true,
+      "warn": 500,
+      "max": 1000
+    }
+  },
+  "workspaces": [
+    {
+      "path": ".",
+      "checks": [
+        {
+          "id": "source-file-lines",
+          "runner": "file-lines",
+          "modes": [
+            "task",
+            "push",
+            "release"
+          ],
+          "provides": [
+            "source.file-lines"
+          ],
+          "timeoutSeconds": 30,
+          "fileLines": {
+            "root": ".",
+            "warn": 500,
+            "max": 1000,
+            "extensions": [
+              ".java",
+              ".js",
+              ".jsx",
+              ".py",
+              ".swift",
+              ".ts",
+              ".tsx",
+              ".vue"
+            ],
+            "exclude": [
+              "scripts/harness/verify.py",
+              ".tmp",
+              ".DerivedData"
+            ]
+          }
+        },
+        {
+          "id": "swift-package-build",
+          "runner": "command",
+          "modes": [
+            "push",
+            "release"
+          ],
+          "argv": [
+            "swift",
+            "build"
+          ],
+          "timeoutSeconds": 900
+        },
+        {
+          "id": "swift-package-test",
+          "runner": "command",
+          "modes": [
+            "push",
+            "release"
+          ],
+          "argv": [
+            "swift",
+            "test"
+          ],
+          "timeoutSeconds": 900
+        },
+        {
+          "id": "git-diff-check",
+          "runner": "command",
+          "modes": [
+            "task",
+            "push",
+            "release"
+          ],
+          "argv": [
+            "git",
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "design-spec-lint",
+          "runner": "command",
+          "modes": [
+            "task",
+            "push",
+            "release"
+          ],
+          "argv": [
+            "npm",
+            "--cache",
+            ".tmp/design-md/npm-cache",
+            "exec",
+            "--yes",
+            "--package=@google/design.md@0.4.0",
+            "--",
+            "designmd",
+            "lint",
+            "DESIGN.md"
+          ],
+          "timeoutSeconds": 180
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,961 @@
+import SwiftUI
+
+@MainActor
+struct ContentView: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @EnvironmentObject private var favoritesVM: FavoritesViewModel
+    @EnvironmentObject private var recentsVM: RecentResourcesViewModel
+    @StateObject var favoriteNavigation = FavoriteNavigation()
+    @StateObject var relatedNavigation = SNSRelatedResourceNavigation()
+    @StateObject var elbNavigation = ELBResourceNavigation()
+    @StateObject var profileVM: ProfileViewModel
+    @StateObject private var costVM: CostViewModel
+    @StateObject private var healthVM: HealthViewModel
+    @StateObject var alarmsVM: AlarmViewModel
+    @StateObject var snsVM: SNSViewModel
+    @StateObject var codeCommitVM: CodeCommitViewModel
+    @StateObject var rdsVM: RDSViewModel
+    @StateObject var autoScalingVM: AutoScalingViewModel
+    @StateObject private var rdsInsightsVM: RDSInsightsViewModel
+    @StateObject private var rdsMetricsVM: ResourceMetricsViewModel
+    @StateObject private var cloudWatchLogsBrowserVM: CloudWatchLogsBrowserViewModel
+    @StateObject private var s3VersionsVM: S3VersionsViewModel
+    @StateObject private var codeCommitBrowserVM: CodeCommitBrowserViewModel
+    @StateObject private var autoScalingInsightsVM: AutoScalingInsightsViewModel
+    @StateObject var route53VM: Route53ViewModel
+    @StateObject var elbVM: ELBViewModel
+    @StateObject private var membershipsVM: EC2TargetGroupsViewModel
+    @StateObject var securityGroupsVM: SecurityGroupsViewModel
+    @StateObject var volumesVM: EBSViewModel
+    @StateObject var snapshotsVM: EBSViewModel
+    @StateObject private var resourceRelationshipsVM: ResourceRelationshipsViewModel
+    @StateObject private var relationshipsVM: SNSRelationshipViewModel
+    @StateObject private var metricsVM: ResourceMetricsViewModel
+    @StateObject private var logsVM: LambdaLogsViewModel
+    @StateObject var ec2VM = EC2ViewModel()
+    @StateObject var lambdaVM = LambdaViewModel()
+    @StateObject var s3VM = S3ViewModel()
+    @StateObject private var s3TransferVM: S3TransferViewModel
+
+    @AppStorage("selectedService") private var selectedServiceID = AWSService.ec2.rawValue
+    @State var selectedService: AWSService = .ec2
+    @State var s3BrowsingBucket: String?
+    @State private var reconfigureTask: Task<Void, Never>?
+    @State private var loginTask: Task<Void, Never>?
+    @State var destination: WorkspaceDestination = .resources
+    @State private var relationshipTopic: SNSTopic?
+    @State private var showsResourceRelationships = false
+
+    init() {
+        _selectedService = State(initialValue: AWSService(rawValue: UserDefaults.standard.string(forKey: "selectedService") ?? "") ?? .ec2)
+        let profiles = ProfileViewModel()
+        _profileVM = StateObject(wrappedValue: profiles)
+        let transfers = AWSS3TransferService(provider: profiles.provider)
+        _s3TransferVM = StateObject(wrappedValue: S3TransferViewModel(
+            uploader: { try await transfers.upload($0, progress: $1) },
+            downloader: { try await transfers.download(context: $0, object: $1, destination: $2, progress: $3) }
+        ))
+        let metrics = AWSMetricsService(provider: profiles.provider)
+        _metricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
+            try await metrics.load(scope: scope, target: target, range: range)
+        }))
+        _rdsMetricsVM = StateObject(wrappedValue: ResourceMetricsViewModel(loader: { scope, target, range in
+            try await metrics.load(scope: scope, target: target, range: range)
+        }))
+        _rdsInsightsVM = StateObject(wrappedValue: RDSInsightsViewModel(provider: profiles.provider))
+        _cloudWatchLogsBrowserVM = StateObject(wrappedValue: CloudWatchLogsBrowserViewModel(provider: profiles.provider))
+        _s3VersionsVM = StateObject(wrappedValue: S3VersionsViewModel(provider: profiles.provider))
+        _codeCommitBrowserVM = StateObject(wrappedValue: CodeCommitBrowserViewModel(provider: profiles.provider))
+        _autoScalingInsightsVM = StateObject(wrappedValue: AutoScalingInsightsViewModel(provider: profiles.provider))
+        let logs = AWSLogsService(provider: profiles.provider)
+        _logsVM = StateObject(wrappedValue: LambdaLogsViewModel(loader: { query, cursor in
+            try await logs.load(query: query, cursor: cursor)
+        }))
+        let costs = AWSCostService(provider: profiles.provider)
+        _costVM = StateObject(wrappedValue: CostViewModel(loader: { scope, query in
+            try await costs.load(scope: scope, query: query)
+        }))
+        let health = AWSHealthService(provider: profiles.provider)
+        _healthVM = StateObject(wrappedValue: HealthViewModel(
+            listLoader: { try await health.loadEvents(scope: $0) },
+            detailLoader: { try await health.loadDetails(scope: $0, event: $1) },
+            entityLoader: { try await health.loadEntities(scope: $0, event: $1) },
+            accountsLoader: { try await health.loadAffectedAccounts(scope: $0, event: $1) }
+        ))
+        let alarms = AWSAlarmService(provider: profiles.provider)
+        _relationshipsVM = StateObject(wrappedValue: SNSRelationshipViewModel(loader: {
+            try await alarms.loadAlarms(scope: $0.alarmScope)
+        }))
+        _alarmsVM = StateObject(wrappedValue: AlarmViewModel(
+            listLoader: { try await alarms.loadAlarms(scope: $0) },
+            tagLoader: { try await alarms.loadTags(scope: $0, alarm: $1) },
+            historyLoader: { try await alarms.loadHistory(scope: $0, alarm: $1) }
+        ))
+        let sns = AWSSNSService(provider: profiles.provider)
+        _codeCommitVM = StateObject(wrappedValue: CodeCommitViewModel(provider: profiles.provider))
+        _rdsVM = StateObject(wrappedValue: RDSViewModel(provider: profiles.provider))
+        _autoScalingVM = StateObject(wrappedValue: AutoScalingViewModel(provider: profiles.provider))
+        _snsVM = StateObject(wrappedValue: SNSViewModel(
+            listLoader: { try await sns.loadTopics(scope: $0) },
+            attributeLoader: { try await sns.loadAttributes(scope: $0, topic: $1) },
+            tagLoader: { try await sns.loadTags(scope: $0, topic: $1) },
+            subscriptionLoader: { try await sns.loadSubscriptions(scope: $0, topic: $1) }
+        ))
+        let route53 = AWSRoute53Service(provider: profiles.provider)
+        _route53VM = StateObject(wrappedValue: Route53ViewModel(
+            listLoader: { try await route53.loadZones(scope: $0) },
+            detailLoader: { try await route53.loadDetails(scope: $0, zone: $1) },
+            recordLoader: { try await route53.loadRecords(scope: $0, zone: $1) },
+            tagLoader: { try await route53.loadTags(scope: $0, zone: $1) }
+        ))
+        let elb = AWSELBService(provider: profiles.provider)
+        _elbVM = StateObject(wrappedValue: ELBViewModel(
+            loadBalancerLoader: { try await elb.loadLoadBalancers(scope: $0) },
+            targetGroupLoader: { try await elb.loadTargetGroups(scope: $0) },
+            listenerLoader: { try await elb.loadListeners(scope: $0, loadBalancer: $1) },
+            ruleLoader: { try await elb.loadRules(scope: $0, listener: $1) },
+            healthLoader: { try await elb.loadTargetHealth(scope: $0, group: $1) }
+        ))
+        _membershipsVM = StateObject(wrappedValue: EC2TargetGroupsViewModel(loader: {
+            try await elb.loadInstanceMembership(scope: $0, instanceID: $1)
+        }))
+        let groups = AWSSecurityGroupService(provider: profiles.provider)
+        _securityGroupsVM = StateObject(wrappedValue: SecurityGroupsViewModel(loader: {
+            try await groups.loadGroups(scope: $0)
+        }))
+        let ebs = AWSEBSService(provider: profiles.provider)
+        _volumesVM = StateObject(wrappedValue: EBSViewModel(kind: .volume, loader: { try await ebs.load(kind: $0, scope: $1) }))
+        _snapshotsVM = StateObject(wrappedValue: EBSViewModel(kind: .snapshot, loader: { try await ebs.load(kind: $0, scope: $1) }))
+        let provider = profiles.provider
+        let relations = AWSResourceRelationshipService(
+            loadBalancers: { scope in
+                try await AWSELBService(client: provider.relationshipELBClient(scope: scope)).loadLoadBalancers(scope: scope)
+            },
+            loadTargetGroups: { scope in
+                try await AWSELBService(client: provider.relationshipELBClient(scope: scope)).loadTargetGroups(scope: scope)
+            },
+            loadTargetHealth: { scope, group in
+                try await AWSELBService(client: provider.relationshipELBClient(scope: scope)).loadTargetHealth(scope: scope, group: group)
+            },
+            loadMembership: { scope, instanceID in
+                try await AWSELBService(client: provider.relationshipELBClient(scope: scope)).loadInstanceMembership(scope: scope, instanceID: instanceID)
+            },
+            loadGroups: { try await groups.loadGroups(scope: $0) },
+            loadInstance: { try await groups.loadInstance(scope: $0, instanceID: $1) },
+            loadInstancesUsingGroup: { try await groups.loadInstancesUsingGroup(scope: $0, groupID: $1) },
+            loadZones: { try await route53.loadZones(scope: $0) },
+            loadRecords: { try await route53.loadRecords(scope: $0, zone: $1) }
+        )
+        _resourceRelationshipsVM = StateObject(wrappedValue: ResourceRelationshipsViewModel(loader: {
+            try await relations.load(reference: $0, includeReverse: $1)
+        }))
+    }
+
+    private var showingFavorites: Bool { destination == .favorites }
+    private var showingRecents: Bool { destination == .recents }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ProfileBarView(vm: profileVM, onRetry: {
+                profileVM.loadProfiles()
+                reconfigureServices(forceRefresh: true)
+            }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
+               showsResourceRegion: destination != .costs && destination != .health
+                    && !(destination == .resources && selectedService == .route53),
+               globalScopeMessage: destination == .costs ? "Cost regions are selected below" : "Global service · Current account")
+            if let message = elbNavigation.error ?? relatedNavigation.error ?? favoriteNavigation.error ?? favoritesVM.storageError {
+                HStack {
+                    NoticeBanner(message: message)
+                    if elbNavigation.error != nil || relatedNavigation.error != nil || favoriteNavigation.error != nil {
+                        Button(L10n.text("Dismiss", locale: locale)) {
+                            relatedNavigation.cancel()
+                            favoriteNavigation.cancel()
+                            elbNavigation.cancel()
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+            Divider()
+            HSplitView {
+                ServiceSidebarView(selectedService: $selectedService, destination: $destination)
+                if destination == .costs {
+                    costPane
+                        .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
+                } else if destination == .health {
+                    healthPane
+                        .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    middlePane
+                        .frame(minWidth: 280, idealWidth: 320, maxWidth: 420)
+                        .disabled(!showingFavorites && !showingRecents && (!profileVM.isProfileReady || favoriteNavigation.target != nil || relatedNavigation.target != nil || elbNavigation.target != nil))
+                    resourceDetail
+                        .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
+                        .contentTransition(reduceMotion ? .identity : .opacity)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
+                        .id([profileVM.selectedProfileID ?? "", selectedService == .route53 ? "global" : profileVM.selectedRegion])
+                }
+            }
+        }
+        .sheet(item: $relationshipTopic) { topic in
+            SNSRelationshipView(topic: topic, snsVM: snsVM, vm: relationshipsVM,
+                                onOpenResource: openRelatedResource)
+        }
+        .sheet(isPresented: $showsResourceRelationships, onDismiss: { resourceRelationshipsVM.reset() }) {
+            ResourceRelationshipsView(vm: resourceRelationshipsVM, onOpen: openResourceRelationship, onClose: closeRelationships)
+        }
+        .sheet(item: $s3TransferVM.pendingUpload) { intent in
+            S3UploadConfirmationView(intent: intent, onCancel: { s3TransferVM.dismissUpload() },
+                                     onConfirm: { s3TransferVM.confirmUpload(intent) })
+        }
+        .onChange(of: s3TransferVM.refreshID) { _ in
+            guard let context = s3TransferVM.completedContext, let current = currentS3TransferContext,
+                  context.scope == current.scope, context.bucket == current.bucket,
+                  Data(context.prefix.utf8) == Data(current.prefix.utf8) else { return }
+            s3VM.navigateToPrefix(bucket: context.bucket, prefix: context.prefix)
+        }
+        .onChange(of: Data(s3VM.currentPrefix.utf8)) { _ in s3TransferVM.leaveBrowser() }
+        .onChange(of: s3VM.selectedBucket?.name) { selectedName in
+            guard let browsing = s3BrowsingBucket, browsing != selectedName else { return }
+            s3TransferVM.leaveBrowser()
+            s3VM.leaveObjectBrowser()
+            s3BrowsingBucket = nil
+        }
+        .onChange(of: detailSelectionID) { _ in
+            if showsResourceRelationships { closeRelationships() }
+        }
+        .onChange(of: snsVM.selectedTopic?.arn) { _ in closeRelationships() }
+        .onChange(of: currentRecentResource?.id) { expectedID in
+            // Recheck live state: background selections and stale view updates are not visits.
+            guard let resource = currentRecentResource, resource.id == expectedID else { return }
+            recentsVM.recordVisit(resource, scope: currentRecentScope)
+        }
+        .onAppear {
+            profileVM.loadProfiles()
+            selectedService = AWSService(rawValue: selectedServiceID) ?? .ec2
+            reconfigureServices()
+        }
+        .onChange(of: profileVM.selectedProfileID) { _ in
+            costVM.reset()
+            healthVM.reset()
+            route53VM.reset()
+            cancelFavoriteIfScopeChanged()
+            if profileVM.isSigningIn { clearResources() }
+            else { reconfigureServices() }
+        }
+        .onChange(of: profileVM.identityFailureID) { _ in
+            costVM.reset()
+            healthVM.reset()
+            route53VM.reset()
+            clearResources()
+        }
+        .onChange(of: profileVM.profileSource) { _ in
+            costVM.reset()
+            healthVM.reset()
+            route53VM.reset()
+            loginTask?.cancel()
+            favoriteNavigation.cancel()
+            reconfigureServices()
+        }
+        .onChange(of: profileVM.selectedRegion) { _ in
+            cancelFavoriteIfScopeChanged()
+            s3BrowsingBucket = nil
+            reconfigureServices()
+        }
+        .onChange(of: selectedService) { _ in
+            s3TransferVM.leaveBrowser()
+            resetMonitoring()
+            closeRelationships()
+            if selectedService != .ec2 { membershipsVM.reset() }
+            if let target = elbNavigation.target, target.service != selectedService { elbNavigation.cancel() }
+            if let target = relatedNavigation.target, target.service != selectedService {
+                relatedNavigation.cancel()
+            }
+            if let target = favoriteNavigation.target, target.service != selectedService {
+                favoriteNavigation.cancel()
+            }
+            if s3BrowsingBucket != nil { s3VM.leaveObjectBrowser() }
+            s3BrowsingBucket = nil
+            selectedServiceID = selectedService.rawValue
+            loadVisibleCoreServices()
+            loadVisibleAlarms()
+            loadVisibleSNS()
+            loadVisibleMetadataServices()
+            loadVisibleRoute53()
+            loadVisibleELB()
+            loadVisibleSecurityGroups()
+            loadVisibleEBS()
+        }
+        .onChange(of: destination) { selection in
+            if selection != .resources { s3TransferVM.leaveBrowser() }
+            resetMonitoring()
+            if selection != .resources {
+                closeRelationships()
+                relatedNavigation.cancel()
+                elbNavigation.cancel()
+                membershipsVM.reset()
+            }
+            if selection != .resources { favoriteNavigation.cancel() }
+            if selection == .costs { configureCosts() }
+            if selection == .health { configureHealth() }
+            loadVisibleCoreServices()
+            loadVisibleAlarms()
+            loadVisibleSNS()
+            loadVisibleMetadataServices()
+            loadVisibleRoute53()
+            loadVisibleELB()
+            loadVisibleSecurityGroups()
+            loadVisibleEBS()
+        }
+        .onDisappear {
+            s3TransferVM.reset()
+            resetMonitoring()
+            closeRelationships()
+            relatedNavigation.cancel()
+            elbNavigation.cancel()
+            membershipsVM.reset()
+            loginTask?.cancel()
+            reconfigureTask?.cancel()
+            costVM.reset()
+            healthVM.reset()
+            alarmsVM.reset()
+            snsVM.reset()
+            codeCommitVM.reset()
+            rdsVM.reset()
+            autoScalingVM.reset()
+            resetSubmodules()
+            route53VM.reset()
+            elbVM.reset()
+            securityGroupsVM.reset()
+            volumesVM.reset()
+            snapshotsVM.reset()
+            Task { await profileVM.shutdown() }
+        }
+    }
+
+    @ViewBuilder
+    private var costPane: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load costs.", icon: "cloud")
+                .padding()
+        } else {
+            CostView(vm: costVM)
+        }
+    }
+
+    private func configureCosts() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        costVM.configure(scope: CostScope(profile: profile, identity: identity))
+        if destination == .costs { costVM.loadIfNeeded() }
+    }
+
+    @ViewBuilder
+    private var healthPane: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load Health events.", icon: "heart.text.square")
+                .padding()
+        } else {
+            HealthView(vm: healthVM)
+        }
+    }
+
+    private func configureHealth() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        healthVM.configure(scope: HealthScope(profile: profile, identity: identity))
+        if destination == .health { healthVM.loadIfNeeded() }
+    }
+
+    private func configureAlarms() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        alarmsVM.configure(scope: AlarmScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
+        loadVisibleAlarms()
+    }
+
+    private func loadVisibleCoreServices() {
+        ResourceListLoader.loadIfNeeded(
+            service: selectedService, destination: destination,
+            isProfileReady: profileVM.isProfileReady && currentMonitoringScope != nil,
+            isNavigating: favoriteNavigation.target != nil || relatedNavigation.target != nil || elbNavigation.target != nil,
+            ec2: ec2VM, lambda: lambdaVM, s3: s3VM
+        )
+    }
+
+    private func loadVisibleAlarms() {
+        guard destination == .resources, selectedService == .alarms,
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        alarmsVM.loadIfNeeded()
+    }
+
+    private func configureSNS() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        snsVM.configure(scope: SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
+        loadVisibleSNS()
+    }
+
+    private func loadVisibleSNS() {
+        guard destination == .resources, selectedService == .sns,
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        snsVM.loadIfNeeded()
+    }
+
+    private func configureRoute53() {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return }
+        route53VM.configure(scope: Route53Scope(profile: profile, identity: identity))
+        loadVisibleRoute53()
+    }
+
+    private func configureMetadataServices() {
+        guard let scope = currentMonitoringScope else { return }
+        codeCommitVM.configure(scope: scope)
+        rdsVM.configure(scope: scope)
+        autoScalingVM.configure(scope: scope)
+        cloudWatchLogsBrowserVM.configure(scope: scope)
+        loadVisibleMetadataServices()
+    }
+
+    private func loadVisibleMetadataServices() {
+        guard destination == .resources, profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        switch selectedService {
+        case .codeCommit: codeCommitVM.loadIfNeeded()
+        case .rds: rdsVM.loadIfNeeded()
+        case .autoScaling: autoScalingVM.loadIfNeeded()
+        case .logs: cloudWatchLogsBrowserVM.loadIfNeeded()
+        default: break
+        }
+    }
+
+    private func loadVisibleRoute53() {
+        guard destination == .resources, selectedService == .route53,
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        route53VM.loadIfNeeded()
+    }
+
+    private func configureELB() {
+        guard let scope = currentMonitoringScope else { return }
+        elbVM.configure(scope: scope)
+        loadVisibleELB()
+    }
+
+    private func loadVisibleELB() {
+        guard destination == .resources, profileVM.isProfileReady,
+              favoriteNavigation.target == nil, relatedNavigation.target == nil,
+              elbNavigation.target == nil else { return }
+        if selectedService == .loadBalancers { elbVM.loadLoadBalancersIfNeeded() }
+        if selectedService == .targetGroups { elbVM.loadTargetGroupsIfNeeded() }
+    }
+
+    private func configureSecurityGroups() {
+        guard let scope = currentMonitoringScope else { return }
+        securityGroupsVM.configure(scope: scope)
+        loadVisibleSecurityGroups()
+    }
+
+    private func loadVisibleSecurityGroups() {
+        guard destination == .resources, selectedService == .securityGroups,
+              profileVM.isProfileReady, favoriteNavigation.target == nil,
+              relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        securityGroupsVM.loadIfNeeded()
+    }
+
+    private func configureEBS() {
+        volumesVM.configure(scope: currentMonitoringScope)
+        snapshotsVM.configure(scope: currentMonitoringScope)
+        loadVisibleEBS()
+    }
+
+    private func loadVisibleEBS() {
+        guard destination == .resources, profileVM.isProfileReady,
+              favoriteNavigation.target == nil, relatedNavigation.target == nil, elbNavigation.target == nil else { return }
+        if selectedService == .ebsVolumes { volumesVM.loadIfNeeded() }
+        if selectedService == .ebsSnapshots { snapshotsVM.loadIfNeeded() }
+    }
+
+    @ViewBuilder
+    private var middlePane: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: "No profile selected", icon: "person.crop.circle")
+        } else if showingFavorites {
+            FavoritesListView(vm: favoritesVM, onOpen: openFavorite)
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Connect the selected profile to load resources.", icon: "cloud")
+        } else if showingRecents {
+            RecentResourcesListView(vm: recentsVM, scope: currentRecentScope) {
+                openSavedResource($0, source: .recent)
+            }
+        } else {
+            serviceList
+        }
+    }
+
+    @ViewBuilder
+    private var serviceList: some View {
+        switch selectedService {
+        case .ec2:
+            EC2ListView(vm: ec2VM)
+        case .lambda:
+            LambdaListView(vm: lambdaVM)
+        case .s3:
+            if let bucketName = s3BrowsingBucket {
+                S3ObjectListView(vm: s3VM, transferVM: s3TransferVM,
+                                 bucketName: bucketName, transferContext: currentS3TransferContext, versionsVM: s3VersionsVM)
+            } else {
+                S3BucketListView(vm: s3VM)
+            }
+        case .alarms:
+            AlarmListView(vm: alarmsVM)
+        case .logs:
+            CloudWatchLogGroupListView(vm: cloudWatchLogsBrowserVM)
+        case .sns:
+            SNSTopicListView(vm: snsVM)
+        case .codeCommit:
+            CodeCommitRepositoryListView(vm: codeCommitVM)
+        case .rds:
+            RDSDatabaseListView(vm: rdsVM)
+        case .autoScaling:
+            AutoScalingGroupListView(vm: autoScalingVM)
+        case .route53:
+            Route53ZoneListView(vm: route53VM)
+        case .loadBalancers:
+            ELBLoadBalancerListView(vm: elbVM)
+        case .targetGroups:
+            ELBTargetGroupListView(vm: elbVM)
+        case .securityGroups:
+            SecurityGroupListView(vm: securityGroupsVM)
+        case .ebsVolumes: EBSListView(vm: volumesVM)
+        case .ebsSnapshots: EBSListView(vm: snapshotsVM)
+        }
+    }
+
+    @ViewBuilder
+    private var resourceDetail: some View {
+        if profileVM.selectedProfile == nil {
+            EmptyStateView(text: profileVM.selectionPrompt, icon: "person.crop.circle")
+                .padding()
+        } else if showingFavorites {
+            EmptyStateView(text: "Select a favorite from the current profile to open its saved region and resource.", icon: "star")
+                .padding()
+        } else if showingRecents {
+            EmptyStateView(text: "Select a recent resource to reopen it in its saved region.", icon: "clock.arrow.circlepath")
+                .padding()
+        } else if !profileVM.isProfileReady {
+            EmptyStateView(text: "Waiting for the selected profile to connect.", icon: "cloud")
+                .padding()
+        } else if let target = favoriteNavigation.target {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text(L10n.format("Opening %@…", target.displayName, locale: locale))
+                Text("\(target.profileName) · \(target.region)")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let target = elbNavigation.target {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text(L10n.format("Opening %@…", target.name, locale: locale))
+                Text("\(target.scope.profile.name) · \(target.scope.region)")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(spacing: 0) {
+                if selectedService != .ec2, let favorite = currentResource {
+                    HStack {
+                        Label(selectedService.rawValue, systemImage: selectedService.icon)
+                            .font(.caption).foregroundColor(.secondary)
+                        Spacer()
+                        if let reference = currentRelationReference {
+                            Button(L10n.text("View relationships", locale: locale)) { showResourceRelationships(reference) }
+                        }
+                        Button {
+                            favoritesVM.toggle(favorite)
+                        } label: {
+                            Label(L10n.text(favoritesVM.contains(favorite) ? "Remove Favorite" : "Add Favorite", locale: locale),
+                                  systemImage: favoritesVM.contains(favorite) ? "star.fill" : "star")
+                        }
+                        .disabled(favoritesVM.storageError != nil)
+                        .help(L10n.text("Save this resource with its current account, profile, and region", locale: locale))
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .overlay(alignment: .bottom) { Divider() }
+                }
+                detailPane
+            }
+        }
+    }
+
+    private var currentRelationshipScope: SNSScope? {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return nil }
+        return SNSScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
+    }
+
+    private var ec2FavoriteAction: (() -> Void)? {
+        guard let favorite = currentResource, ec2VM.scope == currentMonitoringScope else { return nil }
+        return {
+            guard currentResource?.id == favorite.id, favoritesVM.storageError == nil else { return }
+            favoritesVM.toggle(favorite)
+        }
+    }
+
+    private var ec2RelationshipAction: (() -> Void)? {
+        guard let reference = currentRelationReference else { return nil }
+        return { showResourceRelationships(reference) }
+    }
+
+    var currentMonitoringScope: MonitoringScope? {
+        guard profileVM.isProfileReady, let profile = profileVM.selectedProfile,
+              case .valid(let identity) = profileVM.profileStatus else { return nil }
+        return MonitoringScope(profile: profile, identity: identity, region: profileVM.selectedRegion)
+    }
+
+    private var currentS3TransferContext: S3TransferContext? {
+        guard let scope = currentMonitoringScope, let bucket = s3BrowsingBucket else { return nil }
+        return .init(scope: scope, bucket: bucket, prefix: s3VM.currentPrefix,
+                     knownRegion: s3VM.selectedBucket?.name == bucket ? s3VM.selectedBucket?.region : nil)
+    }
+
+    private func downloadS3Object(_ object: S3ObjectModel) {
+        guard let context = currentS3TransferContext else { return }
+        s3TransferVM.chooseDownload(context: context, object: object) {
+            await S3FilePanels.saveFile(key: object.key, locale: locale)
+        }
+    }
+
+    private var currentRelationReference: ResourceRelationReference? {
+        guard let scope = currentMonitoringScope, let resource = currentResource,
+              [.ec2, .loadBalancers, .targetGroups, .securityGroups, .route53].contains(selectedService) else { return nil }
+        if selectedService == .securityGroups, securityGroupsVM.selectedGroup?.ownerID != scope.accountID { return nil }
+        let reference = ResourceRelationReference(scope: scope, service: selectedService,
+                                                  resourceID: resource.resourceID, name: resource.displayName)
+        return reference.isValid ? reference : nil
+    }
+
+    private func showResourceRelationships(_ reference: ResourceRelationReference) {
+        guard let scope = currentMonitoringScope, reference.isValid, reference.scope == scope else { return }
+        closeRelationships()
+        resourceRelationshipsVM.configure(reference: reference)
+        showsResourceRelationships = true
+    }
+
+    private func showRecordRelationships(_ record: Route53Record) {
+        guard let scope = currentMonitoringScope, let zone = route53VM.selectedZone,
+              route53VM.scope == scope.route53Scope, route53VM.records.contains(record) else { return }
+        showResourceRelationships(ResourceRelationReference(scope: scope, service: .route53,
+                                                             resourceID: zone.id, name: record.name, recordID: record.id))
+    }
+
+    private func openResourceRelationship(_ reference: ResourceRelationReference) {
+        let scope = currentMonitoringScope
+        closeRelationships()
+        relatedNavigation.cancel()
+        elbNavigation.cancel()
+        guard favoriteNavigation.beginRelationship(reference, currentScope: scope, profiles: profileVM.profiles) else { return }
+        if !reference.isGlobal { profileVM.selectedRegion = reference.scope.region }
+        selectedService = reference.service
+        destination = .resources
+        reconfigureServices()
+    }
+
+    private func resetMonitoring() {
+        metricsVM.reset()
+        logsVM.reset()
+    }
+
+    func closeRelationships() {
+        relationshipTopic = nil
+        relationshipsVM.reset()
+        showsResourceRelationships = false
+        resourceRelationshipsVM.reset()
+    }
+
+    private func openRelatedResource(_ resource: SNSRelatedResource) {
+        elbNavigation.cancel()
+        guard relatedNavigation.open(resource, currentScope: currentRelationshipScope,
+                                     latestScope: { currentRelationshipScope },
+                                     alarms: alarmsVM, lambda: lambdaVM, sns: snsVM) else { return }
+        closeRelationships()
+        favoriteNavigation.cancel()
+        selectedService = resource.service
+        destination = .resources
+    }
+
+    private func openELBResource(_ resource: ELBResourceReference) {
+        closeRelationships()
+        relatedNavigation.cancel()
+        favoriteNavigation.cancel()
+        guard elbNavigation.open(resource, currentScope: currentMonitoringScope,
+                                 latestScope: { currentMonitoringScope }, elb: elbVM,
+                                 ec2: ec2VM, lambda: lambdaVM) else { return }
+        selectedService = resource.service
+        destination = .resources
+    }
+
+    private var detailSelectionID: String {
+        switch selectedService {
+        case .ec2: return "ec2/" + (ec2VM.selectedInstance?.instanceId ?? "")
+        case .lambda: return "lambda/" + (lambdaVM.selectedFunction?.functionName ?? "")
+        case .s3: return "s3/" + (s3BrowsingBucket ?? s3VM.selectedBucket?.name ?? "") + "/" + (s3VM.selectedObject?.key ?? "")
+        case .alarms: return "alarms/" + (alarmsVM.selectedAlarm?.arn ?? "")
+        case .logs: return "logs/" + (cloudWatchLogsBrowserVM.selectedGroup?.id ?? "")
+        case .sns: return "sns/" + (snsVM.selectedTopic?.arn ?? "")
+        case .codeCommit: return "codecommit/" + (codeCommitVM.selectedRepository?.id ?? "")
+        case .rds: return "rds/" + (rdsVM.selectedDatabase?.id ?? "")
+        case .autoScaling: return "asg/" + (autoScalingVM.selectedGroup?.arn ?? "")
+        case .route53: return "route53/" + (route53VM.selectedZone?.id ?? "")
+        case .loadBalancers: return "loadbalancer/" + (elbVM.selectedLoadBalancer?.arn ?? "")
+        case .targetGroups: return "targetgroup/" + (elbVM.selectedTargetGroup?.arn ?? "")
+        case .securityGroups: return "securitygroup/" + (securityGroupsVM.selectedGroup?.id ?? "")
+        case .ebsVolumes: return "volume/" + (volumesVM.selectedResource?.id ?? "")
+        case .ebsSnapshots: return "snapshot/" + (snapshotsVM.selectedResource?.id ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private var detailPane: some View {
+        switch selectedService {
+        case .codeCommit:
+            CodeCommitRepositoryDetailView(vm: codeCommitVM, browserVM: codeCommitBrowserVM)
+        case .rds:
+            RDSDatabaseDetailView(vm: rdsVM, insightsVM: rdsInsightsVM, metricsVM: rdsMetricsVM)
+        case .autoScaling:
+            AutoScalingGroupDetailView(vm: autoScalingVM, insightsVM: autoScalingInsightsVM, onOpen: openELBResource)
+        case .logs:
+            CloudWatchLogGroupDetailView(vm: cloudWatchLogsBrowserVM)
+        case .ec2:
+            if let instance = ec2VM.selectedInstance {
+                EC2DetailView(instance: instance, vm: ec2VM,
+                              monitoringScope: currentMonitoringScope, metricsVM: metricsVM,
+                              membershipsVM: membershipsVM, onOpenELB: openELBResource,
+                              isFavorite: currentResource.map { favoritesVM.contains($0) } ?? false,
+                              canToggleFavorite: favoritesVM.storageError == nil,
+                              onToggleFavorite: ec2FavoriteAction,
+                              onShowRelationships: ec2RelationshipAction)
+            } else {
+                EmptyStateView(text: "Select an EC2 instance", icon: "server.rack")
+            }
+        case .lambda:
+            if let function = lambdaVM.selectedFunction {
+                LambdaDetailView(function: function, vm: lambdaVM,
+                                 monitoringScope: currentMonitoringScope, metricsVM: metricsVM, logsVM: logsVM)
+            } else {
+                EmptyStateView(text: "Select a Lambda function", icon: "function")
+            }
+        case .s3:
+            if let bucket = s3VM.selectedBucket, s3BrowsingBucket == nil {
+                S3BucketDetailView(bucket: bucket) {
+                    s3BrowsingBucket = bucket.name
+                    s3VM.navigateToPrefix(bucket: bucket.name, prefix: "")
+                }
+            } else if let bucketName = s3BrowsingBucket {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button(L10n.text("Back to Buckets", locale: locale)) {
+                            s3TransferVM.leaveBrowser()
+                            s3VM.leaveObjectBrowser()
+                            s3BrowsingBucket = nil
+                        }
+                        Spacer()
+                        Text(bucketName)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(bucketName)
+                    }
+                    .padding()
+                    Divider()
+                    if let object = s3VM.selectedObject {
+                        S3ObjectDetailView(object: object, canDownload: s3TransferVM.canStart,
+                                           onDownload: { downloadS3Object(object) })
+                    } else {
+                        EmptyStateView(text: "Select an object or folder", icon: "doc")
+                    }
+                }
+            } else {
+                EmptyStateView(text: "Select an S3 bucket", icon: "externaldrive")
+            }
+        case .alarms:
+            if let alarm = alarmsVM.selectedAlarm {
+                AlarmDetailView(alarm: alarm, vm: alarmsVM, scope: currentRelationshipScope,
+                                onOpenResource: openRelatedResource)
+            } else {
+                EmptyStateView(text: "Select a CloudWatch alarm", icon: "bell.badge")
+            }
+        case .sns:
+            if let topic = snsVM.selectedTopic {
+                SNSTopicDetailView(topic: topic, vm: snsVM, onViewRelationships: {
+                    guard let scope = currentRelationshipScope, scope == snsVM.scope else { return }
+                    relationshipTopic = topic
+                })
+            } else {
+                EmptyStateView(text: "Select an SNS topic", icon: "dot.radiowaves.left.and.right")
+            }
+        case .route53:
+            if let zone = route53VM.selectedZone {
+                Route53ZoneDetailView(zone: zone, vm: route53VM, onShowRelationships: showRecordRelationships)
+            } else {
+                EmptyStateView(text: "Select a Route 53 hosted zone", icon: "network")
+            }
+        case .loadBalancers:
+            if let lb = elbVM.selectedLoadBalancer {
+                ELBLoadBalancerDetailView(loadBalancer: lb, vm: elbVM, onOpen: openELBResource)
+            } else {
+                EmptyStateView(text: "Select a load balancer", icon: "point.3.connected.trianglepath.dotted")
+            }
+        case .targetGroups:
+            if let group = elbVM.selectedTargetGroup {
+                ELBTargetGroupDetailView(group: group, vm: elbVM, onOpen: openELBResource)
+            } else {
+                EmptyStateView(text: "Select a target group", icon: "scope")
+            }
+        case .securityGroups:
+            if let group = securityGroupsVM.selectedGroup {
+                SecurityGroupDetailView(group: group, vm: securityGroupsVM)
+            } else {
+                EmptyStateView(text: "Select a security group", icon: "shield.lefthalf.filled")
+            }
+        case .ebsVolumes: EBSDetailView(vm: volumesVM)
+        case .ebsSnapshots: EBSDetailView(vm: snapshotsVM)
+        }
+    }
+
+    private func signIn() {
+        guard profileVM.canSignIn, loginTask == nil else { return }
+        costVM.reset()
+        healthVM.reset()
+        route53VM.reset()
+        clearResources()
+        favoriteNavigation.cancel()
+        loginTask = Task {
+            _ = await profileVM.signIn()
+            loginTask = nil
+        }
+    }
+
+    private func clearResources() {
+        resetMonitoring()
+        closeRelationships()
+        relatedNavigation.cancel()
+        elbNavigation.cancel()
+        membershipsVM.reset()
+        reconfigureTask?.cancel()
+        s3BrowsingBucket = nil
+        ec2VM.reset()
+        lambdaVM.reset()
+        s3VM.reset()
+        s3TransferVM.reset()
+        alarmsVM.reset()
+        snsVM.reset()
+        codeCommitVM.reset()
+        rdsVM.reset()
+        autoScalingVM.reset()
+        resetSubmodules()
+        elbVM.reset()
+        securityGroupsVM.reset()
+        volumesVM.reset()
+        snapshotsVM.reset()
+    }
+
+    private func resetSubmodules() {
+        rdsInsightsVM.reset()
+        rdsMetricsVM.reset()
+        cloudWatchLogsBrowserVM.reset()
+        s3VersionsVM.reset()
+        codeCommitBrowserVM.reset()
+        autoScalingInsightsVM.reset()
+    }
+
+    func reconfigureServices(forceRefresh: Bool = false) {
+        if forceRefresh {
+            costVM.reset()
+            healthVM.reset()
+            route53VM.reset()
+        }
+        clearResources()
+        profileVM.beginConfiguration()
+
+        reconfigureTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 75_000_000)
+            } catch {
+                return
+            }
+            let isValid = await profileVM.configureProvider(forceRefresh: forceRefresh)
+            guard !Task.isCancelled else { return }
+            guard isValid else {
+                if favoriteNavigation.target != nil {
+                    favoriteNavigation.failConnection()
+                }
+                return
+            }
+            configureCosts()
+            configureHealth()
+            configureRoute53()
+            let target = favoriteNavigation.target
+            if target != nil {
+                guard case .valid(let identity) = profileVM.profileStatus,
+                      favoriteNavigation.verifyAccount(identity.account) else { return }
+                if favoriteNavigation.relationshipReference != nil,
+                   !favoriteNavigation.validateRelationshipScope(currentMonitoringScope) { return }
+            }
+            guard let scope = currentMonitoringScope else { return }
+            ec2VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
+            lambdaVM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
+            s3VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
+            s3TransferVM.configure(scope: currentMonitoringScope)
+            configureAlarms()
+            configureSNS()
+            configureMetadataServices()
+            configureELB()
+            configureSecurityGroups()
+            configureEBS()
+            loadVisibleCoreServices()
+            guard let target else { return }
+            switch target.service {
+            case .logs: break
+            case .codeCommit: codeCommitVM.refresh(); await codeCommitVM.waitForLoading()
+            case .rds: rdsVM.refresh(); await rdsVM.waitForLoading()
+            case .autoScaling: autoScalingVM.refresh(); await autoScalingVM.waitForLoading()
+            case .ec2: await ec2VM.loadInstances(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
+            case .lambda: await lambdaVM.loadFunctions(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
+            case .s3: await s3VM.loadBuckets()
+            case .alarms: await alarmsVM.loadAlarms()
+            case .sns: await snsVM.loadTopics()
+            case .route53: await route53VM.loadZones()
+            case .loadBalancers: await elbVM.loadLoadBalancers()
+            case .targetGroups: await elbVM.loadTargetGroups()
+            case .securityGroups: await securityGroupsVM.loadGroups()
+            case .ebsVolumes: await volumesVM.loadResources()
+            case .ebsSnapshots: await snapshotsVM.loadResources()
+            }
+            guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
+            if favoriteNavigation.relationshipReference != nil {
+                await favoriteNavigation.resolveRelationship(ec2: ec2VM, lambda: lambdaVM, s3: s3VM,
+                    alarms: alarmsVM, sns: snsVM, route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
+                    latestScope: { currentMonitoringScope })
+            } else {
+                favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM,
+                                           route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
+                                           volumes: volumesVM, snapshots: snapshotsVM, codeCommit: codeCommitVM,
+                                           rds: rdsVM, autoScaling: autoScalingVM, currentScope: currentMonitoringScope)
+            }
+        }
+    }
+}

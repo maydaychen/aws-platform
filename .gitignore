@@ -1,0 +1,86 @@
+# Xcode
+.tmp/
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData/
+.build/
+.build-local/
+/dist/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/Rockets
+
+# Accio
+Dependencies/
+.accio/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+*.swp
+*.swo
+*~
+
+# VS Code
+.vscode/
+
+# JetBrains (AppCode)
+.idea/
+
+# Secrets
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+!.env.*.example
+/.aws/
+
+# Local agent configuration
+AGENTS.local.md
+
+# Python packaging tools
+__pycache__/
+*.py[cod]
+
+# Harness base and iOS template additions
+Thumbs.db
+Desktop.ini
+.codex/auth.json
+.codex/history.jsonl
+.codex/sessions/
+.codex/log/
+.claude/settings.local.json
+xcuserdata/
+*.xcuserstate
+.DerivedData/
+/build/
+*.xcarchive/
+*.dSYM/

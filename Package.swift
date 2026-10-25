@@ -1,0 +1,44 @@
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "AWSPlatform",
+    defaultLocalization: "en",
+    platforms: [.macOS(.v13)],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.0"),
+        .package(url: "https://github.com/soto-project/soto.git", from: "7.0.0"),
+        .package(url: "https://github.com/soto-project/soto-core.git", from: "7.0.0"),
+    ],
+    targets: [
+        // Public macOS SDK zlib; no additional downloaded dependency.
+        .systemLibrary(name: "CZlib"),
+        .executableTarget(
+            name: "AWSPlatform",
+            dependencies: [
+                "CZlib",
+                .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "SotoCore", package: "soto-core"),
+                .product(name: "SotoEC2", package: "soto"),
+                .product(name: "SotoLambda", package: "soto"),
+                .product(name: "SotoS3", package: "soto"),
+                .product(name: "SotoSTS", package: "soto"),
+                .product(name: "SotoCostExplorer", package: "soto"),
+                .product(name: "SotoCloudWatch", package: "soto"),
+                .product(name: "SotoCloudWatchLogs", package: "soto"),
+                .product(name: "SotoSNS", package: "soto"),
+                .product(name: "SotoCodeCommit", package: "soto"),
+                .product(name: "SotoRDS", package: "soto"),
+                .product(name: "SotoAutoScaling", package: "soto"),
+                .product(name: "SotoHealth", package: "soto"),
+                .product(name: "SotoRoute53", package: "soto"),
+                .product(name: "SotoElasticLoadBalancingV2", package: "soto"),
+            ],
+            resources: [.process("Resources")]
+        ),
+        .testTarget(
+            name: "AWSPlatformTests",
+            dependencies: ["AWSPlatform"]
+        ),
+    ]
+)

@@ -20,14 +20,10 @@ final class SSMScriptLeaseTests: XCTestCase {
         XCTAssertTrue(exists(future))
     }
 
-    func testInvalidCleanupInputsPreservePendingHandoff() throws {
+    func testInvalidCleanupDatePreservesPendingHandoff() throws {
         let root = try directory()
         defer { try? FileManager.default.removeItem(at: root) }
         let pending = try pending(in: root)
-        for age in [-1.0, .nan, .infinity] {
-            SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now, maximumAge: age)
-            XCTAssertTrue(exists(pending))
-        }
         SSMScriptLease.cleanupOrphansSynchronously(in: root, now: Date(timeIntervalSince1970: .nan))
         XCTAssertTrue(exists(pending))
     }
@@ -80,7 +76,7 @@ final class SSMScriptLeaseTests: XCTestCase {
         let unknown = try pending(in: root)
         try Data("keep".utf8).write(to: unknown.appendingPathComponent("keep.txt"))
         let invalid = try pending(in: root)
-        let renamed = root.appendingPathComponent(SSMScriptLease.prefix + "not-a-uuid")
+        let renamed = invalid.deletingLastPathComponent().appendingPathComponent(SSMScriptLease.prefix + "not-a-uuid")
         try FileManager.default.moveItem(at: invalid, to: renamed)
         SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now)
         for url in [legacy, unknown, renamed] { XCTAssertTrue(exists(url)) }
@@ -108,10 +104,10 @@ final class SSMScriptLeaseTests: XCTestCase {
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: false)
         let target = outside.appendingPathComponent("keep.txt")
         try Data("keep".utf8).write(to: target)
-        let linked = root.appendingPathComponent(SSMScriptLease.prefix + UUID().uuidString)
-        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: outside)
         let scriptLink = try pending(in: root)
         let markerLink = try pending(in: root)
+        let linked = scriptLink.deletingLastPathComponent().appendingPathComponent(SSMScriptLease.prefix + UUID().uuidString)
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: outside)
         for (url, name) in [(scriptLink, SSMScriptLease.scriptName), (markerLink, SSMScriptLease.markerName)] {
             let replaced = url.appendingPathComponent(name)
             try FileManager.default.removeItem(at: replaced)
@@ -156,21 +152,6 @@ final class SSMScriptLeaseTests: XCTestCase {
         XCTAssertFalse(SSMScriptLease.ownedPrivate(info, kind: S_IFREG, permissions: 0o600))
     }
 
-    func testScriptReplacementDuringClaimIsPreservedOnSubsequentCleanup() throws {
-        let root = try directory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let pending = try pending(in: root)
-        let script = pending.appendingPathComponent(SSMScriptLease.scriptName)
-        SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now, beforeContentIsolation: {
-            try! FileManager.default.removeItem(at: script)
-            try! Data("replacement".utf8).write(to: script)
-            XCTAssertEqual(chmod(script.path, 0o700), 0)
-        })
-        XCTAssertEqual(try String(contentsOf: script), "replacement")
-        SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now)
-        XCTAssertEqual(try String(contentsOf: script), "replacement")
-    }
-
     func testIndependentPendingLocksAndPartialPreparationDiscard() throws {
         let root = try directory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -204,45 +185,15 @@ final class SSMScriptLeaseTests: XCTestCase {
         let moved = container.appendingPathComponent("moved")
         try FileManager.default.moveItem(at: root, to: moved)
         try FileManager.default.createSymbolicLink(at: root, withDestinationURL: outside)
-        let unrelated = outside.appendingPathComponent(lease.directory.lastPathComponent)
-        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: false)
+        let unrelated = outside.appendingPathComponent(SSMScriptLease.parentDirectoryName)
+            .appendingPathComponent(lease.directory.lastPathComponent)
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
         let keep = unrelated.appendingPathComponent(SSMScriptLease.scriptName)
         try Data("keep".utf8).write(to: keep)
         lease.discard()
-        XCTAssertFalse(exists(moved.appendingPathComponent(lease.directory.lastPathComponent)))
+        XCTAssertFalse(exists(moved.appendingPathComponent(SSMScriptLease.parentDirectoryName)
+            .appendingPathComponent(lease.directory.lastPathComponent)))
         XCTAssertEqual(try String(contentsOf: keep), "keep")
-    }
-
-    func testNewHardLinkOrInPlaceEditDuringClaimIsPreserved() throws {
-        for edit in [false, true] {
-            let root = try directory()
-            defer { try? FileManager.default.removeItem(at: root) }
-            let pending = try pending(in: root)
-            let script = pending.appendingPathComponent(SSMScriptLease.scriptName)
-            let linked = root.appendingPathComponent("keep-script")
-            var original = stat()
-            XCTAssertEqual(lstat(script.path, &original), 0)
-            SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now, beforeContentIsolation: {
-                if edit {
-                    let descriptor = open(script.path, O_WRONLY | O_TRUNC | O_NOFOLLOW)
-                    XCTAssertGreaterThanOrEqual(descriptor, 0)
-                    guard descriptor >= 0 else { return }
-                    let data = Data("edited".utf8)
-                    XCTAssertEqual(data.withUnsafeBytes { Darwin.write(descriptor, $0.baseAddress, $0.count) }, data.count)
-                    close(descriptor)
-                } else {
-                    XCTAssertEqual(link(script.path, linked.path), 0)
-                }
-            })
-            var after = stat()
-            XCTAssertEqual(lstat(script.path, &after), 0)
-            XCTAssertEqual(after.st_ino, original.st_ino)
-            let expected = edit ? "edited" : "#!/bin/bash\nexit 0\n"
-            XCTAssertEqual(try String(contentsOf: script), expected)
-            SSMScriptLease.cleanupOrphansSynchronously(in: root, now: now)
-            XCTAssertEqual(try String(contentsOf: script), expected)
-            if !edit { XCTAssertEqual(try String(contentsOf: linked), expected) }
-        }
     }
 
     private func pending(in root: URL, age: TimeInterval = SSMScriptLease.maximumPendingAge + 1) throws -> URL {

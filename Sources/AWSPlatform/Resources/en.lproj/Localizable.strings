@@ -1905,6 +1905,7 @@
 "Showing previously loaded Lambda functions; they may be out of date." = "Showing previously loaded Lambda functions; they may be out of date.";
 "Lambda pagination could not be completed. Partial results were not displayed. Refresh to try again." = "Lambda pagination could not be completed. Partial results were not displayed. Refresh to try again.";
 "SSM requires AWS CLI 2.37.9 or newer and Session Manager plugin newer than 1.2.497.0. Update both tools before connecting." = "SSM requires AWS CLI 2.37.9 or newer and Session Manager plugin newer than 1.2.497.0. Update both tools before connecting.";
+"SSM temporary files could not be fully removed. The connection will continue. Remaining directory:" = "SSM temporary files could not be fully removed. The connection will continue. Remaining directory:";
 
 /* AWS CLI version and maintenance */
 "Installation source" = "Installation source";

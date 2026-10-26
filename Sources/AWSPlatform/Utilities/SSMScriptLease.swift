@@ -1,14 +1,14 @@
 import Darwin
 import Foundation
 
-/// Marks pending handoffs only. Running scripts remove these files before obtaining credentials.
+/// Private pending handoffs. Cleanup is best effort; running scripts hold the startup lock.
 final class SSMScriptLease {
     static let prefix = "AWSPlatform-SSM-"
     static let markerName = ".awsplatform-ssm-lease"
     static let scriptName = "Connect.command"
     static let marker = Data("AWSPlatform pending SSM script v1\n".utf8)
     static let maximumPendingAge: TimeInterval = 24 * 60 * 60
-    private static let scanCursor = RootScanCursor()
+    static let parentDirectoryName = "AWSPlatform-SSM"
     let directory: URL
     let directoryIdentity: String
     var scriptURL: URL { directory.appendingPathComponent(Self.scriptName) }
@@ -17,10 +17,9 @@ final class SSMScriptLease {
     private let lock: Int32
     private let name: String
 
-    init(root url: URL, beforeMarkerCreation: ((URL) -> Void)? = nil,
-         beforeMarkerLock: ((URL) -> Void)? = nil) throws {
-        let canonicalRoot = url.resolvingSymlinksInPath()
-        let root = open(canonicalRoot.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+    init(root url: URL) throws {
+        let canonicalRoot = url.resolvingSymlinksInPath().appendingPathComponent(Self.parentDirectoryName)
+        let root = Self.openRoot(in: url, create: true)
         guard root >= 0 else { throw CocoaError(.fileWriteUnknown) }
         let name = Self.prefix + UUID().uuidString
         let directory = canonicalRoot.appendingPathComponent(name, isDirectory: true)
@@ -41,14 +40,12 @@ final class SSMScriptLease {
             close(root); throw CocoaError(.fileWriteUnknown)
         }
         let directoryIdentity = "\(UInt32(bitPattern: opened.st_dev)):\(opened.st_ino)"
-        beforeMarkerCreation?(directory)
         let lock = openat(descriptor, Self.markerName, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
                       S_IRUSR | S_IWUSR)
         guard lock >= 0 else {
             close(descriptor); Self.removeCreatedDirectory(root: root, name: name, expected: created); close(root)
             throw CocoaError(.fileWriteUnknown)
         }
-        beforeMarkerLock?(directory.appendingPathComponent(Self.markerName))
         guard flock(lock, LOCK_EX | LOCK_NB) == 0 else {
             Self.removeCreatedMarker(in: descriptor, marker: lock)
             close(lock); close(descriptor); Self.removeCreatedDirectory(root: root, name: name, expected: created); close(root)
@@ -71,6 +68,21 @@ final class SSMScriptLease {
     }
 
     deinit { close(lock); close(descriptor); close(root) }
+
+    private static func openRoot(in url: URL, create: Bool) -> Int32 {
+        let temporary = open(url.resolvingSymlinksInPath().path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard temporary >= 0 else { return -1 }
+        defer { close(temporary) }
+        if create, mkdirat(temporary, parentDirectoryName, S_IRWXU) != 0, errno != EEXIST { return -1 }
+        let root = openat(temporary, parentDirectoryName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { return -1 }
+        var info = stat()
+        guard fstat(root, &info) == 0, ownedPrivate(info, kind: S_IFDIR, permissions: 0o700) else {
+            close(root)
+            return -1
+        }
+        return root
+    }
 
     private static func removeCreatedDirectory(root: Int32, name: String, expected: stat) {
         // rmdir never recursively removes unexpected entries introduced during preparation.
@@ -102,29 +114,19 @@ final class SSMScriptLease {
     }
 
     static func cleanupOrphans(in root: URL = FileManager.default.temporaryDirectory,
-                               now: Date = Date(), maximumAge: TimeInterval = maximumPendingAge,
-                               entryLimit: Int = 4096, maximumBatches: Int = 16) async {
-        guard maximumBatches > 0 else { return }
+                               now: Date = Date()) async {
         await Task.detached(priority: .utility) {
-            for _ in 0..<min(maximumBatches, 16) {
-                guard !Task.isCancelled else { return }
-                guard cleanupOrphansSynchronously(in: root, now: now, maximumAge: maximumAge, entryLimit: entryLimit) else { return }
-                await Task.yield()
-            }
+            cleanupOrphansSynchronously(in: root, now: now)
         }.value
     }
 
-    @discardableResult
-    static func cleanupOrphansSynchronously(in url: URL, now: Date = Date(),
-                                            maximumAge: TimeInterval = maximumPendingAge,
-                                            entryLimit: Int = 4096,
-                                            beforeContentIsolation: (() -> Void)? = nil) -> Bool {
-        guard maximumAge.isFinite, maximumAge >= 0, now.timeIntervalSince1970.isFinite, entryLimit > 0 else { return false }
-        let root = open(url.resolvingSymlinksInPath().path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard root >= 0 else { return false }
+    static func cleanupOrphansSynchronously(in url: URL, now: Date = Date()) {
+        guard now.timeIntervalSince1970.isFinite else { return }
+        let root = openRoot(in: url, create: false)
+        guard root >= 0 else { return }
         defer { close(root) }
-        guard let batch = scanCursor.next(in: root, limit: min(entryLimit, 4096)) else { return false }
-        for name in batch.names {
+        guard let names = entries(in: root) else { return }
+        for name in names where validName(name) {
             let directory = openat(root, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             guard directory >= 0 else { continue }
             defer { close(directory) }
@@ -135,11 +137,9 @@ final class SSMScriptLease {
             var info = stat()
             guard fstat(marker, &info) == 0 else { continue }
             let created = TimeInterval(info.st_mtimespec.tv_sec) + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000
-            guard now.timeIntervalSince1970 - created >= maximumAge else { continue }
-            removeKnownScript(root: root, name: name, directory: directory, marker: marker,
-                              beforeContentIsolation: beforeContentIsolation)
+            guard now.timeIntervalSince1970 - created >= maximumPendingAge else { continue }
+            removeKnownScript(root: root, name: name, directory: directory, marker: marker)
         }
-        return batch.more
     }
 
     static func ownedPrivate(_ info: stat, kind: mode_t, permissions: mode_t) -> Bool {
@@ -152,8 +152,7 @@ final class SSMScriptLease {
         return UUID(uuidString: String(name.dropFirst(prefix.count)))?.uuidString == String(name.dropFirst(prefix.count))
     }
 
-    private static func removeKnownScript(root: Int32, name: String, directory: Int32, marker: Int32,
-                                          beforeContentIsolation: (() -> Void)? = nil) {
+    private static func removeKnownScript(root: Int32, name: String, directory: Int32, marker: Int32) {
         var directoryInfo = stat(), markerInfo = stat()
         guard fstat(directory, &directoryInfo) == 0,
               ownedPrivate(directoryInfo, kind: S_IFDIR, permissions: 0o700), matches(root, name, directoryInfo),
@@ -168,50 +167,11 @@ final class SSMScriptLease {
             var script = stat()
             guard fstatat(directory, scriptName, &script, AT_SYMLINK_NOFOLLOW) == 0,
                   ownedPrivate(script, kind: S_IFREG, permissions: 0o700),
-                  script.st_size >= 0, script.st_size <= 1024 * 1024,
-                  matches(root, name, directoryInfo), matches(directory, markerName, markerInfo),
-                  isolateAndRemove(in: directory, fileName: scriptName, expected: script,
-                                   beforeIsolation: beforeContentIsolation) else { return }
+                  unlinkat(directory, scriptName, 0) == 0 else { return }
         }
         guard matches(root, name, directoryInfo), matches(directory, markerName, markerInfo),
-              isolateAndRemove(in: directory, fileName: markerName, expected: markerInfo, beforeIsolation: nil) else { return }
+              unlinkat(directory, markerName, 0) == 0 else { return }
         if matches(root, name, directoryInfo) { _ = unlinkat(root, name, AT_REMOVEDIR) }
-    }
-
-    private static func isolateAndRemove(in directory: Int32, fileName: String, expected: stat,
-                                          beforeIsolation: (() -> Void)?) -> Bool {
-        let name = ".cleanup-" + UUID().uuidString
-        guard mkdirat(directory, name, S_IRWXU) == 0 else { return false }
-        let quarantine = openat(directory, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard quarantine >= 0 else { return false }
-        defer { close(quarantine) }
-        var directoryInfo = stat()
-        guard fstat(quarantine, &directoryInfo) == 0,
-              ownedPrivate(directoryInfo, kind: S_IFDIR, permissions: 0o700) else { return false }
-        var removed = false
-        defer {
-            // Failed claims keep a preservation entry so later scans will not delete replacements.
-            if removed, matches(directory, name, directoryInfo) { _ = unlinkat(directory, name, AT_REMOVEDIR) }
-        }
-        beforeIsolation?()
-        guard renameatx_np(directory, fileName, quarantine, fileName, UInt32(RENAME_EXCL)) == 0 else { return false }
-        let file = openat(quarantine, fileName, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
-        func restore() { _ = renameatx_np(quarantine, fileName, directory, fileName, UInt32(RENAME_EXCL)) }
-        guard file >= 0 else { restore(); return false }
-        defer { close(file) }
-        var actual = stat()
-        let permissions: mode_t = fileName == markerName ? 0o600 : 0o700
-        guard fstat(file, &actual) == 0, same(actual, expected),
-              ownedPrivate(actual, kind: S_IFREG, permissions: permissions),
-              matches(quarantine, fileName, actual), matches(directory, name, directoryInfo),
-              unlinkat(quarantine, fileName, 0) == 0 else { restore(); return false }
-        removed = true
-        return true
-    }
-
-    private static func same(_ lhs: stat, _ rhs: stat) -> Bool {
-        lhs.st_dev == rhs.st_dev && lhs.st_ino == rhs.st_ino && lhs.st_size == rhs.st_size
-            && lhs.st_mtimespec.tv_sec == rhs.st_mtimespec.tv_sec && lhs.st_mtimespec.tv_nsec == rhs.st_mtimespec.tv_nsec
     }
 
     private static func matches(_ directory: Int32, _ name: String, _ expected: stat) -> Bool {
@@ -233,7 +193,7 @@ final class SSMScriptLease {
         }
     }
 
-    private static func entries(in descriptor: Int32, limit: Int) -> [String]? {
+    private static func entries(in descriptor: Int32, limit: Int? = nil) -> [String]? {
         let copy = openat(descriptor, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard copy >= 0 else { return nil }
         guard let stream = fdopendir(copy) else { close(copy); return nil }
@@ -244,54 +204,9 @@ final class SSMScriptLease {
                 $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
             }
             guard name != ".", name != ".." else { continue }
-            guard result.count < limit else { return nil }
+            if let limit, result.count >= limit { return nil }
             result.append(name)
         }
         return result
-    }
-
-    /// One root and one descriptor, shared safely by startup and subsequent Connect scans.
-    private final class RootScanCursor: @unchecked Sendable {
-        private let lock = NSLock()
-        private var stream: UnsafeMutablePointer<DIR>?
-        private var identity: (dev_t, ino_t)?
-
-        deinit { reset() }
-
-        func next(in root: Int32, limit: Int) -> (names: [String], more: Bool)? {
-            lock.lock()
-            defer { lock.unlock() }
-            var info = stat()
-            guard fstat(root, &info) == 0 else { reset(); return nil }
-            if identity?.0 != info.st_dev || identity?.1 != info.st_ino {
-                reset()
-                let copy = openat(root, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-                guard copy >= 0 else { return nil }
-                guard let opened = fdopendir(copy) else { close(copy); return nil }
-                stream = opened
-                identity = (info.st_dev, info.st_ino)
-            }
-            guard let stream else { return nil }
-            var names: [String] = []
-            for _ in 0..<limit {
-                errno = 0
-                guard let entry = readdir(stream) else {
-                    let failed = errno != 0
-                    reset()
-                    return failed ? nil : (names, false)
-                }
-                let name = withUnsafePointer(to: &entry.pointee.d_name) {
-                    $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN) + 1) { String(cString: $0) }
-                }
-                if SSMScriptLease.validName(name) { names.append(name) }
-            }
-            return (names, true)
-        }
-
-        private func reset() {
-            if let stream { closedir(stream) }
-            stream = nil
-            identity = nil
-        }
     }
 }

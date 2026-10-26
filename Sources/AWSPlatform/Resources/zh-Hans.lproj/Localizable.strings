@@ -1905,6 +1905,7 @@
 "Showing previously loaded Lambda functions; they may be out of date." = "正在显示此前加载的 Lambda 函数，数据可能已过期。";
 "Lambda pagination could not be completed. Partial results were not displayed. Refresh to try again." = "Lambda 分页未能完成，未显示不完整结果，请刷新重试。";
 "SSM requires AWS CLI 2.37.9 or newer and Session Manager plugin newer than 1.2.497.0. Update both tools before connecting." = "SSM 需要 AWS CLI 2.37.9 或更新的版本，以及高于 1.2.497.0 的 Session Manager 插件。请更新两项工具后连接。";
+"SSM temporary files could not be fully removed. The connection will continue. Remaining directory:" = "SSM 临时文件未能完全清理，连接将继续。残留目录：";
 
 /* AWS CLI version and maintenance */
 "Installation source" = "安装来源";

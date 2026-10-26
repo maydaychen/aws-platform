@@ -90,6 +90,7 @@ struct EC2SSMConnectionService {
         let identityError = L10n.text("CLI identity does not match the verified Profile. Reverify the Profile in AWSPlatform before connecting.", locale: locale)
         let credentialsError = L10n.text(EC2SSMConnectionError.credentialsUnavailable.rawValue, locale: locale)
         let dependencyError = L10n.text("SSM requires AWS CLI 2.37.9 or newer and Session Manager plugin newer than 1.2.497.0. Update both tools before connecting.", locale: locale)
+        let cleanupWarning = L10n.text("SSM temporary files could not be fully removed. The connection will continue. Remaining directory:", locale: locale)
         // Single-quote every dynamic value. Neither shell interpolation nor terminal
         // environment credentials may replace the explicitly selected Profile.
         return """
@@ -115,9 +116,15 @@ struct EC2SSMConnectionService {
             [[ -d "$connect_directory" ]] || exit 0
             cd -P -- "$connect_directory" || exit 1
             [[ "$(/usr/bin/stat -f '%d:%i' .)" == "$connect_directory_identity" ]] || exit 1
-            /bin/rm -f -- \(quote(SSMScriptLease.scriptName)) "$connect_marker"
+            if ! /bin/rm -f -- \(quote(SSMScriptLease.scriptName)) || ! /bin/rm -f -- "$connect_marker"; then
+                printf '%s\\n' \(quote(cleanupWarning)) "$connect_directory" >&2
+                exit 0
+            fi
             [[ ! -L "$connect_directory" && "$(/usr/bin/stat -f '%d:%i' "$connect_directory" 2>/dev/null)" == "$connect_directory_identity" ]] || exit 0
-            /bin/rmdir -- "$connect_directory" 2>/dev/null || [[ ! -d "$connect_directory" ]]
+            if ! /bin/rmdir -- "$connect_directory" 2>/dev/null && [[ -d "$connect_directory" ]]; then
+                printf '%s\\n' \(quote(cleanupWarning)) "$connect_directory" >&2
+            fi
+            exit 0
         )
         trap 'connect_exit=$?; connect_cleanup || :; exit "$connect_exit"' EXIT
         trap 'exit 129' HUP

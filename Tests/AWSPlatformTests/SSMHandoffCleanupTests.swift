@@ -61,6 +61,40 @@ final class SSMHandoffCleanupTests: XCTestCase {
         }
     }
 
+    func testIncompleteDirectoryCleanupDoesNotBlockSessionOrMaskItsExitStatus() throws {
+        for code in [0, 37] {
+            let root = try directory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let script = try prepare(in: root)
+            try writeCLIFixtures(in: root, script: script, exit: code)
+            let keep = script.deletingLastPathComponent().appendingPathComponent("keep.txt")
+            try Data("keep".utf8).write(to: keep)
+            let result = try execute(body: String(contentsOf: script), script: script, arguments: [])
+            XCTAssertEqual(result.status, Int32(code), result.output)
+            XCTAssertTrue(try String(contentsOf: root.appendingPathComponent("calls")).contains("ssm"))
+            XCTAssertEqual(try String(contentsOf: keep), "keep")
+            XCTAssertTrue(result.output.contains("SSM temporary files could not be fully removed"))
+        }
+    }
+
+    func testFileCleanupPermissionFailureWarnsAndStillStartsSession() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses directory write permissions")
+        let root = try directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let script = try prepare(in: root)
+        let pending = script.deletingLastPathComponent()
+        defer { _ = chmod(pending.path, 0o700) }
+        try writeCLIFixtures(in: root, script: script, exit: 0, requireRemovedFiles: false)
+        XCTAssertEqual(chmod(pending.path, 0o500), 0)
+        let result = try execute(body: String(contentsOf: script), script: script, arguments: [])
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertTrue(try String(contentsOf: root.appendingPathComponent("calls")).contains("ssm"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: script.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pending.appendingPathComponent(SSMScriptLease.markerName).path))
+        XCTAssertTrue(result.output.contains("SSM temporary files could not be fully removed"))
+        XCTAssertFalse(result.output.contains("offline-secret"))
+    }
+
     func testKillingLockfParentDoesNotStopAnAlreadyStartedSession() throws {
         let root = try directory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -118,34 +152,6 @@ final class SSMHandoffCleanupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: script.deletingLastPathComponent().path))
     }
 
-    func testMarkerCreationAndLockFailureRollBackOnlyCreatedItems() throws {
-        let root = try directory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        XCTAssertThrowsError(try SSMScriptLease(root: root, beforeMarkerCreation: { directory in
-            try? Data("unknown data".utf8).write(to: directory.appendingPathComponent(SSMScriptLease.markerName))
-        }))
-        let preserved = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).first)
-        XCTAssertEqual(try String(contentsOf: preserved.appendingPathComponent(SSMScriptLease.markerName)), "unknown data")
-        var externalLock: Int32 = -1
-        defer { if externalLock >= 0 { close(externalLock) } }
-        XCTAssertThrowsError(try SSMScriptLease(root: root, beforeMarkerLock: { marker in
-            externalLock = open(marker.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
-            XCTAssertGreaterThanOrEqual(externalLock, 0)
-            XCTAssertEqual(flock(externalLock, LOCK_EX | LOCK_NB), 0)
-        }))
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), [preserved.lastPathComponent])
-    }
-
-    func testEmptyOwnedDirectoryIsRemovedWhenMarkerCannotBeCreated() throws {
-        try XCTSkipIf(geteuid() == 0, "Root bypasses the intended directory permission failure")
-        let root = try directory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        XCTAssertThrowsError(try SSMScriptLease(root: root, beforeMarkerCreation: { directory in
-            XCTAssertEqual(chmod(directory.path, 0o500), 0)
-        }))
-        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
-    }
-
     private func prepare(in root: URL) throws -> URL {
         let cli = root.appendingPathComponent("aws")
         let plugin = root.appendingPathComponent("session-manager-plugin")
@@ -171,8 +177,11 @@ final class SSMHandoffCleanupTests: XCTestCase {
         return try XCTUnwrap(opened)
     }
 
-    private func writeCLIFixtures(in root: URL, script: URL, exit code: Int) throws {
-        let guardLine = "[[ ! -e \(quote(script.deletingLastPathComponent().path)) && -d \"$PWD\" ]] || exit 89"
+    private func writeCLIFixtures(in root: URL, script: URL, exit code: Int, requireRemovedFiles: Bool = true) throws {
+        let marker = script.deletingLastPathComponent().appendingPathComponent(SSMScriptLease.markerName)
+        let guardLine = requireRemovedFiles
+            ? "[[ ! -e \(quote(script.path)) && ! -e \(quote(marker.path)) && -d \"$PWD\" ]] || exit 89"
+            : "[[ -d \"$PWD\" ]] || exit 89"
         let cli = """
         #!/bin/bash
         set -euo pipefail

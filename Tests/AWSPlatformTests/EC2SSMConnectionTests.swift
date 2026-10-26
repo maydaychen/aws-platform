@@ -80,7 +80,8 @@ final class EC2SSMConnectionTests: XCTestCase {
         XCTAssertThrowsError(try service.connect(request(), locale: .init(identifier: "en"))) {
             XCTAssertEqual($0 as? EC2SSMConnectionError, .openFailed)
         }
-        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+        let parent = root.appendingPathComponent(SSMScriptLease.parentDirectoryName)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: parent.path).isEmpty)
         service.temporaryDirectory = root.appendingPathComponent("missing/parent")
         XCTAssertThrowsError(try service.connect(request(), locale: .init(identifier: "en"))) {
             XCTAssertEqual($0 as? EC2SSMConnectionError, .prepareFailed)
@@ -273,6 +274,7 @@ final class EC2SSMConnectionTests: XCTestCase {
 
     func testAllConnectionMessagesAreLocalized() {
         let keys = EC2SSMConnectionError.allCases.map(\.rawValue) + ["Connect", "Unable to connect",
+            "SSM temporary files could not be fully removed. The connection will continue. Remaining directory:",
             "SSM requires AWS CLI 2.37.9 or newer and Session Manager plugin newer than 1.2.497.0. Update both tools before connecting.",
             "Open an SSM session in your default terminal",
             "CLI identity does not match the verified Profile. Reverify the Profile in AWSPlatform before connecting."]

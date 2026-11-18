@@ -12,6 +12,7 @@ from typing import NamedTuple
 
 
 CHUNK_SIZE = 1024 * 1024
+EMAIL_MARKER_GUARD_BYTES = 256
 PATTERNS_ENV = "AWSPLATFORM_PRIVACY_PATTERNS_FILE"
 MAX_PATTERN_FILE_BYTES = 1024 * 1024
 HOME_PATH = re.compile(r"(?:/(?:Users|home)/|[a-z]:\\+Users\\+)([^/\\\x00\s\"'<>:]{1,255})[/\\]", re.I)
@@ -68,12 +69,22 @@ def _example_email(domain):
             or any(domain == item or domain.endswith("." + item) for item in EXAMPLE_DOMAINS))
 
 
+def _binary_boundary(char):
+    return bool(char) and (
+        char == "\ufffd" or (ord(char) < 32 and char not in "\0\t\n\r") or ord(char) == 127
+    )
+
+
 def _email_candidate(text, match):
     domain = match.group(1)
     # Versions and short random binary runs are not Internet mail domains.
     if not re.fullmatch(r"[a-z]{2,63}|xn--[a-z0-9-]{2,59}", domain.rsplit(".", 1)[-1], re.I):
         return False
     if re.fullmatch(r"[123]x\.(?:png|jpe?g|gif|icns|pdf|svg|webp)", domain, re.I):
+        return False
+    before = text[match.start() - 1] if match.start() > 0 else ""
+    after = text[match.end()] if match.end() < len(text) else ""
+    if len(match.group()) < 12 and _binary_boundary(before) and _binary_boundary(after):
         return False
     local = match.group().rsplit("@", 1)[0]
     if (local.startswith("//") and local[2:].casefold() in PLACEHOLDER_USERS
@@ -82,16 +93,21 @@ def _email_candidate(text, match):
     return True
 
 
-def _email_scan_data(data):
+def _email_scan_data(data, prefix=b""):
     # These exact public author markers are retained by the pinned BoringSSL ASM.
     # Mask only for mailbox detection; home paths and deny literals use raw data.
     address = "appro" + "@" + "openssl.org"
+    combined = prefix + data if prefix else data
+    changed = False
     for marker in ("CRYPTOGAMS by <", "GHASH for ARMv8, derived from ARMv4 version by <"):
         for encoding in ("utf-8", "utf-16-le", "utf-16-be"):
             value = (marker + address + ">").encode(encoding)
-            if value in data:
-                data = data.replace(value, b"\0" * len(value))
-    return data
+            if value in combined:
+                combined = combined.replace(value, b"\0" * len(value))
+                changed = True
+    if not changed:
+        return data
+    return combined[len(prefix):]
 
 
 def _license_file(relative):
@@ -127,9 +143,9 @@ def _text_views(data):
                 yield value.decode(encoding, errors="replace")
 
 
-def _rules_in(data, patterns, license_file, final):
+def _rules_in(data, patterns, license_file, final, email_prefix=b""):
     found = set()
-    email_data = _email_scan_data(data) if not license_file else data
+    email_data = _email_scan_data(data, email_prefix) if not license_file else data
     for text in _text_views(data):
         if any(match.group(1).casefold() not in PLACEHOLDER_USERS for match in HOME_PATH.finditer(text)):
             found.add("private-home-path")
@@ -163,15 +179,18 @@ def _scan_file(path, relative, patterns):
             if not stat.S_ISREG(before.st_mode):
                 return {"special-file"}
             overlap = max(4096, max((len(item.encode("utf-8")) * 4 for item in patterns), default=0))
-            tail = b""
+            carry = b""
+            license_file = _license_file(relative)
             while True:
+                tail = carry[-overlap:]
+                email_prefix = carry[:-overlap]
                 chunk = source.read(CHUNK_SIZE)
                 if not chunk:
-                    found.update(_rules_in(tail, patterns, _license_file(relative), final=True))
+                    found.update(_rules_in(tail, patterns, license_file, final=True, email_prefix=email_prefix))
                     break
                 window = tail + chunk
-                found.update(_rules_in(window, patterns, _license_file(relative), final=False))
-                tail = window[-overlap:]
+                found.update(_rules_in(window, patterns, license_file, final=False, email_prefix=email_prefix))
+                carry = (email_prefix + window)[-(overlap + EMAIL_MARKER_GUARD_BYTES):]
             after = os.fstat(source.fileno())
             if (before.st_size, before.st_mtime_ns, before.st_ino) != (
                 after.st_size, after.st_mtime_ns, after.st_ino

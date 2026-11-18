@@ -6,14 +6,13 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 
 ## 下载
 
-下载 **[v0.4.2 (26)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.2)**。应用需要 **macOS 13 或更高版本**，SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
+下载 **[v0.4.3 (28)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.3)** 。应用需要 **macOS 13 或更高版本**，SSO 登录需要 AWS CLI v2，配置要求见 [前置条件](#前置条件) 。
 
 | Mac | 安装镜像 | 压缩包 |
 | --- | --- | --- |
-| Apple Silicon | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.zip) |
-| Intel | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.zip) |
+| Universal（Apple Silicon & Intel） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.zip) |
 
-两套分发包均使用 Developer ID 签名并通过 Apple 公证，校验值见 [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/SHA256SUMS.txt) 。
+本版本采用本地 ad-hoc 签名（`Signature=adhoc`、`TeamIdentifier=not set`），不包含 Developer ID 证书或 Apple 公证，校验值见 [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt) 。首次打开若遇系统安全提示，点击「完成」后前往 **系统设置 -> 隐私与安全性** 点击 **「仍要打开」**（或执行 `xattr -cr /Applications/AWSPlatform.app` ）。
 
 ## 功能
 
@@ -63,7 +62,6 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 - Swift 6.2+ / SwiftUI（源码构建工具链）
 - macOS 13+，支持 Intel（x86_64）和 Apple Silicon（arm64）
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
-- [Sparkle 2](https://sparkle-project.org/) - 签名校验的应用更新
 
 ## 快速开始
 
@@ -120,19 +118,17 @@ open Package.swift
 
 应用包内置 `Assets/AppIcon/AppIcon.icns` 云端资源图标；修改 PNG 主图并重新生成 macOS 图标尺寸的方法见 [App Icon 说明](Assets/AppIcon/README.md) 。
 
-上述本地包使用 ad-hoc 签名。两个打包脚本均支持 `--architecture arm64`（Apple Silicon）、`--architecture x86_64`（Intel）和 `--architecture universal`（默认，两种架构）。单架构包的主程序和内嵌 Swift 运行库只包含目标架构；保留多个本地包时请使用不同的 `--output-dir`。可通过 `--version` 和 `--build-number` 指定版本与构建号。
+上述本地包使用 ad-hoc 签名。`scripts/build-universal.sh` 支持 `--architecture arm64`（Apple Silicon）、`--architecture x86_64`（Intel）和 `--architecture universal`（默认，两种架构）。单架构包的主程序和内嵌 Swift 运行库只包含目标架构；保留多个本地包时请使用不同的 `--output-dir`。可通过 `--version` 和 `--build-number` 指定版本与构建号。
 
-正式分发入口为 `scripts/package-distribution.py`，使用相同的架构／版本参数、本机 Developer ID Application 签名、Apple 公证和票据附加，输出以 `AWSPlatform-<版本>-<架构>` 命名的 ZIP、DMG、校验值及公证记录；需要有效签名身份和已配置的 `asc` 认证，详见 [正式打包说明](scripts/README.md#正式签名与公证)。普通 `swift build` 仍只构建当前机器架构。
+用于公开分发的匿名构建入口为 `./scripts/build-anonymous-release.sh`（需先通过 `swift package --force-resolved-versions resolve` 准备依赖源码），生成带完整第三方许可证、无签名证书链与无团队标识的 Universal `AWSPlatform-<版本>-universal.dmg`、`AWSPlatform-<版本>-universal.zip`、`SHA256SUMS.txt` 与双语 `RELEASE_NOTES.md`，详见 [打包说明](scripts/README.md) 。普通 `swift build` 仍只构建当前机器架构。
 
 ### 发布隐私
 
-日常开发直接在当前脱敏仓库进行，提交身份使用昵称与 `noreply`。打包时将 Swift 与 C/C++ 的源码字符串、调试信息中的工作区路径映射为 `/build/aws-platform`，在签名前和归档展开后执行隐私扫描。源码导出器仅复制干净的已提交文件树，不携带 Git 历史和本机配置。本机禁止词、导出命令、验证方式和签名身份边界见 [发布隐私](docs/release-privacy.md) 。
+日常开发直接在当前脱敏仓库进行，提交身份使用昵称与 `noreply`。打包时将 Swift 与 C/C++ 的源码字符串、调试信息中的工作区路径映射为 `/build/aws-platform`，在签名前和归档展开后执行隐私扫描。源码导出器仅复制干净的已提交文件树，不携带 Git 历史和本机配置。本机禁止词、导出命令、验证方式和匿名边界见 [发布隐私](docs/release-privacy.md) 。
 
 ### 应用更新
 
-`v0.3.1` 及更新版本的安装包提供「AWSPlatform → 检查更新…」菜单和设置中的「更新」分组。自动检查默认关闭；开启后只检查新版本，不自动下载或安装。安装需要确认，并等待应用各窗口中的 S3 任务和正在进行的 AWS CLI 更新实际结束，包括已经请求取消的传输任务；等待重启期间暂停新传输。更新前请先关闭另行启动的其他应用实例。
-
-Apple Silicon 与 Intel 使用独立 HTTPS 清单，按当前运行的应用架构选择。更新要求 Ed25519 签名的清单，并在解包前校验最终 ZIP，延续现有 Bundle ID 和本地偏好。清单验签失败会停止更新；签名验证内容来源，不保证服务器提供的是最新版本。签名密钥丢失时，需要手动安装经过审查、包含新公钥的版本。`v0.3.0` 及更早版本尚未集成更新器，需要先手动安装最新版本，后续才能在应用内升级。签名、打包和清单生成见 [打包说明](scripts/README.md#应用更新与发布清单) 。
+设置页「更新」分组展示当前应用包版本，并提供 [GitHub Releases](https://github.com/maydaychen/aws-platform/releases) 直达链接供手动下载最新 Universal 构建，不再内置后台自动更新器。退出应用时会等待各窗口中正在进行的 S3 文件传输和 AWS CLI 更新完成，等待退出期间暂停发起新传输。
 
 ### AWS CLI 更新
 

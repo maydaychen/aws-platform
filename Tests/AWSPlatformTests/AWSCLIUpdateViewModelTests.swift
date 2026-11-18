@@ -263,12 +263,13 @@ final class AWSCLIUpdateViewModelTests: XCTestCase {
         let transfer = try XCTUnwrap(activity.begin())
         XCTAssertFalse(vm.canUpdate)
         vm.update()
-        activity.finish(transfer)
-        XCTAssertTrue(vm.canUpdate)
-        XCTAssertFalse(activity.postponeUpdate {})
+        var terminated = false
+        XCTAssertTrue(activity.postponeTermination { terminated = true })
         XCTAssertFalse(vm.canUpdate)
         XCTAssertFalse(vm.canCheck)
         vm.update()
+        activity.finish(transfer)
+        XCTAssertTrue(terminated)
         let calls = await probe.calls
         XCTAssertEqual(calls.install, 0)
         XCTAssertFalse(activity.cliMaintenanceActive)

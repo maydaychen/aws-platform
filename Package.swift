@@ -6,7 +6,6 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.0"),
         .package(url: "https://github.com/soto-project/soto.git", from: "7.0.0"),
         .package(url: "https://github.com/soto-project/soto-core.git", from: "7.0.0"),
     ],
@@ -17,7 +16,6 @@ let package = Package(
             name: "AWSPlatform",
             dependencies: [
                 "CZlib",
-                .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "SotoCore", package: "soto-core"),
                 .product(name: "SotoEC2", package: "soto"),
                 .product(name: "SotoLambda", package: "soto"),

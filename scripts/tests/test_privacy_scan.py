@@ -78,9 +78,19 @@ class PrivacyScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.write(root, "icon.png", b"\x89PNG\r\n\x1a\n\xff\xffr" + b"@" + b"x.y\xfe\xff")
+            self.write(root, "arm64.bin", b"\x02h" + b"@" + b"y.Qc\xff\xfe")
             self.assertEqual(privacy.scan_tree(root), [])
+            self.write(root, "nul.bin", b"\0h" + b"@" + b"y.qc\0")
             self.write(root, "app", b"\xff\0" + PRIVATE_EMAIL.encode() + b"\0\xfe")
-            self.assertEqual(privacy.scan_tree(root), [privacy.Finding("app", "non-example-email")])
+            self.write(root, "app-raw", b"\xff" + PRIVATE_EMAIL.encode() + b"\xfe")
+            self.assertEqual(
+                privacy.scan_tree(root),
+                [
+                    privacy.Finding("app", "non-example-email"),
+                    privacy.Finding("app-raw", "non-example-email"),
+                    privacy.Finding("nul.bin", "non-example-email"),
+                ],
+            )
 
     def test_project_license_copies_only_exempt_attribution_mailboxes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -253,6 +263,28 @@ class PrivacyScanTests(unittest.TestCase):
             result = subprocess.run([sys.executable, str(SCRIPT), str(root)], capture_output=True,
                                     text=True, timeout=5)
             self.assertEqual(result.returncode, 0)
+
+    def test_assembly_attribution_split_across_chunk_tail_boundary_does_not_false_positive(self):
+        address = "appro" + "@" + "openssl.org"
+        markers = (
+            "CRYPTOGAMS by <" + address + ">",
+            "GHASH for ARMv8, derived from ARMv4 version by <" + address + ">",
+        )
+        for marker in markers:
+            for encoding in ("utf-8", "utf-16-le"):
+                with self.subTest(marker=marker, encoding=encoding), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    encoded = marker.encode(encoding)
+                    offset = 8192 - 4096 - (len(encoded) // 2)
+                    self.write(root, "binary", b"\0" * offset + encoded + b"\0" * 5000)
+                    with patch.object(privacy, "CHUNK_SIZE", 8192):
+                        self.assertEqual(privacy.scan_tree(root), [])
+                    self.write(root, "binary-mixed", b"\0" * offset + encoded + b"\0" + PRIVATE_EMAIL.encode(encoding))
+                    with patch.object(privacy, "CHUNK_SIZE", 8192):
+                        self.assertEqual(
+                            privacy.scan_tree(root),
+                            [privacy.Finding("binary-mixed", "non-example-email")],
+                        )
 
 
 if __name__ == "__main__":

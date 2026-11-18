@@ -6,14 +6,13 @@ A native macOS app for browsing AWS resources and costs, with explicit S3 file t
 
 ## Download
 
-Download **[v0.4.2 (26)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.2)**. The app requires **macOS 13 or later**; AWS CLI v2 is required for SSO sign-in. See [Prerequisites](#prerequisites).
+Download **[v0.4.3 (28)](https://github.com/maydaychen/aws-platform/releases/tag/v0.4.3)**. The app requires **macOS 13 or later**; AWS CLI v2 is required for SSO sign-in. See [Prerequisites](#prerequisites).
 
 | Mac | Installer | Archive |
 | --- | --- | --- |
-| Apple Silicon | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-arm64.zip) |
-| Intel | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/AWSPlatform-0.4.2-x86_64.zip) |
+| Universal (Apple Silicon & Intel) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.zip) |
 
-Both distributions are Developer ID signed and Apple notarized. Verify downloads with [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.2/SHA256SUMS.txt).
+This release uses local ad-hoc signing (`Signature=adhoc`, `TeamIdentifier=not set`) without a Developer ID certificate or Apple notarization. Verify downloads with [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt). On first launch, if macOS warns that the app cannot be verified, click **Done**, open **System Settings -> Privacy & Security**, and click **Open Anyway** (or run `xattr -cr /Applications/AWSPlatform.app`).
 
 ## Features
 
@@ -63,7 +62,6 @@ The following header previews use mock profiles and show the wide and narrow win
 - Swift 6.2+ / SwiftUI (toolchain required to build from source)
 - macOS 13+, supporting Intel (x86_64) and Apple Silicon (arm64)
 - [Soto](https://github.com/soto-project/soto) - AWS SDK for Swift
-- [Sparkle 2](https://sparkle-project.org/) - Signed application updates
 
 ## Quick Start
 
@@ -120,19 +118,17 @@ The script uses the dependencies pinned in `Package.resolved`, builds Release ve
 
 Packaged apps include the cloud resource icon from `Assets/AppIcon/AppIcon.icns`. To update the PNG master and regenerate its macOS icon sizes, see the [App Icon instructions](Assets/AppIcon/README.md).
 
-These local builds use ad-hoc signing. Both packaging scripts accept `--architecture arm64` for Apple Silicon, `--architecture x86_64` for Intel, or `--architecture universal` (the default) for both. Single-architecture builds contain only that architecture, including embedded Swift runtime libraries. Use separate `--output-dir` directories when keeping multiple local builds. Version and build number can be set with `--version` and `--build-number`.
+These local builds use ad-hoc signing. `scripts/build-universal.sh` accepts `--architecture arm64` for Apple Silicon, `--architecture x86_64` for Intel, or `--architecture universal` (the default) for both. Single-architecture builds contain only that architecture, including embedded Swift runtime libraries. Use separate `--output-dir` directories when keeping multiple local builds. Version and build number can be set with `--version` and `--build-number`.
 
-For distribution, use `scripts/package-distribution.py` with the same architecture/version options to sign with a local Developer ID Application identity, notarize with Apple, and staple the tickets. It produces versioned ZIP and DMG files named `AWSPlatform-<version>-<architecture>`, checksums, and notarization records. A valid signing identity and configured `asc` authentication are required; see the [distribution packaging instructions (Chinese)](scripts/README.md#正式签名与公证). A regular `swift build` still builds only for the current machine's architecture.
+For anonymous public releases, run `./scripts/build-anonymous-release.sh` (requiring resolved checkouts from `swift package --force-resolved-versions resolve`) to generate a verified Universal `AWSPlatform-<version>-universal.dmg`, `AWSPlatform-<version>-universal.zip`, `SHA256SUMS.txt`, and bilingual `RELEASE_NOTES.md` with bundled third-party licenses and zero signing authority or team identity; see the [packaging guide (Chinese)](scripts/README.md). A regular `swift build` still builds only for the current machine's architecture.
 
 ### Release Privacy
 
-Development continues directly in this sanitized repository, with nickname and `noreply` commit identities. Packaging maps workspace paths in Swift and C/C++ source strings and debug metadata to `/build/aws-platform`. Privacy checks run before signing and on expanded archive contents. The source exporter copies only a clean committed tree without Git history or local configuration. See [release privacy](docs/release-privacy.md) for local deny patterns, export commands, checks, and certificate identity limits.
+Development continues directly in this sanitized repository, with nickname and `noreply` commit identities. Packaging maps workspace paths in Swift and C/C++ source strings and debug metadata to `/build/aws-platform`. Privacy checks run before signing and on expanded archive contents. The source exporter copies only a clean committed tree without Git history or local configuration. See [release privacy](docs/release-privacy.md) for local deny patterns, export commands, checks, and anonymity verification.
 
 ### Application Updates
 
-Installers from `v0.3.1` onward provide **AWSPlatform → Check for Updates…** and an **Updates** section in Settings. Automatic checks are off by default; enabling them checks for new releases without automatically downloading or installing them. Installation requires confirmation and waits for S3 transfers across the app's windows and an active AWS CLI update to actually finish, including transfers whose cancellation was requested. New transfers are paused while a restart is pending. Close any separately launched app instances before updating.
-
-Apple Silicon and Intel use separate HTTPS feeds selected by the running app architecture. Updates require an Ed25519-signed feed and verify the final ZIP before extraction, retaining the existing bundle identity and local preferences. Feed verification failures stop the update; signatures authenticate content but do not guarantee that the server provides the newest release. If the signing key is lost, recovery requires a manually installed release with a reviewed new key. Version `v0.3.0` and earlier predate this updater. Install the latest release manually to enable future in-app updates. Release packaging and feed generation are described in the [packaging guide](scripts/README.md#应用更新与发布清单).
+Settings displays the running bundle version and links directly to [GitHub Releases](https://github.com/maydaychen/aws-platform/releases) to download new Universal builds manually; there is no background in-app updater. Quitting the app waits for active S3 file transfers across windows and any ongoing AWS CLI update to finish, pausing new transfers while quit is pending.
 
 ### AWS CLI Updates
 

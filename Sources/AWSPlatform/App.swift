@@ -28,12 +28,6 @@ struct AWSPlatformApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             MainWindowCommands(locale: languageSettings.locale)
-            CommandGroup(after: .appInfo) {
-                Button(L10n.text("Check for Updates…", locale: languageSettings.locale)) {
-                    updates.checkForUpdates()
-                }
-                .disabled(!updates.canCheckForUpdates)
-            }
         }
 
         Settings {
@@ -56,7 +50,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        AppUpdateController.shared.start()
         Task {
             await S3UploadLease.cleanupOrphans()
             await SSMScriptLease.cleanupOrphans()

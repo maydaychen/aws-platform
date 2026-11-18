@@ -122,7 +122,7 @@ final class S3TransferViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isBusy)
         XCTAssertEqual(activity.activeCount, 1)
         var restarted = false
-        XCTAssertTrue(activity.postponeUpdate { restarted = true })
+        XCTAssertTrue(activity.postponeTermination { restarted = true })
         XCTAssertFalse(vm.canStart)
         XCTAssertFalse(restarted)
         await gate.open()
@@ -166,9 +166,13 @@ final class S3TransferViewModelTests: XCTestCase {
         vm.configure(scope: context.scope)
         vm.chooseDownload(context: context, object: object) { await gate.wait(); return directory.appendingPathComponent("saved") }
         await gate.waitForEntry()
-        XCTAssertFalse(activity.postponeUpdate { XCTFail("No active transfer to postpone") })
+        let otherTransfer = try XCTUnwrap(activity.begin())
+        var terminated = false
+        XCTAssertTrue(activity.postponeTermination { terminated = true })
         await gate.open()
         await waitFor { !vm.isBusy }
+        activity.finish(otherTransfer)
+        XCTAssertTrue(terminated)
         XCTAssertEqual(activity.activeCount, 0)
         XCTAssertNil(vm.error)
     }

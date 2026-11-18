@@ -7,8 +7,8 @@ app_name="AWSPlatform"
 icon_source="$project_root/Assets/AppIcon/AppIcon.icns"
 dist_dir="$project_root/dist"
 architecture=universal
-version=0.4.2
-build_number=26
+version=0.4.3
+build_number=28
 usage() {
     printf 'Usage: %s [--output-dir DIRECTORY] [--architecture universal|arm64|x86_64] [--version VERSION] [--build-number NUMBER]\n' "$0"
 }
@@ -224,7 +224,10 @@ done
 # Include Swift back-deployment libraries before removing build-machine search paths.
 frameworks_dir="$app_path/Contents/Frameworks"
 mkdir -p "$frameworks_dir"
-python3 "$project_root/scripts/update_support.py" "$app_path" "$architecture"
+if [ -d "$project_root/.build/checkouts" ]; then
+    python3 "$project_root/scripts/collect-licenses.py" --output "$app_path/Contents/Resources/Licenses"
+fi
+find "$app_path" \( -name "*.provisionprofile" -o -name "embedded.mobileprovision" -o -name "._*" -o -name ".DS_Store" \) -delete
 xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$executable" \
     --destination "$frameworks_dir" --sign -
 # The tool may retain a backup when re-signing copied libraries.
@@ -252,7 +255,10 @@ for library in "$frameworks_dir"/*.dylib; do
             mv "$library.thin" "$library"
         fi
         [ "$(xcrun lipo -archs "$library")" = "$architecture" ] || fail 'Unexpected runtime architecture.'
-        /usr/bin/codesign --force --sign - "$library"
+        /usr/bin/codesign --force --sign - --timestamp=none "$library"
+    fi
+    if [ "$architecture" = universal ]; then
+        /usr/bin/codesign --force --sign - --timestamp=none "$library"
     fi
     for target_architecture in "${architectures[@]}"; do
         xcrun lipo "$library" -verify_arch "$target_architecture"
@@ -277,7 +283,7 @@ xcrun strip -S "$executable"
 python3 "$project_root/scripts/privacy_scan.py" "$app_path"
 
 # Ad-hoc signing uses no signing identity or Apple account.
-/usr/bin/codesign --force --sign - "$app_path"
+/usr/bin/codesign --force --sign - --timestamp=none "$app_path"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
 /usr/bin/ditto -c -k --keepParent "$app_path" "$stage_dir/$zip_name"
 /usr/bin/unzip -t -q "$stage_dir/$zip_name"

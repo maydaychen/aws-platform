@@ -1,3 +1,5 @@
+import Darwin
+import Foundation
 import XCTest
 @testable import AWSPlatform
 
@@ -301,6 +303,77 @@ final class AWSCLIUpdateViewModelTests: XCTestCase {
         XCTAssertEqual(replies, 1)
         XCTAssertFalse(activity.cliMaintenanceActive)
         XCTAssertFalse(vm.isUpdating)
+    }
+
+    @MainActor
+    func testOfficialInstallerChildHoldsBothLeasesDuringAuthorizationAndInstallation() async throws {
+        try XCTSkipIf(getuid() == 0, "Official installation rejects a root app process")
+        let before = installation("2.37.9")
+        let after = installation("2.38.5")
+        let outcomes: [(Int, String, AWSCLIUpdateError?)] = [
+            (0, "", nil),
+            (8, "private-installer-details", .updateFailed),
+            (9, "AWSPLATFORM_AUTHORIZATION_CANCELLED private-installer-details", .authorizationCancelled)
+        ]
+        for (code, output, expectedError) in outcomes {
+            let fixture = try CLIInstallChildFixture()
+            defer { try? FileManager.default.removeItem(at: fixture.root) }
+            let installer = AWSCLIInstaller(temporaryRoot: fixture.root, download: { _, target, _ in
+                try Data("signed fixture".utf8).write(to: target, options: .withoutOverwriting)
+                guard chmod(target.path, 0o600) == 0 else { throw AWSCLIUpdateError.downloadFailed }
+            }, verify: { _ in }, run: { command in
+                XCTAssertEqual(command.executable.path, "/usr/bin/osascript")
+                return try await AWSCLIInstallProcess.run(fixture.command(code: code, output: output))
+            }, validateInstallation: { _ in })
+            let activity = TransferActivity(), gate = AWSCLIOperationGate()
+            let probe = CLIUpdateProbe(snapshots: [before, before, after])
+            let vm = AWSCLIUpdateViewModel(detect: { await probe.detect() }, latest: { try await probe.latest($0) },
+                install: { try await installer.update($0, to: $1, progress: $2) }, activity: activity, gate: gate)
+            vm.check()
+            await vm.waitForCurrentTask()
+            vm.update()
+
+            let authorizing = await fixture.waitFor("authorizing")
+            XCTAssertTrue(authorizing)
+            XCTAssertEqual(vm.phase, .installing)
+            XCTAssertTrue(vm.isUpdating)
+            XCTAssertTrue(activity.cliMaintenanceActive)
+            XCTAssertThrowsError(try gate.beginUpdate())
+            XCTAssertThrowsError(try gate.beginOperation())
+            XCTAssertNil(activity.begin())
+            var quitReplies = 0
+            XCTAssertTrue(activity.postponeTermination {
+                quitReplies += 1
+                XCTAssertFalse(gate.isUpdating)
+            })
+
+            try fixture.signal("authorized")
+            if expectedError != .authorizationCancelled {
+                let installing = await fixture.waitFor("installing")
+                XCTAssertTrue(installing)
+                XCTAssertEqual(vm.phase, .installing)
+                XCTAssertTrue(vm.isUpdating)
+                XCTAssertTrue(activity.cliMaintenanceActive)
+                XCTAssertThrowsError(try gate.beginUpdate())
+                XCTAssertThrowsError(try gate.beginOperation())
+                XCTAssertNil(activity.begin())
+                XCTAssertEqual(quitReplies, 0)
+                try fixture.signal("finish")
+            }
+            await vm.waitForCurrentTask()
+            XCTAssertEqual(quitReplies, 1)
+            XCTAssertNil(vm.phase)
+            XCTAssertFalse(vm.isUpdating)
+            XCTAssertEqual(vm.error, expectedError?.localizedDescription)
+            XCTAssertFalse(vm.error?.contains("private-installer-details") ?? false)
+            if expectedError == nil {
+                XCTAssertEqual(vm.installation, after)
+                XCTAssertEqual(vm.status, "AWS CLI was updated successfully.")
+            } else {
+                XCTAssertEqual(vm.installation, before)
+            }
+            try assertReleased(activity, gate)
+        }
     }
 
     @MainActor

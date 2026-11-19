@@ -742,6 +742,7 @@
 "OIDC client ID" = "OIDC 客户端 ID";
 "OIDC issuer" = "OIDC 签发者";
 "OIDC scope" = "OIDC 作用域";
+"OK" = "确定";
 "OK targets" = "OK 状态的目标";
 "OS" = "操作系统";
 "Object" = "对象";

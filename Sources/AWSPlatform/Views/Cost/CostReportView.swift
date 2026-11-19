@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 
 struct CostReportView: View {
@@ -130,12 +131,22 @@ enum CostDisplay {
         return value.isEmpty ? L10n.text("Unspecified (empty AWS value)", locale: locale) : value
     }
 
+    private static let amountFormatter = OSAllocatedUnfairLock<(locale: Locale, formatter: NumberFormatter)?>(initialState: nil)
+
     static func amount(_ value: Decimal, currency: String?) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        let number = formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+        let locale = Locale.current
+        let number = amountFormatter.withLock { cached in
+            if let cached, cached.locale == locale {
+                return cached.formatter.string(from: NSDecimalNumber(decimal: value))
+            }
+            let formatter = NumberFormatter()
+            formatter.locale = locale
+            formatter.numberStyle = .decimal
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 2
+            cached = (locale, formatter)
+            return formatter.string(from: NSDecimalNumber(decimal: value))
+        } ?? "\(value)"
         return currency.map { "\(number) \($0)" } ?? number
     }
 

@@ -6,6 +6,11 @@ final class LocalizationTests: XCTestCase {
     private let en = Locale(identifier: "en")
     private let zh = Locale(identifier: "zh-Hans")
 
+    func testEC2ConnectionConfirmationIsLocalized() {
+        XCTAssertEqual(L10n.text("OK", locale: en), "OK")
+        XCTAssertEqual(L10n.text("OK", locale: zh), "确定")
+    }
+
     func testLambdaPreviewErrorsRenderInBothLanguages() {
         let errors: [LambdaCodeError] = [
             .invalidDownloadURL, .downloadFailed(nil), .downloadFailed(403),

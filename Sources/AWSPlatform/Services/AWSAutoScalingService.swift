@@ -163,7 +163,7 @@ struct AWSAutoScalingService: Sendable {
     }
 
     private static func template(_ raw: AutoScaling.LaunchTemplateSpecification?) -> ASGLaunchTemplate? {
-        raw.map { ASGLaunchTemplate(templateID: $0.launchTemplateId, name: $0.launchTemplateName, version: $0.version) }
+        raw.map { ASGLaunchTemplate(templateID: $0.launchTemplateId, name: $0.launchTemplateName, version: $0.version ?? "$Default") }
     }
 
     private static func mixed(_ raw: AutoScaling.MixedInstancesPolicy?) -> ASGMixedInstances? {

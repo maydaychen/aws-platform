@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct CostScope: Hashable, Sendable {
     let profile: AWSProfile
@@ -19,32 +20,33 @@ struct CostScope: Hashable, Sendable {
 }
 
 enum CostDates {
-    static var calendar: Calendar {
+    static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
-    }
+    }()
 
-    static func day(_ date: Date) -> Date { calendar.startOfDay(for: date) }
-
-    static func string(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
-
-    static func date(_ value: String) -> Date? {
+    private static let dayFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.isLenient = false
-        guard let date = formatter.date(from: value), string(date) == value else { return nil }
-        return date
+        return OSAllocatedUnfairLock(initialState: formatter)
+    }()
+
+    static func day(_ date: Date) -> Date { calendar.startOfDay(for: date) }
+
+    static func string(_ date: Date) -> String {
+        dayFormatter.withLock { $0.string(from: date) }
+    }
+
+    static func date(_ value: String) -> Date? {
+        dayFormatter.withLock { formatter in
+            guard let date = formatter.date(from: value), formatter.string(from: date) == value else { return nil }
+            return date
+        }
     }
 
     static func monthStart(_ date: Date) -> Date {

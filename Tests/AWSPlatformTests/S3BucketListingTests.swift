@@ -3,9 +3,12 @@ import XCTest
 @testable import AWSPlatform
 
 final class S3BucketListingTests: XCTestCase {
+    private static let scope = providerTestScope(.init(name: "test", region: "us-east-1",
+        ssoStartURL: nil, ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil))
+
     func testPaginationRequestsEveryPageWithoutRegionOrPrefixFiltering() async throws {
         let probe = BucketPageProbe()
-        let buckets = try await S3BucketListing.load { request in
+        let buckets = try await S3BucketListing.load(scope: Self.scope) { request in
             await probe.record(request)
             if request.continuationToken == nil {
                 return .init(buckets: [.init(creationDate: Date(timeIntervalSince1970: 12), name: "first")],
@@ -20,20 +23,35 @@ final class S3BucketListingTests: XCTestCase {
         XCTAssertTrue(requests.allSatisfy { $0.maxBuckets == 1_000 && $0.prefix == nil && $0.bucketRegion == nil })
     }
 
+    func testKeepsOnlyRegionsInTheVerifiedPartitionAndNormalizesEU() async throws {
+        let scope = Self.scope
+        let buckets = try await S3BucketListing.load(scope: scope) { _ in
+            .init(buckets: [
+                .init(bucketRegion: "ap-east-1", name: "valid"),
+                .init(bucketRegion: "EU", name: "legacy"),
+                .init(bucketRegion: "", name: "empty"),
+                .init(bucketRegion: "us-east-1\n", name: "invalid"),
+                .init(bucketRegion: "cn-north-1", name: "foreign-partition"),
+                .init(name: "missing")
+            ])
+        }
+        XCTAssertEqual(buckets.map(\.region), ["ap-east-1", "eu-west-1", nil, nil, nil, nil])
+    }
+
     func testEmptyPageStillConsumesContinuation() async throws {
-        let buckets = try await S3BucketListing.load { request in
+        let buckets = try await S3BucketListing.load(scope: Self.scope) { request in
             request.continuationToken == nil ? .init(buckets: [], continuationToken: "next")
                 : .init(buckets: [.init(name: "after-empty")])
         }
         XCTAssertEqual(buckets.map(\.name), ["after-empty"])
-        let empty = try await S3BucketListing.load { _ in .init(buckets: []) }
+        let empty = try await S3BucketListing.load(scope: Self.scope) { _ in .init(buckets: []) }
         XCTAssertTrue(empty.isEmpty)
     }
 
     func testRepeatedAndWhitespaceTokensNeverReturnPartialResults() async {
         for token in ["loop", " "] {
             do {
-                _ = try await S3BucketListing.load { _ in .init(buckets: [], continuationToken: token) }
+                _ = try await S3BucketListing.load(scope: Self.scope) { _ in .init(buckets: [], continuationToken: token) }
                 XCTFail("Invalid pagination must fail")
             } catch {
                 XCTAssertEqual(error as? S3BucketListing.ListingError, .incompletePagination)
@@ -43,7 +61,7 @@ final class S3BucketListingTests: XCTestCase {
 
     func testLaterPageFailurePropagatesInsteadOfReturningFirstPage() async {
         do {
-            _ = try await S3BucketListing.load { request in
+            _ = try await S3BucketListing.load(scope: Self.scope) { request in
                 if request.continuationToken != nil { throw BucketPageError.failed }
                 return .init(buckets: [.init(name: "partial")], continuationToken: "next")
             }
@@ -54,12 +72,12 @@ final class S3BucketListingTests: XCTestCase {
     func testDuplicateAndMissingBucketNamesAreRejected() async {
         for rows in [[S3.Bucket()], [.init(name: " ")], [.init(name: "same"), .init(name: "same")]] {
             do {
-                _ = try await S3BucketListing.load { _ in .init(buckets: rows) }
+                _ = try await S3BucketListing.load(scope: Self.scope) { _ in .init(buckets: rows) }
                 XCTFail("Malformed bucket response must fail")
             } catch { XCTAssertEqual(error as? S3BucketListing.ListingError, .invalidResponse) }
         }
         do {
-            _ = try await S3BucketListing.load { request in
+            _ = try await S3BucketListing.load(scope: Self.scope) { request in
                 .init(buckets: [.init(name: "same")], continuationToken: request.continuationToken == nil ? "next" : nil)
             }
             XCTFail("Duplicate bucket across pages must fail")
@@ -69,7 +87,7 @@ final class S3BucketListingTests: XCTestCase {
     func testPageBudgetStopsUnboundedPagination() async {
         let probe = BucketPageProbe()
         do {
-            _ = try await S3BucketListing.load { request in
+            _ = try await S3BucketListing.load(scope: Self.scope) { request in
                 let count = await probe.record(request)
                 return .init(buckets: [], continuationToken: "next-\(count)")
             }
@@ -83,7 +101,7 @@ final class S3BucketListingTests: XCTestCase {
         let gate = TestGate()
         let probe = BucketPageProbe()
         let task = Task {
-            try await S3BucketListing.load { request in
+            try await S3BucketListing.load(scope: Self.scope) { request in
                 await probe.record(request)
                 await gate.wait()
                 return .init(buckets: [.init(name: "stale")], continuationToken: "must-not-fetch")

@@ -33,6 +33,34 @@ final class AWSAutoScalingInsightsServiceTests: XCTestCase {
         XCTAssertNil(rows.first?.securityGroupIDs)
     }
 
+    func testOmittedAutoScalingVersionsMapToANarrowDefaultVersionQuery() async throws {
+        let rawTemplate = AutoScaling.LaunchTemplateSpecification(launchTemplateId: asgInsightsTemplate.templateID,
+                                                                 launchTemplateName: asgInsightsTemplate.name)
+        let scope = asgServiceScope()
+        let fixture = AutoScalingServiceFixture(groupPages: [.init(autoScalingGroups: [
+            .init(autoScalingGroupARN: asgServiceARN(), autoScalingGroupName: "example",
+                  instances: [.init(instanceId: "i-first", launchTemplate: rawTemplate)], launchTemplate: rawTemplate),
+            .init(autoScalingGroupARN: asgServiceARN("mixed"), autoScalingGroupName: "mixed",
+                  mixedInstancesPolicy: .init(launchTemplate: .init(launchTemplateSpecification: rawTemplate,
+                                                                  overrides: [.init(launchTemplateSpecification: rawTemplate)])))
+        ])])
+        let groups = try await fixture.service.loadGroups(scope: scope)
+        let group = try XCTUnwrap(groups.first { $0.name == "example" })
+        let mixed = try XCTUnwrap(groups.first { $0.name == "mixed" })
+        let reference = try XCTUnwrap(group.launchTemplate)
+        XCTAssertEqual(reference.version, "$Default")
+        XCTAssertEqual(group.members.first?.launchTemplate, reference)
+        XCTAssertEqual(mixed.mixedInstances?.launchTemplate, reference)
+        XCTAssertEqual(mixed.mixedInstances?.overrides.first?.launchTemplate, reference)
+
+        let insights = AutoScalingInsightsFixture(templatePages: [.init(launchTemplateVersions: [asgInsightsVersion(isDefault: true)])])
+        let rows = try await insights.service.loadTemplateVersions(scope: scope, group: group, template: reference)
+        let requests = await insights.requests()
+        XCTAssertEqual(rows.first?.isDefault, true)
+        XCTAssertEqual(requests.templates.map(\.versions), [["$Default"]])
+        XCTAssertEqual(requests.templates.first?.launchTemplateId, reference.templateID)
+    }
+
     func testTemplateReferenceMustBelongToGroup() async {
         let fixture = AutoScalingInsightsFixture()
         await assertError(.invalidTemplate) {
@@ -44,7 +72,7 @@ final class AWSAutoScalingInsightsServiceTests: XCTestCase {
 
     func testInvalidTemplateReferencesCannotBroadenQuery() async {
         let refs = [ASGLaunchTemplate(), .init(templateID: "lt-other", version: "1"),
-                    .init(name: "x", version: "1"), .init(name: "valid-name", version: nil),
+                    .init(name: "x", version: "1"), .init(name: "valid-name", version: nil), .init(name: "valid-name", version: ""),
                     .init(name: "valid-name", version: "0"), .init(name: "valid-name", version: "$All"),
                     .init(name: "valid-name", version: "1; echo private"), .init(name: "bad name", version: "1")]
         for reference in refs {

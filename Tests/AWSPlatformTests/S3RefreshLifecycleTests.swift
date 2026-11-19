@@ -3,6 +3,27 @@ import XCTest
 
 @MainActor
 final class S3RefreshLifecycleTests: XCTestCase {
+    func testRefreshKeepsKnownDetailsRegionOrFillsMissingRegionFromNewList() async {
+        for previousRegion in [nil, "us-west-2"] as [String?] {
+            var previous = bucket("selected")
+            previous.region = previousRegion
+            previous.detailError = "Existing detail error"
+            var incoming = bucket("selected")
+            incoming.region = "eu-west-1"
+            let vm = S3ViewModel(bucketLoader: { [incoming] }, detailLoader: { bucket in
+                XCTFail("Refresh must preserve the selected bucket's details")
+                return bucket
+            })
+            vm.buckets = [previous]
+            vm.selectedBucket = previous
+            await vm.loadBuckets()
+            await vm.waitForDetails()
+            XCTAssertEqual(vm.selectedBucket?.region, previousRegion ?? incoming.region)
+            XCTAssertEqual(vm.selectedBucket?.detailError, previous.detailError)
+            XCTAssertFalse(vm.isBucketDetailsLoading)
+        }
+    }
+
     func testRefreshPreservesSelectedBucketDetailsAndObjectBrowserWithoutReloadingDetails() async {
         var detailCalls = 0
         let first = bucket("first")

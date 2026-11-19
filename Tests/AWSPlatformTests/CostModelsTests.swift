@@ -2,6 +2,39 @@ import XCTest
 @testable import AWSPlatform
 
 final class CostModelsTests: XCTestCase {
+    func testAmountPreservesLocaleGroupingTwoDecimalsAndExactCurrencySuffix() async throws {
+        let values = try ["-1234567.125", "1000000.1", "1234.999", "0"].map { try XCTUnwrap(Decimal(string: $0)) }
+        let legacy = NumberFormatter()
+        legacy.numberStyle = .decimal
+        legacy.minimumFractionDigits = 2
+        legacy.maximumFractionDigits = 2
+        let expected = try values.map { try XCTUnwrap(legacy.string(from: NSDecimalNumber(decimal: $0))) }
+        await withTaskGroup(of: Bool.self) { group in
+            for index in 0..<64 {
+                let i = index % values.count
+                group.addTask {
+                    CostDisplay.amount(values[i], currency: nil) == expected[i]
+                        && CostDisplay.amount(values[i], currency: "USD") == expected[i] + " USD"
+                }
+            }
+            for await matches in group { XCTAssertTrue(matches) }
+        }
+    }
+
+    func testStrictCalendarDateRoundTripsAndRejectsNonCanonicalInputConcurrently() async {
+        await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<16 {
+                group.addTask {
+                    guard let leapDay = CostDates.date("2024-02-29") else { return false }
+                    return CostDates.string(leapDay) == "2024-02-29"
+                        && leapDay == CostDates.day(leapDay)
+                        && ["2026-02-30", "2026-2-3", "2024-02-29 ", "2024-02-29T00:00:00Z"].allSatisfy { CostDates.date($0) == nil }
+                }
+            }
+            for await matches in group { XCTAssertTrue(matches) }
+        }
+    }
+
     func testPresetsUseCompletedUTCDaysAndPreviousMonthCrossesYear() throws {
         let now = try XCTUnwrap(CostDates.date("2026-01-01"))
         let current = CostPeriod.thisMonth.range(now: now)

@@ -193,8 +193,9 @@ struct DetailKeyValueRows: View {
     let values: [String: String]
 
     var body: some View {
+        let sortedKeys = values.keys.sorted()
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(values.keys.sorted(), id: \.self) { key in
+            ForEach(sortedKeys, id: \.self) { key in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(key).font(.caption).foregroundColor(.secondary)
                     Text(values[key] ?? "").font(.callout).textSelection(.enabled)
@@ -202,7 +203,7 @@ struct DetailKeyValueRows: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 10)
-                if key != values.keys.sorted().last { Divider() }
+                if key != sortedKeys.last { Divider() }
             }
         }
         .padding(.horizontal, 12)

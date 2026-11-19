@@ -21,8 +21,7 @@ struct AWSS3TransferService: Sendable {
             let result = try await client.getBucketLocation(.init(
                 bucket: context.bucket, expectedBucketOwner: context.scope.accountID
             ))
-            let region = result.locationConstraint?.rawValue ?? ""
-            return region.isEmpty ? "us-east-1" : region == "EU" ? "eu-west-1" : region
+            return S3BucketRegion.fromLocation(result.locationConstraint?.rawValue)
         }
         put = { target, request in
             let client = try await provider.transferS3Client(scope: target.context.scope, region: target.region)
@@ -126,12 +125,10 @@ struct AWSS3TransferService: Sendable {
             }
         }
         try Task.checkCancellation()
-        // Reuse scope validation to check region syntax and AWS partition.
-        let regionalScope = MonitoringScope(profile: context.scope.profile,
-            identity: .init(account: context.scope.accountID, arn: context.scope.principalARN, userID: ""),
-            region: resolved, paths: context.scope.paths)
-        guard regionalScope.isValid else { throw S3TransferError.regionUnavailable }
-        return .init(context: context, key: key, region: resolved)
+        guard let validated = S3BucketRegion.validated(resolved, in: context.scope) else {
+            throw S3TransferError.regionUnavailable
+        }
+        return .init(context: context, key: key, region: validated)
     }
 
     static func code(_ error: Error) -> String? {

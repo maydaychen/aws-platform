@@ -333,10 +333,11 @@ enum EC2DataLoader {
 
     private static func dictionary(from tags: [EC2.Tag]?) -> [String: String] {
         Dictionary(
-            uniqueKeysWithValues: (tags ?? []).compactMap { tag in
+            (tags ?? []).compactMap { tag in
                 guard let key = tag.key else { return nil }
                 return (key, tag.value ?? "")
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
     }
 

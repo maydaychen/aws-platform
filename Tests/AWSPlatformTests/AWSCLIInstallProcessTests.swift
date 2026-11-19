@@ -76,3 +76,53 @@ final class AWSCLIInstallProcessTests: XCTestCase {
         return directory
     }
 }
+
+struct CLIInstallChildFixture: Sendable {
+    let root: URL
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    }
+
+    func command(code: Int, output: String) -> AWSCLIInstallCommand {
+        let script = """
+        cd "$1" || exit 90
+        wait_for() {
+            attempts=0
+            while [ ! -f "$1" ]; do
+                attempts=$((attempts + 1))
+                [ "$attempts" -lt 250 ] || return 1
+                /bin/sleep 0.02
+            done
+        }
+        : > authorizing
+        wait_for authorized || exit 91
+        if [ "$2" -eq 9 ]; then
+            printf '%s' "$3" >&2
+            exit "$2"
+        fi
+        : > installing
+        wait_for finish || exit 92
+        printf '%s' "$3" >&2
+        exit "$2"
+        """
+        return AWSCLIInstallCommand(executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", script, "offline-installer", root.path, String(code), output],
+            environment: AWSCLIInstallProcess.environment(base: [:]))
+    }
+
+    func waitFor(_ name: String) async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        let marker = root.appendingPathComponent(name)
+        while !FileManager.default.fileExists(atPath: marker.path) {
+            guard ContinuousClock.now < deadline, !Task.isCancelled else { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+
+    func signal(_ name: String) throws {
+        try Data().write(to: root.appendingPathComponent(name), options: .atomic)
+    }
+}

@@ -72,13 +72,120 @@ final class S3ViewModelTests: XCTestCase {
         vm.selectedBucket = bucket
         let request = Task { await vm.loadBucketDetails(name: bucket.name) }
         await gate.waitForEntry()
+        XCTAssertTrue(vm.isBucketDetailsLoading)
+        XCTAssertFalse(vm.isLoading)
         vm.reset()
+        XCTAssertFalse(vm.isBucketDetailsLoading)
         vm.buckets = [bucket]
         vm.selectedBucket = bucket
         await gate.open()
         await request.value
         XCTAssertNil(vm.buckets.first?.region)
         XCTAssertNil(vm.selectedBucket?.region)
+    }
+
+    @MainActor
+    func testBucketChangeCancelsOldDetailsWhileReplacementStillLoads() async {
+        let first = makeBucket(name: "first"), second = makeBucket(name: "second")
+        let oldGate = TestGate(), newGate = TestGate()
+        var oldWasCancelled = false
+        let vm = S3ViewModel(detailLoader: { bucket in
+            await (bucket.name == first.name ? oldGate : newGate).wait()
+            if bucket.name == first.name { oldWasCancelled = Task.isCancelled }
+            var updated = bucket
+            updated.tags = ["from": bucket.name]
+            return updated
+        })
+        vm.buckets = [first, second]
+        vm.selectedBucket = first
+        let old = Task { await vm.loadBucketDetails(name: first.name) }
+        await oldGate.waitForEntry()
+        vm.selectBucket(second)
+        await newGate.waitForEntry()
+        await oldGate.open()
+        await old.value
+        XCTAssertTrue(oldWasCancelled)
+        XCTAssertEqual(vm.buckets.first, first)
+        XCTAssertEqual(vm.selectedBucket, second)
+        XCTAssertTrue(vm.isBucketDetailsLoading)
+        XCTAssertFalse(vm.isLoading)
+        await newGate.open()
+        await vm.waitForDetails()
+        XCTAssertEqual(vm.selectedBucket?.tags, ["from": "second"])
+        XCTAssertFalse(vm.isBucketDetailsLoading)
+    }
+
+    @MainActor
+    func testCancellationAndClearingSelectionDiscardLateDetails() async {
+        for clearSelection in [false, true] {
+            let bucket = makeBucket(name: "selected")
+            let gate = TestGate()
+            let vm = S3ViewModel(detailLoader: { bucket in
+                await gate.wait()
+                var updated = bucket
+                updated.tags = ["late": "old"]
+                return updated
+            })
+            vm.buckets = [bucket]
+            vm.selectedBucket = bucket
+            let old = Task { await vm.loadBucketDetails(name: bucket.name) }
+            await gate.waitForEntry()
+            if clearSelection { vm.selectedBucket = nil }
+            else { vm.cancelLoading() }
+            XCTAssertFalse(vm.isBucketDetailsLoading)
+            await gate.open()
+            await old.value
+            XCTAssertEqual(vm.buckets, [bucket])
+            XCTAssertEqual(vm.selectedBucket, clearSelection ? nil : bucket)
+        }
+    }
+
+    @MainActor
+    func testRetryCancelsEarlierAttemptAndScopeChangeDiscardsAnotherLateResult() async {
+        let bucket = makeBucket(name: "same-name")
+        let first = TestGate(), second = TestGate()
+        var calls = 0
+        var cancellations = 0
+        let vm = S3ViewModel(detailLoader: { bucket in
+            calls += 1
+            let isFirst = calls == 1
+            await (isFirst ? first : second).wait()
+            if Task.isCancelled { cancellations += 1 }
+            var updated = bucket
+            updated.tags = ["late": "old"]
+            return updated
+        })
+        vm.buckets = [bucket]
+        vm.selectedBucket = bucket
+        let old = Task { await vm.loadBucketDetails(name: bucket.name) }
+        await first.waitForEntry()
+        vm.retrySelectedBucketDetails()
+        await second.waitForEntry()
+        await first.open()
+        await old.value
+        XCTAssertEqual(cancellations, 1)
+        XCTAssertTrue(vm.isBucketDetailsLoading)
+        XCTAssertEqual(vm.selectedBucket, bucket)
+
+        var waitingForDetails = false
+        let retried = Task {
+            waitingForDetails = true
+            await vm.waitForDetails()
+        }
+        while !waitingForDetails { await Task.yield() }
+        let provider = AWSServiceProvider.testProvider()
+        let scope = providerTestScope(.init(name: "new", region: "us-east-1",
+            ssoStartURL: nil, ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil))
+        vm.configure(provider: provider, scope: scope, refreshImmediately: false)
+        vm.buckets = [bucket]
+        vm.selectedBucket = bucket
+        XCTAssertFalse(vm.isBucketDetailsLoading)
+        await second.open()
+        await retried.value
+        XCTAssertEqual(cancellations, 2)
+        XCTAssertEqual(vm.scope, scope)
+        XCTAssertEqual(vm.selectedBucket, bucket)
+        await provider.shutdown()
     }
 
     @MainActor
@@ -162,7 +269,7 @@ final class S3ViewModelTests: XCTestCase {
             restrictPublicBuckets: false
         )
 
-        let result = S3ViewModel.publicAccessBlock(from: configuration)
+        let result = S3BucketDetailsLoader.publicAccessBlock(from: configuration)
 
         XCTAssertTrue(result.blockPublicACLs)
         XCTAssertTrue(result.ignorePublicACLs)
@@ -171,7 +278,7 @@ final class S3ViewModelTests: XCTestCase {
     }
 
     func testPublicAccessBlockTreatsMissingValuesAsDisabled() {
-        let result = S3ViewModel.publicAccessBlock(
+        let result = S3BucketDetailsLoader.publicAccessBlock(
             from: S3.PublicAccessBlockConfiguration()
         )
 

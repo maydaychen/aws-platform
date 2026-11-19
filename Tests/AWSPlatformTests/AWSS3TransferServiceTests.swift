@@ -101,7 +101,10 @@ final class AWSS3TransferServiceTests: XCTestCase {
         let file = try await S3LocalFile.prepare(url: source.url, temporaryRoot: directory)
         for region in [nil, "invalid", "cn-north-1"] as [String?] {
             let context = S3TransferFixtures.context(region: region)
-            let client = service(region: { _ in throw AWSResponseError(errorCode: "AccessDenied") }, put: { _, _ in
+            let client = service(region: { _ in
+                XCTAssertNil(region, "A supplied invalid region must be rejected without probing the bucket")
+                throw AWSResponseError(errorCode: "AccessDenied")
+            }, put: { _, _ in
                 XCTFail("Never PUT with an unknown or wrong-partition Bucket region")
             })
             do {

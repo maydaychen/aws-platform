@@ -13,7 +13,8 @@ final class EC2DataLoaderTests: XCTestCase {
             platformDetails: "Linux/UNIX", privateIpAddress: "10.0.0.1", publicIpAddress: "192.0.2.1",
             securityGroups: [.init(groupId: "sg-first", groupName: "ignored"), .init(groupName: "legacy"), .init()],
             state: .init(name: .running), subnetId: "subnet-first",
-            tags: [.init(key: "Name", value: "Example"), .init(key: "Team", value: "Ops")], vpcId: "vpc-first"
+            tags: [.init(key: "Name", value: "Example"), .init(key: "Team", value: "Ops"),
+                   .init(key: "Team", value: "duplicate")], vpcId: "vpc-first"
         )
         let stub = InstancePageStub([
             .init(nextToken: "second", reservations: [.init(), .init(instances: [instance])]),

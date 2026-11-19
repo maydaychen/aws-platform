@@ -1,3 +1,4 @@
+import os
 import Charts
 import SwiftUI
 
@@ -200,20 +201,23 @@ private struct MetricChartPoint: Identifiable {
 }
 
 enum MonitoringDisplay {
-    static func time(_ date: Date) -> String {
+    private static let clockFormatter = formatter("HH:mm")
+    private static let timestampFormatter = formatter("yyyy-MM-dd HH:mm:ss 'UTC'")
+
+    private static func formatter(_ pattern: String) -> OSAllocatedUnfairLock<DateFormatter> {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        formatter.dateFormat = pattern
+        return OSAllocatedUnfairLock(initialState: formatter)
+    }
+
+    static func time(_ date: Date) -> String {
+        clockFormatter.withLock { $0.string(from: date) }
     }
 
     static func dateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss 'UTC'"
-        return formatter.string(from: date)
+        timestampFormatter.withLock { $0.string(from: date) }
     }
 
     static func number(_ value: Double) -> String {

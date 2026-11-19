@@ -6,7 +6,7 @@ enum S3BucketListing {
     static let pageSize = 1_000
     static let maximumPages = 1_000
 
-    static func load(pageLoader: PageLoader) async throws -> [S3BucketModel] {
+    static func load(scope: MonitoringScope, pageLoader: PageLoader) async throws -> [S3BucketModel] {
         var buckets: [S3BucketModel] = []
         var names: Set<String> = []
         var tokens: Set<Data> = []
@@ -19,7 +19,8 @@ enum S3BucketListing {
             for bucket in page.buckets ?? [] {
                 guard let name = bucket.name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       names.insert(name).inserted else { throw ListingError.invalidResponse }
-                buckets.append(.init(name: name, region: nil, creationDate: bucket.creationDate,
+                buckets.append(.init(name: name, region: S3BucketRegion.validated(bucket.bucketRegion, in: scope),
+                    creationDate: bucket.creationDate,
                     versioningEnabled: nil, encryptionEnabled: nil, publicAccessBlock: nil,
                     tags: [:], detailError: nil))
             }
@@ -42,5 +43,19 @@ enum S3BucketListing {
                 return "S3 could not complete the bucket list. Refresh to try again."
             }
         }
+    }
+}
+
+enum S3BucketRegion {
+    static func validated(_ raw: String?, in scope: MonitoringScope) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let region = raw == "EU" ? "eu-west-1" : raw
+        return scope.replacingRegion(region).isValid ? region : nil
+    }
+
+    static func fromLocation(_ raw: String?) -> String {
+        // An empty LocationConstraint denotes us-east-1, unlike an absent ListBuckets hint.
+        guard let raw, !raw.isEmpty else { return "us-east-1" }
+        return raw
     }
 }

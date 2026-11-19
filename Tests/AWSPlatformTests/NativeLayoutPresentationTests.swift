@@ -6,6 +6,24 @@ import XCTest
 
 @MainActor
 final class NativeLayoutPresentationTests: XCTestCase {
+    func testDetailKeyValueRowsRenderEmptySingleAndMultipleValues() throws {
+        for values in [[:], ["Alpha": "Alpha value"], ["Zulu": "Zulu value", "Alpha": "Alpha value"]] {
+            let mounted = mount(DetailKeyValueRows(values: values), width: 400, height: 260)
+            defer { mounted.window.close() }
+            mounted.view.layoutSubtreeIfNeeded()
+            let text = accessibilityValues(mounted.view)
+            for candidate in ["Alpha value", "Zulu value"] {
+                XCTAssertEqual(text.contains(candidate), values.values.contains(candidate))
+            }
+            if values.count == 2 {
+                let rendered = try renderedText(mounted, name: "detail-key-value-rows")
+                let alpha = try XCTUnwrap(rendered.first { $0.value == "Alpha value" })
+                let zulu = try XCTUnwrap(rendered.first { $0.value == "Zulu value" })
+                XCTAssertGreaterThan(alpha.bounds.midY, zulu.bounds.midY)
+            }
+        }
+    }
+
     func testSummaryChangesToTwoColumnsAtTheDocumentedBoundary() throws {
         for width: CGFloat in [679, 680] {
             let mounted = mount(summary(width: width), width: width, height: 2_400)

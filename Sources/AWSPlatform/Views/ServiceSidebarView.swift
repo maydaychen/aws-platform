@@ -20,63 +20,24 @@ struct ServiceSidebarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.text("WORKSPACE", locale: locale))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                    Button {
-                        activate(.favorites)
-                    } label: {
-                        Label(L10n.text("Favorites", locale: locale), systemImage: destination == .favorites ? "star.fill" : "star")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(destination == .favorites ? Color.accentColor.opacity(0.18) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workspace.favorites")
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-                    Button {
-                        activate(.recents)
-                    } label: {
-                        Label(L10n.text("Recent", locale: locale), systemImage: "clock.arrow.circlepath")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(destination == .recents ? Color.accentColor.opacity(0.18) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workspace.recents")
-                    .keyboardShortcut("r", modifiers: [.command, .shift])
-                    Button {
-                        activate(.costs)
-                    } label: {
-                        Label(L10n.text("Costs", locale: locale), systemImage: "chart.bar.xaxis")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(destination == .costs ? Color.accentColor.opacity(0.18) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workspace.costs")
-                    .keyboardShortcut("b", modifiers: [.command, .shift])
-                    Button {
-                        activate(.health)
-                    } label: {
-                        Label(L10n.text("Health", locale: locale), systemImage: "heart.text.square")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(destination == .health ? Color.accentColor.opacity(0.18) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workspace.health")
+                    WorkspaceSidebarButton(title: "Favorites", systemImage: destination == .favorites ? "star.fill" : "star",
+                                           isSelected: destination == .favorites, accessibilityID: "workspace.favorites",
+                                           shortcut: "f") { activate(.favorites) }
+                    WorkspaceSidebarButton(title: "Recent", systemImage: "clock.arrow.circlepath",
+                                           isSelected: destination == .recents, accessibilityID: "workspace.recents",
+                                           shortcut: "r") { activate(.recents) }
+                    WorkspaceSidebarButton(title: "Costs", systemImage: "chart.bar.xaxis",
+                                           isSelected: destination == .costs, accessibilityID: "workspace.costs",
+                                           shortcut: "b") { activate(.costs) }
+                    WorkspaceSidebarButton(title: "Health", systemImage: "heart.text.square",
+                                           isSelected: destination == .health, accessibilityID: "workspace.health",
+                                           shortcut: nil) { activate(.health) }
                     Text(L10n.text("SERVICES", locale: locale))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.top, 20)
@@ -213,5 +174,38 @@ struct ServiceSidebarView: View {
                 settingsLabel
             }
         }
+    }
+}
+
+private struct WorkspaceSidebarButton: View {
+    @Environment(\.locale) private var locale
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let accessibilityID: String
+    let shortcut: KeyEquivalent?
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        if let shortcut {
+            button.keyboardShortcut(shortcut, modifiers: [.command, .shift])
+        } else {
+            button
+        }
+    }
+
+    private var button: some View {
+        Button(action: action) {
+            Label(L10n.text(title, locale: locale), systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(isSelected ? Color.accentColor.opacity(0.18) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityID)
+        .onHover { isHovered = $0 }
     }
 }

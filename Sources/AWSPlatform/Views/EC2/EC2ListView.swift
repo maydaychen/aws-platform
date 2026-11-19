@@ -39,7 +39,7 @@ struct EC2ListView: View {
                             .truncationMode(.middle)
                         Spacer(minLength: 0)
                         Circle()
-                            .fill(instance.state == "running" ? Color.green : Color.gray)
+                            .fill(EC2DetailHeaderView.statusColor(for: instance.state))
                             .frame(width: 7, height: 7)
                         Text(instance.state).lineLimit(1)
                     }
@@ -113,6 +113,7 @@ struct EC2ListView: View {
             .padding(.vertical, WorkspaceLayout.quickFilterSpacing)
             .frame(maxWidth: .infinity)
             .background(selected ? Color.accentColor.opacity(WorkspaceLayout.quickFilterSelectionOpacity) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

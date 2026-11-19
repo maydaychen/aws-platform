@@ -66,7 +66,7 @@ struct ResourceRelationshipsView: View {
             Image(systemName: reference.service.icon).font(.title2).foregroundColor(.secondary)
             Text(reference.name).font(.title2.weight(.semibold)).multilineTextAlignment(.center)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            Text("\(reference.service.rawValue) · \(reference.isGlobal ? L10n.text("Global resource", locale: locale) : reference.scope.region)")
+            Text("\(reference.service.displayTitle(locale: locale)) · \(reference.isGlobal ? L10n.text("Global resource", locale: locale) : reference.scope.region)")
                 .font(.caption).foregroundColor(.secondary)
             Text("\(reference.scope.profile.name) · \(reference.scope.accountID)")
                 .font(.caption.monospacedDigit()).foregroundColor(.secondary).textSelection(.enabled)
@@ -145,7 +145,10 @@ struct ResourceRelationshipsView: View {
                      : "No related resources were returned.", locale: locale))
                     .font(.callout).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
-                LazyVGrid(columns: [.init(.adaptive(minimum: 300), alignment: .top)], alignment: .leading, spacing: 12) {
+                let columns = section.nodes.count == 1
+                    ? [GridItem(.flexible(), alignment: .top)]
+                    : [GridItem(.adaptive(minimum: 300), alignment: .top)]
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                     ForEach(section.nodes) { node in
                         ResourceRelationNodeCard(node: node, onExplore: { vm.explore(reference: $0) }, onOpen: onOpen)
                     }

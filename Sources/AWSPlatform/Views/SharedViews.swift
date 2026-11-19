@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct EmptyStateView: View {
@@ -8,7 +9,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 30, weight: .light))
+                .font(.largeTitle.weight(.light))
                 .foregroundColor(.secondary)
             Text(L10n.text(text, locale: locale))
                 .font(.callout)
@@ -226,5 +227,38 @@ struct NoticeBanner: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct CopyButton: View {
+    @Environment(\.locale) private var locale
+    let value: String
+    let label: String
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(value, forType: .string)
+        } label: {
+            Image(systemName: "doc.on.doc")
+        }
+        .buttonStyle(.borderless)
+        .help(L10n.text(label, locale: locale))
+        .accessibilityLabel(L10n.text(label, locale: locale))
+    }
+}
+
+struct EmptyDetailNote: View {
+    @Environment(\.locale) private var locale
+    let text: String
+
+    var body: some View {
+        Text(L10n.text(text, locale: locale))
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

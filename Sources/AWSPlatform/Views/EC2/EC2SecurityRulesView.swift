@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct EC2SecurityRulesView: View {
@@ -53,7 +52,7 @@ struct EC2SecurityRulesView: View {
                                 .textSelection(.enabled)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
-                            copyGroupIDButton(group.groupId)
+                            CopyButton(value: group.groupId, label: "Copy security group ID")
                         }
                     }
                 }
@@ -136,17 +135,5 @@ struct EC2SecurityRulesView: View {
             .textSelection(.enabled)
             .fixedSize(horizontal: false, vertical: true)
             .frame(width: width, alignment: .leading)
-    }
-
-    private func copyGroupIDButton(_ groupID: String) -> some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(groupID, forType: .string)
-        } label: {
-            Image(systemName: "doc.on.doc")
-        }
-        .buttonStyle(.borderless)
-        .help(L10n.text("Copy security group ID", locale: locale))
-        .accessibilityLabel(L10n.text("Copy security group ID", locale: locale))
     }
 }

@@ -59,45 +59,22 @@ struct S3ObjectListView: View {
             Divider()
 
             List(filteredObjects, selection: objectSelection) { object in
-                HStack {
-                    Image(systemName: object.isPrefix ? "folder" : "doc")
-                        .foregroundColor(object.isPrefix ? .blue : .secondary)
-                    Text(lastComponent(of: object.key))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(object.key)
-                    Spacer()
-                    if let size = object.size {
-                        Text(size.formatted(.byteCount(style: .file).locale(locale)))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize()
-                    }
-                }
-                .padding(.vertical, 4)
-                .tag(object.id)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if object.isPrefix {
-                        vm.navigateToPrefix(bucket: bucketName, prefix: object.key)
-                    } else {
-                        vm.selectedObject = object
-                    }
-                }
-                .contextMenu {
-                    if !object.isPrefix {
-                        Button(L10n.text("Download", locale: locale)) {
-                            guard let context = transferContext else { return }
-                            transferVM.chooseDownload(context: context, object: object) {
-                                await S3FilePanels.saveFile(key: object.key, locale: locale)
+                objectRowContent(object)
+                    .tag(object.id)
+                    .contextMenu {
+                        if !object.isPrefix {
+                            Button(L10n.text("Download", locale: locale)) {
+                                guard let context = transferContext else { return }
+                                transferVM.chooseDownload(context: context, object: object) {
+                                    await S3FilePanels.saveFile(key: object.key, locale: locale)
+                                }
+                            }.disabled(!transferVM.canStart || transferContext == nil)
+                            if versionsVM != nil {
+                                Button(L10n.text("Object versions", locale: locale)) { openVersions(object) }
+                                    .disabled(transferContext?.isValid != true)
                             }
-                        }.disabled(!transferVM.canStart || transferContext == nil)
-                        if versionsVM != nil {
-                            Button(L10n.text("Object versions", locale: locale)) { openVersions(object) }
-                                .disabled(transferContext?.isValid != true)
                         }
                     }
-                }
             }
             .listStyle(.inset)
             .overlay {
@@ -136,6 +113,35 @@ struct S3ObjectListView: View {
         .onDisappear {
             showsVersions = false
             versionsVM?.reset()
+        }
+    }
+
+    @ViewBuilder
+    private func objectRowContent(_ object: S3ObjectModel) -> some View {
+        let row = HStack {
+            Image(systemName: object.isPrefix ? "folder" : "doc")
+                .foregroundColor(object.isPrefix ? .blue : .secondary)
+            Text(lastComponent(of: object.key))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(object.key)
+            Spacer()
+            if let size = object.size {
+                Text(size.formatted(.byteCount(style: .file).locale(locale)))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+
+        if object.isPrefix {
+            row.onTapGesture {
+                vm.navigateToPrefix(bucket: bucketName, prefix: object.key)
+            }
+        } else {
+            row
         }
     }
 

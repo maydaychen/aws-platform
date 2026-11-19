@@ -1,8 +1,7 @@
-import AppKit
 import SwiftUI
 
 struct LambdaDetailView: View {
-    @Environment(\.locale) private var locale
+    @Environment(\.locale) var locale
     enum Tab: String, CaseIterable, Identifiable {
         case overview = "Overview"
         case configuration = "Configuration"
@@ -21,7 +20,7 @@ struct LambdaDetailView: View {
     let metricsVM: ResourceMetricsViewModel?
     let logsVM: LambdaLogsViewModel?
     @State private var selectedTab: Tab = .overview
-    @State private var revealedEnvironmentKeys: Set<String> = []
+    @State var revealedEnvironmentKeys: Set<String> = []
 
     init(function: LambdaFunctionModel, vm: LambdaViewModel, tab: Tab = .overview,
          monitoringScope: MonitoringScope? = nil, metricsVM: ResourceMetricsViewModel? = nil,
@@ -34,7 +33,7 @@ struct LambdaDetailView: View {
         _selectedTab = State(initialValue: tab)
     }
 
-    private var detail: LambdaFunctionDetailModel? {
+    var detail: LambdaFunctionDetailModel? {
         guard vm.functionDetail?.functionName == function.functionName else { return nil }
         return vm.functionDetail
     }
@@ -98,8 +97,9 @@ struct LambdaDetailView: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                                .textSelection(.enabled)
                                 .help(arn)
-                            copyButton(arn, label: "Copy function ARN")
+                            CopyButton(value: arn, label: "Copy function ARN")
                         }
                     }
                 }
@@ -183,7 +183,6 @@ struct LambdaDetailView: View {
                     ("Update Reason", detail?.lastUpdateStatusReason ?? "-"),
                     ("Update Reason Code", detail?.lastUpdateStatusReasonCode ?? "-"),
                     ("Runtime", function.runtime ?? "-"),
-                    ("Runtime Version", detail?.runtimeVersionARN ?? "-"),
                     ("Version", detail?.version ?? "$LATEST"),
                     ("Architectures", joined(detail?.architectures ?? [])),
                     ("Package Type", function.packageType ?? "-"),
@@ -191,7 +190,11 @@ struct LambdaDetailView: View {
                     ("Timeout", function.timeout.map { "\($0)s" } ?? "-"),
                     ("Ephemeral Storage", detail?.ephemeralStorageMB.map { "\($0) MB" } ?? "-"),
                     ("Code Size", bytes(function.codeSize)),
-                    ("Last Modified", function.lastModified ?? "-"),
+                    ("Last Modified", function.lastModified ?? "-")
+                ])
+
+                DetailFieldRows(items: [
+                    ("Runtime Version", detail?.runtimeVersionARN ?? "-"),
                     ("Revision ID", detail?.revisionId ?? "-"),
                     ("Code SHA256", detail?.codeSHA256 ?? "-"),
                     ("Config SHA256", detail?.configSHA256 ?? "-")
@@ -212,30 +215,36 @@ struct LambdaDetailView: View {
                 sectionTitle("Runtime and Permissions")
                 DetailGrid(items: [
                     ("Handler", function.handler ?? "-"),
-                    ("Execution Role", function.role ?? "-"),
                     ("Reserved Concurrency", number(detail?.reservedConcurrency)),
                     ("Tracing", detail?.tracingMode ?? "-"),
-                    ("Dead Letter Target", detail?.deadLetterTargetARN ?? "-"),
-                    ("KMS Key", detail?.kmsKeyARN ?? "-"),
-                    ("Source KMS Key", detail?.sourceKMSKeyARN ?? "-"),
                     ("SnapStart", detail?.snapStartApplyOn ?? "-"),
                     ("SnapStart Status", detail?.snapStartOptimizationStatus ?? "-")
+                ])
+                DetailFieldRows(items: [
+                    ("Execution Role", function.role ?? "-"),
+                    ("Dead Letter Target", detail?.deadLetterTargetARN ?? "-"),
+                    ("KMS Key", detail?.kmsKeyARN ?? "-"),
+                    ("Source KMS Key", detail?.sourceKMSKeyARN ?? "-")
                 ])
 
                 sectionTitle("Network")
                 DetailGrid(items: [
                     ("VPC", detail?.vpcId ?? function.vpcConfig ?? "-"),
-                    ("Subnets", joined(detail?.subnetIds ?? [])),
-                    ("Security Groups", joined(detail?.securityGroupIds ?? [])),
                     ("IPv6 Dual Stack", boolean(detail?.ipv6AllowedForDualStack))
+                ])
+                DetailFieldRows(items: [
+                    ("Subnets", joined(detail?.subnetIds ?? [])),
+                    ("Security Groups", joined(detail?.securityGroupIds ?? []))
                 ])
 
                 sectionTitle("Logging")
                 DetailGrid(items: [
-                    ("Log Group", detail?.logGroup ?? "-"),
                     ("Log Format", detail?.logFormat ?? "-"),
                     ("Application Level", detail?.applicationLogLevel ?? "-"),
                     ("System Level", detail?.systemLogLevel ?? "-")
+                ])
+                DetailFieldRows(items: [
+                    ("Log Group", detail?.logGroup ?? "-")
                 ])
 
                 environmentSection
@@ -285,339 +294,6 @@ struct LambdaDetailView: View {
         }
     }
 
-    private var triggersTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                sectionTitle("Event Source Mappings")
-                if let sources = detail?.eventSources, !sources.isEmpty {
-                    ForEach(sources) { source in
-                        GroupBox {
-                            DetailGrid(items: [
-                                ("Source", source.sourceARN ?? "-"),
-                                ("State", source.state ?? "-"),
-                                ("State Reason", source.stateTransitionReason ?? "-"),
-                                ("Batch Size", number(source.batchSize)),
-                                ("Batching Window", seconds(source.batchingWindowSeconds)),
-                                ("Parallelization", number(source.parallelizationFactor)),
-                                ("Maximum Retries", retryValue(source.maximumRetryAttempts)),
-                                ("Maximum Record Age", retryValue(source.maximumRecordAgeSeconds)),
-                                ("Starting Position", source.startingPosition ?? "-"),
-                                ("Bisect on Error", boolean(source.bisectBatchOnError)),
-                                ("Last Result", source.lastProcessingResult ?? "-"),
-                                ("Failure Destination", source.onFailureDestination ?? "-")
-                            ])
-                        } label: {
-                            HStack {
-                                Text(source.type)
-                                Spacer()
-                                copyButton(source.uuid, label: "Copy mapping UUID")
-                            }
-                        }
-                    }
-                } else {
-                    componentEmptyState(.eventSources, empty: "No event source mappings")
-                }
-
-                sectionTitle("Asynchronous Invocation")
-                if let configs = detail?.asyncInvokeConfigs, !configs.isEmpty {
-                    ForEach(configs) { config in
-                        GroupBox(config.qualifier) {
-                            DetailGrid(items: [
-                                ("Maximum Event Age", seconds(config.maximumEventAgeSeconds)),
-                                ("Maximum Retries", number(config.maximumRetryAttempts)),
-                                ("Success Destination", config.onSuccessDestination ?? "-"),
-                                ("Failure Destination", config.onFailureDestination ?? "-"),
-                                ("Last Modified", format(config.lastModified))
-                            ])
-                        }
-                    }
-                } else {
-                    componentEmptyState(.asyncInvokeConfigs, empty: "No asynchronous invocation configuration")
-                }
-
-                sectionTitle("Function URLs")
-                if let urls = detail?.functionURLs, !urls.isEmpty {
-                    ForEach(urls) { url in
-                        GroupBox {
-                            DetailGrid(items: [
-                                ("URL", url.url),
-                                ("Authentication", url.authType),
-                                ("Invoke Mode", url.invokeMode ?? "-"),
-                                ("Allowed Origins", joined(url.allowedOrigins)),
-                                ("Allowed Methods", joined(url.allowedMethods)),
-                                ("Allow Credentials", boolean(url.allowCredentials)),
-                                ("Created", url.creationTime),
-                                ("Last Modified", url.lastModifiedTime)
-                            ])
-                        } label: {
-                            HStack {
-                                Text(qualifier(from: url.functionARN))
-                                if url.authType == "NONE" {
-                                    Label(L10n.text("Public", locale: locale), systemImage: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                }
-                                Spacer()
-                                copyButton(url.url, label: "Copy function URL")
-                            }
-                        }
-                    }
-                } else {
-                    componentEmptyState(.functionURLs, empty: "No function URLs")
-                }
-            }
-            .padding()
-        }
-    }
-
-    private var versionsTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                DetailGrid(items: [
-                    ("Reserved Concurrency", number(detail?.reservedConcurrency)),
-                    ("Published Versions", componentCount(.versions, count: detail?.versions.filter { $0.version != "$LATEST" }.count ?? 0)),
-                    ("Aliases", componentCount(.aliases, count: detail?.aliases.count ?? 0)),
-                    ("Provisioned Configs", componentCount(.provisionedConcurrency, count: detail?.provisionedConcurrency.count ?? 0))
-                ])
-
-                sectionTitle("Aliases")
-                if let aliases = detail?.aliases, !aliases.isEmpty {
-                    ForEach(aliases) { alias in
-                        GroupBox(alias.name) {
-                            DetailGrid(items: [
-                                ("Primary Version", alias.functionVersion ?? "-"),
-                                ("Additional Weights", weights(alias.additionalVersionWeights)),
-                                ("Description", alias.description ?? "-"),
-                                ("Revision ID", alias.revisionId ?? "-")
-                            ])
-                        }
-                    }
-                } else {
-                    componentEmptyState(.aliases, empty: "No aliases")
-                }
-
-                sectionTitle("Provisioned Concurrency")
-                if let configs = detail?.provisionedConcurrency, !configs.isEmpty {
-                    ForEach(configs) { config in
-                        GroupBox(config.qualifier) {
-                            DetailGrid(items: [
-                                ("Status", config.status ?? "-"),
-                                ("Requested", number(config.requested)),
-                                ("Allocated", number(config.allocated)),
-                                ("Available", number(config.available)),
-                                ("Status Reason", config.statusReason ?? "-"),
-                                ("Last Modified", config.lastModified ?? "-")
-                            ])
-                        }
-                    }
-                } else {
-                    componentEmptyState(.provisionedConcurrency, empty: "No provisioned concurrency")
-                }
-
-                sectionTitle("Versions")
-                if let versions = detail?.versions, !versions.isEmpty {
-                    ForEach(versions) { version in
-                        GroupBox(version.version) {
-                            DetailGrid(items: [
-                                ("State", version.state ?? "-"),
-                                ("Runtime", version.runtime ?? "-"),
-                                ("Architectures", joined(version.architectures)),
-                                ("Memory", version.memorySize.map { "\($0) MB" } ?? "-"),
-                                ("Timeout", version.timeout.map { "\($0)s" } ?? "-"),
-                                ("Code Size", bytes(version.codeSize)),
-                                ("Last Modified", version.lastModified ?? "-"),
-                                ("Description", version.description ?? "-")
-                            ])
-                        }
-                    }
-                } else {
-                    componentEmptyState(.versions, empty: "No function versions")
-                }
-            }
-            .padding()
-        }
-    }
-
-    @ViewBuilder
-    private func componentEmptyState(_ component: LambdaDetailComponent, empty text: String) -> some View {
-        if let issue = vm.detailSectionIssue(component) {
-            NoticeBanner(message: "\(L10n.text(component.rawValue, locale: locale)): \(L10n.text(issue.message, locale: locale))")
-        } else {
-            emptyDetail(text)
-        }
-    }
-
-    private func componentCount(_ component: LambdaDetailComponent, count: Int) -> String {
-        vm.detailSectionIssue(component) == nil ? String(count) : "-"
-    }
-
-    private var codeTab: some View {
-        VStack(spacing: 0) {
-            HStack {
-                if function.packageType == "Image" {
-                    Text(detail?.resolvedImageURI ?? detail?.imageURI ?? L10n.text("Container image", locale: locale))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text(L10n.text("Deployment package is downloaded only when requested.", locale: locale))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                if vm.isCodeLoading {
-                    Button(L10n.text("Cancel", locale: locale)) {
-                        vm.cancelCodeLoading()
-                    }
-                }
-                Button(L10n.text(vm.isCodeLoading ? "Loading…" : "Load Code", locale: locale)) {
-                    vm.loadCodeForSelection()
-                }
-                .disabled(vm.isCodeLoading)
-            }
-            .padding()
-
-            if let codeError = vm.codeError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text(L10n.text(codeError, locale: locale))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-            }
-
-            Divider()
-            LambdaCodeView(function: function)
-                .overlay {
-                    if vm.isCodeLoading {
-                        ProgressView()
-                    }
-                }
-        }
-    }
-
-    @ViewBuilder
-    private var environmentSection: some View {
-        sectionTitle("Environment Variables")
-        if let environment = detail?.environment, !environment.isEmpty {
-            VStack(spacing: 8) {
-                ForEach(environment.keys.sorted(), id: \.self) { key in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(key)
-                                .font(.caption.weight(.medium))
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 8)
-                            Button {
-                                if revealedEnvironmentKeys.contains(key) {
-                                    revealedEnvironmentKeys.remove(key)
-                                } else {
-                                    revealedEnvironmentKeys.insert(key)
-                                }
-                            } label: {
-                                Image(systemName: revealedEnvironmentKeys.contains(key) ? "eye.slash" : "eye")
-                            }
-                            .buttonStyle(.borderless)
-                            .help(L10n.text(revealedEnvironmentKeys.contains(key) ? "Hide value" : "Reveal value", locale: locale))
-                            .accessibilityLabel(L10n.format(revealedEnvironmentKeys.contains(key) ? "Hide %@" : "Reveal %@", key, locale: locale))
-                            if revealedEnvironmentKeys.contains(key), let value = environment[key] {
-                                copyButton(value, label: "Copy environment value")
-                            }
-                        }
-                        if revealedEnvironmentKeys.contains(key) {
-                            Text(environment[key] ?? "")
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } else {
-                            Text("••••••••")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .font(.caption)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
-        } else {
-            emptyDetail(detail?.environmentError ?? "No environment variables")
-        }
-    }
-
-    @ViewBuilder
-    private var layerSection: some View {
-        sectionTitle("Layers")
-        if let layers = detail?.layers, !layers.isEmpty {
-            ForEach(layers) { layer in
-                GroupBox {
-                    DetailGrid(items: [
-                        ("ARN", layer.arn),
-                        ("Code Size", bytes(layer.codeSize)),
-                        ("Signing Job", layer.signingJobARN ?? "-"),
-                        ("Signing Profile", layer.signingProfileVersionARN ?? "-")
-                    ])
-                }
-            }
-        } else {
-            emptyDetail("No Lambda layers")
-        }
-    }
-
-    @ViewBuilder
-    private var fileSystemSection: some View {
-        sectionTitle("File Systems")
-        if let fileSystems = detail?.fileSystems, !fileSystems.isEmpty {
-            ForEach(fileSystems) { fileSystem in
-                DetailGrid(items: [
-                    ("EFS Access Point", fileSystem.arn),
-                    ("Local Mount Path", fileSystem.localMountPath)
-                ])
-            }
-        } else {
-            emptyDetail("No EFS file systems")
-        }
-    }
-
-    @ViewBuilder
-    private var imageConfigurationSection: some View {
-        if function.packageType == "Image" {
-            sectionTitle("Container Image Configuration")
-            DetailGrid(items: [
-                ("Image URI", detail?.imageURI ?? "-"),
-                ("Resolved Image", detail?.resolvedImageURI ?? "-"),
-                ("Repository Type", detail?.repositoryType ?? "-"),
-                ("Entry Point", joined(detail?.imageEntryPoint ?? [])),
-                ("Command", joined(detail?.imageCommand ?? [])),
-                ("Working Directory", detail?.imageWorkingDirectory ?? "-")
-            ])
-        }
-    }
-
-    @ViewBuilder
-    private var policySection: some View {
-        sectionTitle("Resource Policy")
-        if let statements = detail?.policyStatements, !statements.isEmpty {
-            ForEach(statements) { statement in
-                GroupBox(statement.statementId) {
-                    DetailGrid(items: [
-                        ("Effect", statement.effect ?? "-"),
-                        ("Principals", joined(statement.principals)),
-                        ("Actions", joined(statement.actions)),
-                        ("Resources", joined(statement.resources)),
-                        ("Source ARNs", joined(statement.sourceARNs))
-                    ])
-                }
-            }
-        } else {
-            emptyDetail("No resource-based policy")
-        }
-    }
-
     private func warningBanner(_ warnings: [String]) -> some View {
         ScrollView {
             NoticeBanner(message: (["Some Lambda details could not be loaded"] + warnings).joined(separator: "\n"))
@@ -625,36 +301,6 @@ struct LambdaDetailView: View {
         .frame(maxHeight: 100)
         .padding(.horizontal)
         .padding(.bottom, 8)
-    }
-
-    private func sectionTitle(_ title: String) -> some View {
-        DetailSectionTitle(title: title)
-    }
-
-    private func keyValueRows(_ values: [String: String]) -> some View {
-        DetailKeyValueRows(values: values)
-    }
-
-    private func emptyDetail(_ text: String) -> some View {
-        Text(L10n.text(text, locale: locale))
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func copyButton(_ value: String, label: String) -> some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(value, forType: .string)
-        } label: {
-            Image(systemName: "doc.on.doc")
-        }
-        .buttonStyle(.borderless)
-        .help(L10n.text(label, locale: locale))
-        .accessibilityLabel(L10n.text(label, locale: locale))
     }
 
     private var statusColor: Color {
@@ -667,53 +313,5 @@ struct LambdaDetailView: View {
             return .orange
         }
         return state == "Active" ? .green : .gray
-    }
-
-    private func boolean(_ value: Bool?) -> String {
-        value.map { L10n.text($0 ? "Yes" : "No", locale: locale) } ?? "-"
-    }
-
-    private func number(_ value: Int?) -> String {
-        value.map(String.init) ?? "-"
-    }
-
-    private func seconds(_ value: Int?) -> String {
-        value.map { "\($0)s" } ?? "-"
-    }
-
-    private func retryValue(_ value: Int?) -> String {
-        guard let value else { return "-" }
-        return value == -1 ? L10n.text("Infinite", locale: locale) : String(value)
-    }
-
-    private func joined(_ values: [String]) -> String {
-        values.isEmpty ? "-" : values.joined(separator: ", ")
-    }
-
-    private func bytes(_ value: Int64?) -> String {
-        value.map { $0.formatted(.byteCount(style: .file).locale(locale)) } ?? "-"
-    }
-
-    private func format(_ date: Date?) -> String {
-        date?.formatted(Date.FormatStyle(date: .abbreviated, time: .standard).locale(locale)) ?? "-"
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
-    }
-
-    private func qualifier(from arn: String) -> String {
-        let suffix = arn.split(separator: ":").last.map(String.init)
-        return suffix == function.functionName ? "$LATEST" : suffix ?? "$LATEST"
-    }
-
-    private func weights(_ values: [String: Double]) -> String {
-        guard !values.isEmpty else { return "-" }
-        return values.keys.sorted().map { version in
-            let percentage = (values[version] ?? 0) * 100
-            return "\(version): \(percentage.formatted(.number.precision(.fractionLength(0...2)).locale(locale)))%"
-        }
-        .joined(separator: ", ")
     }
 }

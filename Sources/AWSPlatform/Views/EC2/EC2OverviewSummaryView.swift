@@ -95,6 +95,7 @@ struct EC2OverviewSummaryView: View {
                 Spacer(minLength: 0)
                 Button(L10n.text(actionTitle, locale: locale), action: action)
                     .buttonStyle(.borderless)
+                    .foregroundColor(.accentColor)
             }
             switch state ?? .notLoaded {
             case .notLoaded:

@@ -70,7 +70,11 @@ struct EC2DetailHeaderView: View {
     }
 
     private var stateColor: Color {
-        switch instance.state {
+        Self.statusColor(for: instance.state)
+    }
+
+    static func statusColor(for state: String) -> Color {
+        switch state {
         case "running": return .green
         case "pending", "stopping": return .orange
         case "shutting-down", "terminated": return .red

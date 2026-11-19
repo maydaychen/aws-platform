@@ -3,6 +3,8 @@ import SwiftUI
 struct S3BucketDetailView: View {
     @Environment(\.locale) private var locale
     let bucket: S3BucketModel
+    var isDetailsLoading: Bool = false
+    var onRetryDetails: (() -> Void)? = nil
     let onBrowse: () -> Void
 
     var body: some View {
@@ -19,11 +21,29 @@ struct S3BucketDetailView: View {
 
                 DetailGrid(items: detailItems)
 
-                Button(L10n.text("Browse Objects", locale: locale), action: onBrowse)
-                    .buttonStyle(.borderedProminent)
+                HStack(spacing: 12) {
+                    Button(L10n.text("Browse Objects", locale: locale), action: onBrowse)
+                        .buttonStyle(.borderedProminent)
+
+                    if isDetailsLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(L10n.text("Loading…", locale: locale))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 if let detailError = bucket.detailError {
-                    NoticeBanner(message: detailError)
+                    HStack(alignment: .top, spacing: 12) {
+                        NoticeBanner(message: detailError)
+
+                        if let onRetryDetails {
+                            Button(L10n.text("Retry", locale: locale), action: onRetryDetails)
+                                .buttonStyle(.bordered)
+                                .disabled(isDetailsLoading)
+                        }
+                    }
                 }
 
                 if !bucket.tags.isEmpty {

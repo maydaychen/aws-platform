@@ -11,6 +11,13 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(L10n.text("OK", locale: zh), "确定")
     }
 
+    func testServiceDisplayTitlesAreLocalized() {
+        XCTAssertEqual(AWSService.loadBalancers.displayTitle(locale: en), "Load Balancers")
+        XCTAssertEqual(AWSService.loadBalancers.displayTitle(locale: zh), "负载均衡器")
+        XCTAssertEqual(AWSService.targetGroups.displayTitle(locale: en), "Target Groups")
+        XCTAssertEqual(AWSService.targetGroups.displayTitle(locale: zh), "目标组")
+    }
+
     func testLambdaPreviewErrorsRenderInBothLanguages() {
         let errors: [LambdaCodeError] = [
             .invalidDownloadURL, .downloadFailed(nil), .downloadFailed(403),

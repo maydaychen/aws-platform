@@ -294,10 +294,10 @@ struct SNSRelationshipView: View {
         } label: {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundColor(.secondary)
                     .accessibilityHidden(true)
-                Text(title).font(.system(size: 13, weight: .semibold))
+                Text(title).font(.callout.weight(.semibold))
                     .foregroundColor(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -345,7 +345,11 @@ private struct SNSRelationshipCardStyle: ViewModifier {
                 shape.fill(Color(nsColor: highlighted ? .controlBackgroundColor : .textBackgroundColor))
             }
             .overlay {
-                shape.strokeBorder(contrast == .increased || highlighted ? Color.primary : Color(nsColor: .separatorColor), lineWidth: 1)
+                shape.strokeBorder(
+                    contrast == .increased ? Color.primary
+                        : highlighted ? Color.accentColor.opacity(0.45) : Color(nsColor: .separatorColor),
+                    lineWidth: 1
+                )
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: highlighted)
             .onHover { isHovered = $0 }

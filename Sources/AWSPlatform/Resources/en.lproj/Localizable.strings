@@ -556,6 +556,7 @@
 "Listener rule access was denied. Check elasticloadbalancing:DescribeRules permission." = "Listener rule access was denied. Check elasticloadbalancing:DescribeRules permission.";
 "Listeners" = "Listeners";
 "Load ALB routing rules for %@" = "Load ALB routing rules for %@";
+"Load Balancers" = "Load Balancers";
 "Load Code" = "Load Code";
 "Load balancer access was denied. Check elasticloadbalancing:DescribeLoadBalancers permission." = "Load balancer access was denied. Check elasticloadbalancing:DescribeLoadBalancers permission.";
 "Load balancer association" = "Load balancer association";

@@ -37,6 +37,10 @@ enum AWSService: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    func displayTitle(locale: Locale) -> String {
+        L10n.text(rawValue, locale: locale)
+    }
+
     var icon: String {
         switch self {
         case .ec2: return "server.rack"

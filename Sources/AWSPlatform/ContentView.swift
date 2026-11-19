@@ -195,7 +195,7 @@ struct ContentView: View {
                         .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
                         .contentTransition(reduceMotion ? .identity : .opacity)
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: detailSelectionID)
-                        .id([profileVM.selectedProfileID ?? "", selectedService == .route53 ? "global" : profileVM.selectedRegion])
+                        .id([profileVM.selectedProfileID ?? "", selectedService == .route53 ? "global" : profileVM.selectedRegion, selectedService.rawValue])
                 }
             }
         }
@@ -555,26 +555,16 @@ struct ContentView: View {
             EmptyStateView(text: "Waiting for the selected profile to connect.", icon: "cloud")
                 .padding()
         } else if let target = favoriteNavigation.target {
-            VStack(spacing: 12) {
-                ProgressView()
-                Text(L10n.format("Opening %@…", target.displayName, locale: locale))
-                Text("\(target.profileName) · \(target.region)")
-                    .font(.caption).foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            navigationProgressView(title: target.displayName, subtitle: "\(target.profileName) · \(target.region)")
         } else if let target = elbNavigation.target {
-            VStack(spacing: 12) {
-                ProgressView()
-                Text(L10n.format("Opening %@…", target.name, locale: locale))
-                Text("\(target.scope.profile.name) · \(target.scope.region)")
-                    .font(.caption).foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            navigationProgressView(title: target.name, subtitle: "\(target.scope.profile.name) · \(target.scope.region)")
+        } else if let target = relatedNavigation.target {
+            navigationProgressView(title: target.resourceID, subtitle: "\(target.scope.profile.name) · \(target.scope.region)")
         } else {
             VStack(spacing: 0) {
                 if selectedService != .ec2, let favorite = currentResource {
                     HStack {
-                        Label(selectedService.rawValue, systemImage: selectedService.icon)
+                        Label(selectedService.displayTitle(locale: locale), systemImage: selectedService.icon)
                             .font(.caption).foregroundColor(.secondary)
                         Spacer()
                         if let reference = currentRelationReference {
@@ -596,6 +586,17 @@ struct ContentView: View {
                 detailPane
             }
         }
+    }
+
+    private func navigationProgressView(title: String, subtitle: String) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text(L10n.format("Opening %@…", title, locale: locale))
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var currentRelationshipScope: SNSScope? {
@@ -757,7 +758,11 @@ struct ContentView: View {
             }
         case .s3:
             if let bucket = s3VM.selectedBucket, s3BrowsingBucket == nil {
-                S3BucketDetailView(bucket: bucket) {
+                S3BucketDetailView(
+                    bucket: bucket,
+                    isDetailsLoading: s3VM.isBucketDetailsLoading,
+                    onRetryDetails: { s3VM.retrySelectedBucketDetails() }
+                ) {
                     s3BrowsingBucket = bucket.name
                     s3VM.navigateToPrefix(bucket: bucket.name, prefix: "")
                 }

@@ -78,4 +78,15 @@ final class CostModelsTests: XCTestCase {
         XCTAssertEqual(first.summaryRange.endString, "2026-10-03")
         XCTAssertNil(first.validationMessage)
     }
+
+    func testPositiveShareFormatsPositiveContributionsAndSkipsZeroOrCredits() throws {
+        let en = Locale(identifier: "en_US")
+        let zh = Locale(identifier: "zh_Hans")
+        let share = CostDisplay.positiveShare(Decimal(25), positiveTotal: Decimal(100), locale: en)
+        XCTAssertEqual(share, "25%")
+        XCTAssertEqual(CostDisplay.positiveShare(Decimal(1), positiveTotal: Decimal(3), locale: zh), "33.3%")
+        XCTAssertNil(CostDisplay.positiveShare(.zero, positiveTotal: Decimal(100), locale: en))
+        XCTAssertNil(CostDisplay.positiveShare(Decimal(-5), positiveTotal: Decimal(100), locale: en))
+        XCTAssertNil(CostDisplay.positiveShare(Decimal(10), positiveTotal: .zero, locale: en))
+    }
 }

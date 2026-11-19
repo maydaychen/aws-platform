@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct EC2DetailView: View {
@@ -163,7 +162,7 @@ struct EC2DetailView: View {
             .padding()
         case .notLoaded, .loading:
             if let error = vm.detailError {
-                emptyDetail(error)
+                EmptyDetailNote(text: error)
             } else {
                 ProgressView(L10n.text("Loading EC2 details…", locale: locale))
                     .padding()
@@ -227,12 +226,12 @@ struct EC2DetailView: View {
                             HStack {
                                 Text(nonEmpty(interface.description) ?? interface.interfaceId)
                                 Spacer()
-                                copyButton(interface.interfaceId, label: "Copy interface ID")
+                                CopyButton(value: interface.interfaceId, label: "Copy interface ID")
                             }
                         }
                     }
                 } else {
-                    emptyDetail("No network interface details")
+                    EmptyDetailNote(text: "No network interface details")
                 }
             }
             .padding()
@@ -264,12 +263,12 @@ struct EC2DetailView: View {
                             HStack {
                                 Text(nonEmpty(volume.name) ?? volume.volumeId)
                                 Spacer()
-                                copyButton(volume.volumeId, label: "Copy volume ID")
+                                CopyButton(value: volume.volumeId, label: "Copy volume ID")
                             }
                         }
                     }
                 } else {
-                    emptyDetail("No EBS volume details")
+                    EmptyDetailNote(text: "No EBS volume details")
                 }
             }
             .padding()
@@ -322,28 +321,6 @@ struct EC2DetailView: View {
 
     private func sectionTitle(_ title: String) -> some View {
         DetailSectionTitle(title: title)
-    }
-
-    private func emptyDetail(_ text: String) -> some View {
-        Text(L10n.text(text, locale: locale))
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func copyButton(_ value: String, label: String) -> some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(value, forType: .string)
-        } label: {
-            Image(systemName: "doc.on.doc")
-        }
-        .buttonStyle(.borderless)
-        .help(L10n.text(label, locale: locale))
-        .accessibilityLabel(L10n.text(label, locale: locale))
     }
 
     private func boolean(_ value: Bool?) -> String {

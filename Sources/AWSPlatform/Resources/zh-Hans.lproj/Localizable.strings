@@ -556,6 +556,7 @@
 "Listener rule access was denied. Check elasticloadbalancing:DescribeRules permission." = "监听器规则访问被拒绝。请检查 elasticloadbalancing:DescribeRules 权限。";
 "Listeners" = "侦听器";
 "Load ALB routing rules for %@" = "加载 %1$@ 的 ALB 路由规则";
+"Load Balancers" = "负载均衡器";
 "Load Code" = "加载代码";
 "Load balancer access was denied. Check elasticloadbalancing:DescribeLoadBalancers permission." = "负载均衡器访问被拒绝。请检查 elasticloadbalancing:DescribeLoadBalancers 权限。";
 "Load balancer association" = "负载均衡器关联";
@@ -1123,7 +1124,7 @@
 "Tags" = "标签";
 "Tags: %@" = "标签：%1$@";
 "Tags: %@: %@" = "标签：%1$@：%2$@";
-"Target Groups" = "Target Groups";
+"Target Groups" = "目标组";
 "Target ID" = "目标 ID";
 "Target control port" = "目标控制端口";
 "Target group access was denied. Check elasticloadbalancing:DescribeTargetGroups permission." = "目标组访问被拒绝。请检查 elasticloadbalancing:DescribeTargetGroups 权限。";

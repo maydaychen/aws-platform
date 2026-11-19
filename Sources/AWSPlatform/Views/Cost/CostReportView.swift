@@ -84,7 +84,7 @@ struct CostReportView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(L10n.text(title, locale: locale)).font(.callout).foregroundColor(.secondary)
             Text(amount.map { CostDisplay.amount($0, currency: report.currency) } ?? L10n.text("Not available", locale: locale))
-                .font(.system(size: 25, weight: .semibold, design: .rounded).monospacedDigit())
+                .font(.system(.title, design: .rounded).weight(.semibold).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .help(amount.map { "\($0.description) \(report.currency ?? "")" } ?? L10n.text("No amount returned", locale: locale))
                 .textSelection(.enabled)
@@ -106,18 +106,28 @@ struct CostReportView: View {
             if report.services.isEmpty {
                 Text(L10n.text("No service costs returned.", locale: locale)).foregroundColor(.secondary).padding(.vertical, 12)
             } else {
-                ForEach(report.services.sorted { $0.amount > $1.amount }) { service in
+                let sortedServices = report.services.sorted { $0.amount > $1.amount }
+                let positiveTotal = sortedServices.reduce(Decimal.zero) { $0 + ($1.amount > 0 ? $1.amount : .zero) }
+                ForEach(Array(sortedServices.enumerated()), id: \.element.id) { index, service in
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
                         Text(service.name).font(.callout).textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
+                        if let share = CostDisplay.positiveShare(service.amount, positiveTotal: positiveTotal, locale: locale) {
+                            Text(share)
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
+                                .fixedSize()
+                        }
                         Text(CostDisplay.amount(service.amount, currency: report.currency))
                             .font(.callout.monospacedDigit()).textSelection(.enabled)
                             .fixedSize()
                             .foregroundColor(service.amount < 0 ? .orange : .primary)
                             .help("\(service.amount.description) \(report.currency ?? "")")
                     }
-                    Divider()
+                    if index != sortedServices.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }
@@ -153,6 +163,13 @@ enum CostDisplay {
     static func coverage(_ range: CostDateRange, locale: Locale) -> String {
         guard !range.isEmpty else { return L10n.text("No completed days · UTC", locale: locale) }
         return L10n.format("%@ through %@ · UTC", range.startString, CostDates.string(CostDates.inclusiveEnd(of: range)), locale: locale)
+    }
+
+    static func positiveShare(_ amount: Decimal, positiveTotal: Decimal, locale: Locale) -> String? {
+        guard amount > 0, positiveTotal > 0 else { return nil }
+        let ratio = NSDecimalNumber(decimal: amount).dividing(by: NSDecimalNumber(decimal: positiveTotal)).doubleValue
+        guard ratio.isFinite else { return nil }
+        return ratio.formatted(.percent.precision(.fractionLength(0...1)).locale(locale))
     }
 }
 

@@ -224,7 +224,7 @@ final class S3DestinationDirectory: Hashable, @unchecked Sendable {
     func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
 }
 
-/// Same-directory staging makes the final rename atomic, including across volumes.
+/// Private staging under the destination keeps the final rename on the same filesystem.
 final class S3DownloadWriter {
     typealias Capacity = @Sendable (Int32) throws -> Int64
     typealias Rename = @Sendable (Int32, String, Int32, String, UInt32) -> Int32
@@ -233,7 +233,9 @@ final class S3DownloadWriter {
     let temporaryURL: URL
     private var handle: FileHandle?
     private var committed = false
-    private var ownsTemporary = false
+    private let stagingName: String
+    private let stagingDirectory: Int32
+    private let stagingIdentity: stat
     private let temporaryName: String
     private let expectedLength: Int64?
     private let capacity: Capacity
@@ -248,27 +250,54 @@ final class S3DownloadWriter {
         self.expectedLength = expectedLength
         self.capacity = capacity
         self.rename = rename
-        temporaryName = destination.original == nil
-            ? ".awsplatform-\(identifier.uuidString).part"
-            : "AWSPlatform Recovery \(identifier.uuidString)"
-        temporaryURL = destination.directory.url.appendingPathComponent(temporaryName)
+        stagingName = ".awsplatform-download-\(identifier.uuidString)"
+        temporaryName = destination.original == nil ? "partial" : "AWSPlatform Recovery \(identifier.uuidString)"
+        temporaryURL = destination.directory.url.appendingPathComponent(stagingName, isDirectory: true)
+            .appendingPathComponent(temporaryName)
         try destination.directory.validateMapping()
-        let available = try capacity(destination.directory.descriptor)
+        let parent = destination.directory.descriptor
+        let available = try capacity(parent)
         if let expectedLength, expectedLength < 0 || expectedLength > available - Self.minimumFreeSpace {
             throw S3TransferError.insufficientSpace
         }
-        let descriptor = openat(destination.directory.descriptor, temporaryName,
+        if destination.original != nil, try destination.directory.fingerprint(name: temporaryName) != nil {
+            throw S3TransferError.invalidFile
+        }
+        guard mkdirat(parent, stagingName, 0o700) == 0 else { throw S3TransferError.invalidFile }
+        var created = stat()
+        guard fstatat(parent, stagingName, &created, AT_SYMLINK_NOFOLLOW) == 0,
+              S3UploadLease.ownedPrivate(created, kind: S_IFDIR, permissions: [0o700]) else {
+            throw S3TransferError.invalidFile
+        }
+        let directory = openat(parent, stagingName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        var opened = stat()
+        guard directory >= 0, fstat(directory, &opened) == 0,
+              opened.st_dev == created.st_dev, opened.st_ino == created.st_ino,
+              S3UploadLease.ownedPrivate(opened, kind: S_IFDIR, permissions: [0o700]) else {
+            if directory >= 0 { close(directory) }
+            Self.removeStagingDirectory(parent: parent, name: stagingName, expected: created)
+            throw S3TransferError.invalidFile
+        }
+        let descriptor = openat(directory, temporaryName,
             O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
-        guard descriptor >= 0 else { throw S3TransferError.invalidFile }
+        guard descriptor >= 0 else {
+            close(directory)
+            Self.removeStagingDirectory(parent: parent, name: stagingName, expected: opened)
+            throw S3TransferError.invalidFile
+        }
+        stagingDirectory = directory
+        stagingIdentity = opened
         handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        ownsTemporary = true
     }
 
-    deinit { cleanup() }
+    deinit {
+        cleanup()
+        close(stagingDirectory)
+    }
 
     func write(_ data: Data) throws {
         try Task.checkCancellation()
-        guard let handle else { throw S3TransferError.invalidFile }
+        guard let handle, !committed else { throw S3TransferError.invalidFile }
         if let expectedLength, Int64(data.count) > expectedLength - bytes { throw S3TransferError.incompleteDownload }
         guard Int64(data.count) <= (try capacity(destination.directory.descriptor)) - Self.minimumFreeSpace else {
             throw S3TransferError.insufficientSpace
@@ -281,32 +310,60 @@ final class S3DownloadWriter {
     func commit(expectedLength: Int64?) throws -> S3DownloadResult {
         try Task.checkCancellation()
         if let expectedLength, bytes != expectedLength { throw S3TransferError.incompleteDownload }
-        try handle?.synchronize()
-        try handle?.close()
-        handle = nil
+        guard let handle, !committed else { throw S3TransferError.invalidFile }
+        try handle.synchronize()
         try destination.directory.validateMapping()
         guard try destination.directory.fingerprint(name: destination.url.lastPathComponent) == destination.original else {
             throw S3TransferError.destinationChanged
         }
         try Task.checkCancellation()
+        let parent = destination.directory.descriptor
+        guard Self.matchesStagingDirectory(parent: parent, name: stagingName, expected: stagingIdentity),
+              matchesTemporaryFile(handle) else { throw S3TransferError.destinationChanged }
         // An exchange keeps the displaced file, including edits made after the
         // fingerprint check. Never delete that recovery copy or fall back to a
         // destructive rename if the filesystem cannot exchange these entries.
         let isOverwrite = destination.original != nil
         let flags = UInt32(isOverwrite ? RENAME_SWAP : RENAME_EXCL)
-        let result = rename(destination.directory.descriptor, temporaryName,
-            destination.directory.descriptor, destination.url.lastPathComponent, flags)
+        let result = rename(stagingDirectory, temporaryName, parent, destination.url.lastPathComponent, flags)
         guard result == 0 else { throw S3TransferError.destinationChanged }
         committed = true
-        return .init(recoveryURL: isOverwrite ? temporaryURL : nil)
+        guard isOverwrite else { return .init() }
+        // A name collision at publication leaves the displaced file in private staging.
+        if renameatx_np(stagingDirectory, temporaryName, parent, temporaryName, UInt32(RENAME_EXCL)) == 0 {
+            return .init(recoveryURL: destination.directory.url.appendingPathComponent(temporaryName))
+        }
+        return .init(recoveryURL: temporaryURL)
     }
 
     func cleanup() {
-        try? handle?.close()
-        handle = nil
-        if ownsTemporary, !committed {
-            ownsTemporary = false
-            unlinkat(destination.directory.descriptor, temporaryName, 0)
+        guard let handle else { return }
+        if !committed, matchesTemporaryFile(handle) {
+            _ = unlinkat(stagingDirectory, temporaryName, 0)
+        }
+        try? handle.close()
+        self.handle = nil
+        Self.removeStagingDirectory(parent: destination.directory.descriptor, name: stagingName, expected: stagingIdentity)
+    }
+
+    private func matchesTemporaryFile(_ handle: FileHandle) -> Bool {
+        var opened = stat(), entry = stat()
+        return fstat(handle.fileDescriptor, &opened) == 0
+            && fstatat(stagingDirectory, temporaryName, &entry, AT_SYMLINK_NOFOLLOW) == 0
+            && opened.st_dev == entry.st_dev && opened.st_ino == entry.st_ino
+            && S3UploadLease.ownedPrivate(entry, kind: S_IFREG, permissions: [0o600])
+    }
+
+    private static func matchesStagingDirectory(parent: Int32, name: String, expected: stat) -> Bool {
+        var entry = stat()
+        return fstatat(parent, name, &entry, AT_SYMLINK_NOFOLLOW) == 0
+            && entry.st_dev == expected.st_dev && entry.st_ino == expected.st_ino
+            && S3UploadLease.ownedPrivate(entry, kind: S_IFDIR, permissions: [0o700])
+    }
+
+    private static func removeStagingDirectory(parent: Int32, name: String, expected: stat) {
+        if matchesStagingDirectory(parent: parent, name: name, expected: expected) {
+            _ = unlinkat(parent, name, AT_REMOVEDIR)
         }
     }
 

@@ -6,11 +6,13 @@ extension MonitoringScope {
     }
 
     func replacingRegion(_ region: String) -> MonitoringScope {
-        MonitoringScope(profile: profile, identity: AWSIdentity(account: accountID, arn: principalARN, userID: ""), region: region, paths: paths)
+        MonitoringScope(profile: profile, identity: AWSIdentity(account: accountID, arn: principalARN, userID: principalID ?? ""),
+                        region: region, paths: paths)
     }
 
     func sharesIdentity(with other: MonitoringScope) -> Bool {
-        profile == other.profile && accountID == other.accountID && principalARN == other.principalARN && paths == other.paths
+        profile == other.profile && accountID == other.accountID && principalARN == other.principalARN
+            && principalID == other.principalID && paths == other.paths
     }
 }
 

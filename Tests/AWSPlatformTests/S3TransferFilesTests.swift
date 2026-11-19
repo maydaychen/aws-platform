@@ -117,8 +117,11 @@ final class S3TransferFilesTests: XCTestCase {
         let result = try writer.commit(expectedLength: 2)
         writer.cleanup()
         XCTAssertEqual(try Data(contentsOf: file.url), Data("ok".utf8))
-        XCTAssertEqual(result.recoveryURL, writer.temporaryURL)
-        XCTAssertEqual(try Data(contentsOf: writer.temporaryURL), Data("sample".utf8))
+        let recovery = try XCTUnwrap(result.recoveryURL)
+        XCTAssertEqual(recovery.deletingLastPathComponent(), directory)
+        XCTAssertTrue(recovery.lastPathComponent.hasPrefix("AWSPlatform Recovery "))
+        XCTAssertEqual(try Data(contentsOf: recovery), Data("sample".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: writer.temporaryURL.deletingLastPathComponent().path))
     }
 
     func testEmptyDownloadAndNewDestinationConflict() throws {

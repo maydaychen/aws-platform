@@ -83,29 +83,50 @@ final class ConfigReaderTests: XCTestCase {
 
     func testCustomPathsExpandTildeAndIgnoreEmptyOverrides() {
         let paths = AWSConfigurationPaths(
-            environment: ["AWS_CONFIG_FILE": "~/aws/custom-config", "AWS_SHARED_CREDENTIALS_FILE": " "],
+            environment: ["AWS_CONFIG_FILE": "~/aws/custom-config", "AWS_SHARED_CREDENTIALS_FILE": ""],
             homeDirectory: URL(fileURLWithPath: "/test-home")
         )
         XCTAssertEqual(paths.config, "/test-home/aws/custom-config")
         XCTAssertEqual(paths.credentials, "/test-home/.aws/credentials")
         XCTAssertTrue(paths.usesCustomConfig)
+        let literal = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": "~/aws/ config ", "AWS_SHARED_CREDENTIALS_FILE": "/example/credentials "
+        ], homeDirectory: URL(fileURLWithPath: "/test-home"))
+        XCTAssertEqual(literal.config, "/test-home/aws/ config ")
+        XCTAssertEqual(literal.credentials, "/example/credentials ")
     }
 
-    func testReadsBothCustomFiles() throws {
+    func testReadsBothCustomFilesOnceAndReportsReadFailure() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let config = root.appendingPathComponent("config")
         let credentials = root.appendingPathComponent("credentials")
-        try "[profile configured]\nregion = ap-east-1".write(to: config, atomically: true, encoding: .utf8)
+        try "[profile configured]\nregion = ap-east-1\nsso_session = company\n[sso-session company]"
+            .write(to: config, atomically: true, encoding: .utf8)
         try "[credentials-only]".write(to: credentials, atomically: true, encoding: .utf8)
         let paths = AWSConfigurationPaths(environment: [
             "AWS_CONFIG_FILE": config.path,
             "AWS_SHARED_CREDENTIALS_FILE": credentials.path
         ])
-        let profiles = try ConfigReader.readProfiles(paths: paths)
-        XCTAssertEqual(profiles.map(\.name), ["configured", "credentials-only"])
-        XCTAssertEqual(profiles.first?.region, "ap-east-1")
+        var examined: [String] = []
+        var reads = 0
+        let configuration = try ConfigReader.readConfiguration(paths: paths, metadataReader: { path in
+            examined.append(path)
+            var info = stat()
+            return stat(path, &info) == 0 ? info : nil
+        }, readContents: { handle in
+            reads += 1
+            return try handle.readToEnd()
+        })
+        XCTAssertEqual(examined, [paths.config, paths.credentials])
+        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(configuration.profiles.map(\.name), ["configured", "credentials-only"])
+        XCTAssertEqual(configuration.profiles.first?.region, "ap-east-1")
+        XCTAssertEqual(configuration.sessions.map(\.name), ["company"])
+        XCTAssertThrowsError(try ConfigReader.readConfiguration(paths: paths, readContents: { _ in throw POSIXError(.EIO) })) {
+            XCTAssertEqual($0 as? AWSConfigurationReadError, .unavailable)
+        }
     }
 
     func testCloudPlaceholderMetadataFailsBeforeAnyFileContentIsOpened() throws {
@@ -177,19 +198,63 @@ final class ConfigReaderTests: XCTestCase {
         }
     }
 
-    func testMissingAndInvalidUTF8FilesKeepOptionalDiscoverySemantics() throws {
+    func testMissingOptionalFilesAreEmptyAndInvalidUTF8IsAnError() throws {
         let root = try configurationDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let config = root.appendingPathComponent("missing")
         let credentials = root.appendingPathComponent("credentials")
         let paths = AWSConfigurationPaths(environment: ["AWS_CONFIG_FILE": config.path, "AWS_SHARED_CREDENTIALS_FILE": credentials.path])
         try "[credentials-only]".write(to: credentials, atomically: true, encoding: .utf8)
-        XCTAssertEqual(try ConfigReader.readProfiles(paths: paths).map(\.name), ["credentials-only"])
-        XCTAssertTrue(try ConfigReader.readSessions(paths: paths).isEmpty)
-        try Data([0xff, 0xfe]).write(to: config)
-        XCTAssertEqual(try ConfigReader.readProfiles(paths: paths).map(\.name), ["credentials-only"])
+        var configuration = try ConfigReader.readConfiguration(paths: paths)
+        XCTAssertEqual(configuration.profiles.map(\.name), ["credentials-only"])
+        XCTAssertTrue(configuration.sessions.isEmpty)
         try FileManager.default.removeItem(at: credentials)
-        XCTAssertTrue(try ConfigReader.readProfiles(paths: paths).isEmpty)
+        try "[profile configured]\n[sso-session company]".write(to: config, atomically: true, encoding: .utf8)
+        configuration = try ConfigReader.readConfiguration(paths: paths)
+        XCTAssertEqual(configuration.profiles.map(\.name), ["configured"])
+        XCTAssertEqual(configuration.sessions.map(\.name), ["company"])
+        for url in [config, credentials] {
+            try Data([0xff, 0xfe]).write(to: url)
+            XCTAssertThrowsError(try ConfigReader.readConfiguration(paths: paths)) {
+                XCTAssertEqual($0 as? AWSConfigurationReadError, .unavailable)
+            }
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
+    func testUnreadableFileAndUnsearchableParentAreNotTreatedAsMissing() throws {
+        try XCTSkipIf(geteuid() == 0, "Root bypasses file permissions")
+        let root = try configurationDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let parent = root.appendingPathComponent("parent", isDirectory: true)
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+        let config = parent.appendingPathComponent("config")
+        try Data().write(to: config)
+        let paths = AWSConfigurationPaths(environment: ["AWS_CONFIG_FILE": config.path])
+        for denied in [config, parent] {
+            XCTAssertEqual(chmod(denied.path, 0), 0)
+            defer { _ = chmod(denied.path, 0o700) }
+            XCTAssertThrowsError(try ConfigReader.readConfiguration(paths: paths)) {
+                XCTAssertEqual($0 as? AWSConfigurationReadError, .unavailable)
+            }
+        }
+    }
+
+    func testRegularFileChangedAfterStatIsNotUsed() throws {
+        let root = try configurationDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent("config")
+        let paths = AWSConfigurationPaths(environment: ["AWS_CONFIG_FILE": config.path])
+        for replace in [false, true] {
+            try Data().write(to: config)
+            XCTAssertThrowsError(try ConfigReader.readConfiguration(paths: paths, metadataReader: { path in
+                var original = stat()
+                XCTAssertEqual(stat(path, &original), 0)
+                try FileManager.default.moveItem(at: config, to: root.appendingPathComponent("original-\(replace)"))
+                if replace { try Data("[profile replacement]".utf8).write(to: config) }
+                return original
+            })) { XCTAssertEqual($0 as? AWSConfigurationReadError, .unavailable) }
+        }
     }
 
     private func configurationDirectory() throws -> URL {

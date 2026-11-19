@@ -98,11 +98,13 @@ final class S3TransferSecurityTests: XCTestCase {
         try FileManager.default.createDirectory(at: other, withIntermediateDirectories: false)
         let file = try S3TransferFixtures.file(in: chosen)
         let writer = try S3DownloadWriter(destination: .init(url: file.url), expectedLength: 2)
-        let temporaryName = writer.temporaryURL.lastPathComponent
+        let stagingName = writer.temporaryURL.deletingLastPathComponent().lastPathComponent
         try writer.write(Data("ok".utf8))
         try FileManager.default.moveItem(at: chosen, to: moved)
         try FileManager.default.createSymbolicLink(at: chosen, withDestinationURL: other)
-        let marker = other.appendingPathComponent(temporaryName)
+        let replacement = other.appendingPathComponent(stagingName, isDirectory: true)
+        try FileManager.default.createDirectory(at: replacement, withIntermediateDirectories: false)
+        let marker = replacement.appendingPathComponent(writer.temporaryURL.lastPathComponent)
         try Data("keep".utf8).write(to: marker)
         XCTAssertThrowsError(try writer.commit(expectedLength: 2)) {
             XCTAssertEqual($0 as? S3TransferError, .destinationChanged)
@@ -111,7 +113,7 @@ final class S3TransferSecurityTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: moved.appendingPathComponent("file.txt")), Data("sample".utf8))
         XCTAssertEqual(try Data(contentsOf: marker), Data("keep".utf8))
         XCTAssertFalse(FileManager.default.fileExists(atPath: other.appendingPathComponent("file.txt").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: moved.appendingPathComponent(temporaryName).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: moved.appendingPathComponent(stagingName).path))
     }
 
     func testChangedResponseAndOversizedBodyNeverReplaceDestination() async throws {

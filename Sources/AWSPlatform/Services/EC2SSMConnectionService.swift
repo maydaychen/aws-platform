@@ -4,9 +4,11 @@ import Foundation
 struct EC2SSMConnectionRequest: Equatable {
     let scope: MonitoringScope
     let instanceID: String
+    let principalID: String
 
     init(scope: MonitoringScope?, instance: EC2InstanceModel) throws {
         guard let scope, scope.isValid,
+              let principalID = scope.principalID, Self.safeValue(principalID),
               Self.safeValue(scope.profile.name),
               [scope.configPath, scope.credentialsPath].allSatisfy({
                   $0.hasPrefix("/") && Self.safeValue($0)
@@ -22,6 +24,7 @@ struct EC2SSMConnectionRequest: Equatable {
         }
         self.scope = scope
         instanceID = instance.instanceId
+        self.principalID = principalID
     }
 
     private static func safeValue(_ value: String) -> Bool {
@@ -197,15 +200,20 @@ struct EC2SSMConnectionService {
             \(quote(cli.path)) "$@" --region \(quote(scope.region)) --no-cli-pager --no-cli-auto-prompt
         )
         printf '%s\\n' \(quote("SSM · \(scope.profile.name) · \(scope.accountID) · \(scope.region) · \(request.instanceID)"))
-        connect_identity=$(connect_aws sts get-caller-identity --query '[Account,Arn]' --output text --cli-connect-timeout 10 --cli-read-timeout 20)
-        IFS=$'\\t' read -r connect_account connect_arn connect_extra <<< "$connect_identity"
-        case "$connect_arn" in
-            arn:*:sts::*:assumed-role/*/*) connect_arn="${connect_arn%/*}" ;;
-        esac
-        if [[ "$connect_account" != \(quote(scope.accountID)) || "$connect_arn" != \(quote(AWSStablePrincipal.normalizedARN(scope.principalARN))) || -n "$connect_extra" || "$connect_identity" == *$'\\n'* ]]; then
+        connect_identity=$(connect_aws sts get-caller-identity --query '[Account,Arn,UserId]' --output text --cli-connect-timeout 10 --cli-read-timeout 20)
+        IFS=$'\\t' read -r connect_account connect_arn connect_user_id connect_extra <<< "$connect_identity"
+        identity_failed() {
             printf '%s\\n' \(quote(identityError)) >&2
             exit 1
-        fi
+        }
+        [[ "$connect_identity" != *$'\\n'* && "$connect_identity" == "$connect_account"$'\\t'"$connect_arn"$'\\t'"$connect_user_id" ]] || identity_failed
+        case "$connect_arn" in
+            arn:*:sts::*:assumed-role/*/*)
+                connect_arn="${connect_arn%/*}"
+                connect_user_id="${connect_user_id%%:*}" ;;
+        esac
+        [[ "$connect_account" == \(quote(scope.accountID)) && "$connect_arn" == \(quote(AWSStablePrincipal.normalizedARN(scope.principalARN))) &&
+            "$connect_user_id" == \(quote(request.principalID)) ]] || identity_failed
         connect_aws ssm start-session --target \(quote(request.instanceID))
 
         """

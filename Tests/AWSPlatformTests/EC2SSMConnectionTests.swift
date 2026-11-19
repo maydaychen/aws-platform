@@ -104,6 +104,8 @@ final class EC2SSMConnectionTests: XCTestCase {
         XCTAssertTrue(run.calls.contains(req.scope.credentialsPath))
         XCTAssertEqual(run.calls.filter { $0 == "us-east-1" }.count, 3)
         XCTAssertTrue(run.calls.contains(req.instanceID))
+        XCTAssertTrue(run.calls.contains("[Account,Arn,UserId]"))
+        XCTAssertEqual(req.principalID, "AROAOFFLINE")
         XCTAssertTrue(run.calls.contains("export-ambient=unset/unset/unset/unset/unset"))
         XCTAssertEqual(run.calls.filter { $0 == "fixed-credentials=yes" }.count, 2)
         XCTAssertEqual(run.calls.filter { $0 == "/dev/null" }.count, 4)
@@ -118,10 +120,10 @@ final class EC2SSMConnectionTests: XCTestCase {
 
     func testWrongAccountRoleMalformedOrFailedIdentityNeverStartsSession() throws {
         for identity in [
-            "999900001111\tarn:aws:sts::999900001111:assumed-role/Operator/session",
-            "111122223333\tarn:aws:sts::111122223333:assumed-role/Other/session",
-            "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/session\textra",
-            "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/session\nother",
+            "999900001111\tarn:aws:sts::999900001111:assumed-role/Operator/session\tAROAOFFLINE:session",
+            "111122223333\tarn:aws:sts::111122223333:assumed-role/Other/session\tAROAOFFLINE:session",
+            "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/session",
+            validIdentity + "\textra", validIdentity + "\nother",
             "", "not-an-identity"
         ] {
             let root = try makeDirectory()
@@ -138,11 +140,30 @@ final class EC2SSMConnectionTests: XCTestCase {
         XCTAssertFalse(run.calls.contains("start-session"))
     }
 
+    func testRecreatedRoleWithSameARNIsRejectedBeforeStartSession() throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let req = try request()
+        let changedIdentity = "\(req.scope.accountID)\t\(req.scope.principalARN)\tAROARECREATED:session"
+        let run = try execute(root: root, request: req, identity: changedIdentity)
+        XCTAssertNotEqual(run.status, 0)
+        XCTAssertTrue(run.calls.contains("get-caller-identity"))
+        XCTAssertFalse(run.calls.contains("start-session"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
+    }
+
+    func testConnectionRequiresAVerifiedPrincipalID() throws {
+        XCTAssertThrowsError(try EC2SSMConnectionRequest(scope: scope(userID: ""), instance: instance())) {
+            XCTAssertEqual($0 as? EC2SSMConnectionError, .invalidScope)
+        }
+    }
+
     func testIAMUserIdentityAndSSMFailureKeepExitStatusAndCleanup() throws {
         let root = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let arn = "arn:aws:iam::111122223333:user/operator"
-        let run = try execute(root: root, request: request(arn: arn), identity: "111122223333\t\(arn)", ssmExit: 19)
+        let run = try execute(root: root, request: request(arn: arn, userID: "AIDAOFFLINE"),
+                              identity: "111122223333\t\(arn)\tAIDAOFFLINE", ssmExit: 19)
         XCTAssertEqual(run.status, 19)
         XCTAssertTrue(run.calls.contains("start-session"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.script.path))
@@ -294,7 +315,7 @@ final class EC2SSMConnectionTests: XCTestCase {
     private let offlineAccess = "offline-access-key"
     private let offlineSecret = "offline-secret-key"
     private let offlineToken = "offline-session-token"
-    private let validIdentity = "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/renewed"
+    private let validIdentity = "111122223333\tarn:aws:sts::111122223333:assumed-role/Operator/renewed\tAROAOFFLINE:renewed"
 
     private func assertNoCredentialValues(_ run: (status: Int32, output: String, calls: [String], script: URL)) {
         for value in [offlineAccess, offlineSecret, offlineToken] {
@@ -396,14 +417,16 @@ final class EC2SSMConnectionTests: XCTestCase {
     }
 
     private func request(profile: String = "production", account: String = "111122223333",
-                         config: String = "/tmp/offline/config", arn: String = "arn:aws:sts::111122223333:assumed-role/Operator/session") throws -> EC2SSMConnectionRequest {
-        try EC2SSMConnectionRequest(scope: scope(profile: profile, account: account, config: config, arn: arn), instance: instance())
+                         config: String = "/tmp/offline/config", arn: String = "arn:aws:sts::111122223333:assumed-role/Operator/session",
+                         userID: String = "AROAOFFLINE:session") throws -> EC2SSMConnectionRequest {
+        try EC2SSMConnectionRequest(scope: scope(profile: profile, account: account, config: config, arn: arn, userID: userID), instance: instance())
     }
 
     private func scope(profile: String = "production", account: String = "111122223333", region: String = "us-east-1",
-                       config: String = "/tmp/offline/config", arn: String = "arn:aws:sts::111122223333:assumed-role/Operator/session") -> MonitoringScope {
+                       config: String = "/tmp/offline/config", arn: String = "arn:aws:sts::111122223333:assumed-role/Operator/session",
+                       userID: String = "AROAOFFLINE:session") -> MonitoringScope {
         MonitoringScope(profile: .init(name: profile, region: region, ssoStartURL: nil, ssoRegion: nil,
-            ssoAccountID: nil, ssoRoleName: nil), identity: .init(account: account, arn: arn, userID: "offline"), region: region,
+            ssoAccountID: nil, ssoRoleName: nil), identity: .init(account: account, arn: arn, userID: userID), region: region,
             paths: .init(environment: ["AWS_CONFIG_FILE": config, "AWS_SHARED_CREDENTIALS_FILE": "/tmp/offline/credentials ' $(false)"]))
     }
 

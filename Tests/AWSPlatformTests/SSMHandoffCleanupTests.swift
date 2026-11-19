@@ -10,8 +10,8 @@ final class SSMHandoffCleanupTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let script = try prepare(in: root)
         let marker = script.deletingLastPathComponent().appendingPathComponent(SSMScriptLease.markerName)
-        let values = try FileManager.default.attributesOfItem(atPath: marker.path)
-        let created = try XCTUnwrap(values[.modificationDate] as? Date)
+        let created = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: created], ofItemAtPath: marker.path)
         SSMScriptLease.cleanupOrphansSynchronously(in: root, now: created.addingTimeInterval(SSMScriptLease.maximumPendingAge - 1))
         XCTAssertTrue(FileManager.default.fileExists(atPath: script.path))
         SSMScriptLease.cleanupOrphansSynchronously(in: root, now: created.addingTimeInterval(SSMScriptLease.maximumPendingAge))
@@ -163,7 +163,7 @@ final class SSMHandoffCleanupTests: XCTestCase {
         }
         let scope = MonitoringScope(profile: .init(name: "offline", region: "us-east-1", ssoStartURL: nil,
             ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil),
-            identity: .init(account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/Operator/old", userID: "offline"),
+            identity: .init(account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/Operator/old", userID: "AROAOFFLINE:old"),
             region: "us-east-1", paths: .init(environment: ["AWS_CONFIG_FILE": root.appendingPathComponent("config").path,
                 "AWS_SHARED_CREDENTIALS_FILE": root.appendingPathComponent("credentials").path]))
         let instance = EC2InstanceModel(instanceId: "i-0123456789abcdef0", name: "Offline", instanceType: "t3.micro",
@@ -190,7 +190,7 @@ final class SSMHandoffCleanupTests: XCTestCase {
         case "$1" in
             --version) printf '%s\\n' 'aws-cli/2.37.9 Python/offline' ;;
             configure) printf '%s\\n' '{"Version":1,"AccessKeyId":"offline-access","SecretAccessKey":"offline-secret"}' ;;
-            sts) printf '%s\\n' $'111122223333\\tarn:aws:sts::111122223333:assumed-role/Operator/renewed' ;;
+            sts) printf '%s\\n' $'111122223333\\tarn:aws:sts::111122223333:assumed-role/Operator/renewed\\tAROAOFFLINE:renewed' ;;
             ssm) exit \(code) ;;
             *) exit 90 ;;
         esac

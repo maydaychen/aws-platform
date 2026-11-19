@@ -120,7 +120,7 @@ enum SNSRelationshipMapping {
 
 extension SNSScope {
     var monitoringScope: MonitoringScope {
-        MonitoringScope(profile: profile, identity: .init(account: accountID, arn: principalARN, userID: ""),
+        MonitoringScope(profile: profile, identity: .init(account: accountID, arn: principalARN, userID: principalID ?? ""),
                         region: region, paths: AWSConfigurationPaths(environment: [
                             "AWS_CONFIG_FILE": configPath, "AWS_SHARED_CREDENTIALS_FILE": credentialsPath
                         ]))

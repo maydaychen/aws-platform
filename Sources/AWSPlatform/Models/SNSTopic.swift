@@ -11,6 +11,7 @@ struct SNSScope: Hashable, Sendable {
     let profile: AWSProfile
     let accountID: String
     let principalARN: String
+    let principalID: String?
     let region: String
     let configPath: String
     let credentialsPath: String
@@ -24,6 +25,7 @@ struct SNSScope: Hashable, Sendable {
         self.profile = profile
         accountID = identity.account
         principalARN = identity.arn
+        principalID = (try? AWSStablePrincipal(identity))?.principalID
         self.region = region
         configPath = paths.config
         credentialsPath = paths.credentials

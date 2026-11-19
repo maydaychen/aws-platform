@@ -28,6 +28,8 @@ struct ProfileBarView: View {
             if vm.isSigningIn {
                 Text(L10n.text("Complete SSO authorization in your browser. This may take up to 5 minutes. If no browser opens, cancel and sign in from Terminal.", locale: locale))
                     .font(.caption).foregroundColor(.secondary)
+            } else if let error = vm.configurationError {
+                NoticeBanner(message: error.localizedDescription)
             } else if let message = vm.loginMessage {
                 NoticeBanner(message: message)
             } else if case .failed(let message) = vm.profileStatus {
@@ -165,6 +167,8 @@ struct ProfileBarView: View {
     private var profileStatusView: some View {
         if vm.isSigningIn {
             progressStatus("Waiting for browser authorization…")
+        } else if vm.isLoadingConfiguration {
+            progressStatus("Reload Config")
         } else {
             switch vm.profileStatus {
             case .idle:

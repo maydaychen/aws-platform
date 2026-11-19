@@ -287,7 +287,8 @@ final class ProfileViewModelTests: XCTestCase {
         XCTAssertTrue(configured)
         XCTAssertTrue(vm.isProfileReady)
 
-        vm.loadProfiles(configurationLoader: { throw AWSConfigurationReadError.notDownloaded })
+        let reloadFailed = await vm.reloadConfiguration { throw AWSConfigurationReadError.notDownloaded }
+        XCTAssertFalse(reloadFailed)
 
         XCTAssertTrue(vm.profiles.isEmpty)
         XCTAssertTrue(vm.sessions.isEmpty)
@@ -298,26 +299,81 @@ final class ProfileViewModelTests: XCTestCase {
         XCTAssertNil(vm.signedInSessionID)
         XCTAssertFalse(vm.isProfileReady)
         XCTAssertFalse(vm.isValidatingProfile)
-        XCTAssertEqual(vm.profileStatus, .failed(AWSConfigurationReadError.notDownloaded.rawValue))
+        XCTAssertEqual(vm.configurationError, .notDownloaded)
+        vm.beginConfiguration()
+        _ = await vm.configureProvider(forceRefresh: true)
+        XCTAssertEqual(vm.configurationError, .notDownloaded)
         XCTAssertEqual(defaults.string(forKey: "selectedSSOSessionID"), "company")
 
-        vm.loadProfiles(configurationLoader: { (profiles, sessions) })
+        let reloaded = await vm.reloadConfiguration { (profiles, sessions) }
+        XCTAssertTrue(reloaded)
+        XCTAssertNil(vm.configurationError)
         XCTAssertEqual(vm.selectedSession?.name, "company")
         XCTAssertNil(vm.selectedProfileID)
         XCTAssertFalse(vm.isProfileReady)
         XCTAssertEqual(vm.profileStatus, .idle)
     }
 
-    func testUnexpectedConfigurationReadErrorIsReplacedWithFixedSanitizedMessage() throws {
+    func testUnexpectedStartupConfigurationErrorSurvivesConnectionReset() async throws {
         let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let vm = ProfileViewModel(defaults: defaults)
-        vm.loadProfiles(configurationLoader: {
+        let loaded = await vm.reloadConfiguration {
             throw NSError(domain: "offline", code: 1, userInfo: [NSLocalizedDescriptionKey: "private-path-and-offline-token"])
-        })
-        XCTAssertEqual(vm.profileStatus, .failed(AWSConfigurationReadError.unavailable.rawValue))
+        }
+        XCTAssertFalse(loaded)
+        vm.beginConfiguration()
+        _ = await vm.configureProvider()
+        XCTAssertEqual(vm.configurationError, .unavailable)
         XCTAssertTrue(vm.profiles.isEmpty)
         XCTAssertNil(vm.selectedProfileID)
+    }
+
+    func testFastReloadDoesNotApplySupersededResultOrError() async throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = ProfileViewModel(defaults: defaults)
+        let first = profile("first"), latest = profile("latest")
+        for shouldFail in [false, true] {
+            let gate = TestGate()
+            let old = Task {
+                await vm.reloadConfiguration {
+                    await gate.wait()
+                    if shouldFail { throw AWSConfigurationReadError.notDownloaded }
+                    return ([first], [.init(name: "superseded")])
+                }
+            }
+            await gate.waitForEntry()
+            XCTAssertTrue(vm.isLoadingConfiguration)
+            let result = await vm.reloadConfiguration { ([latest], [.init(name: "latest")]) }
+            XCTAssertTrue(result)
+            await gate.open()
+            let oldResult = await old.value
+            XCTAssertFalse(oldResult)
+            XCTAssertEqual(vm.profiles, [latest])
+            XCTAssertEqual(vm.sessions.map(\.name), ["latest"])
+            XCTAssertNil(vm.configurationError)
+            XCTAssertFalse(vm.isLoadingConfiguration)
+        }
+    }
+
+    func testCancelledReloadDoesNotApplyLateSnapshot() async throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = ProfileViewModel(defaults: defaults)
+        let original = profile("original"), late = profile("late")
+        vm.loadProfiles([original], sessions: [])
+        let gate = TestGate()
+        let task = Task {
+            await vm.reloadConfiguration { await gate.wait(); return ([late], []) }
+        }
+        await gate.waitForEntry()
+        task.cancel()
+        await gate.open()
+        let loaded = await task.value
+        XCTAssertFalse(loaded)
+        XCTAssertEqual(vm.profiles, [original])
+        XCTAssertFalse(vm.isLoadingConfiguration)
     }
 
     private func makeDefaults() throws -> (UserDefaults, String) {

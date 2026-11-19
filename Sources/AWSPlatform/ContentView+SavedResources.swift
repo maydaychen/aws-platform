@@ -77,20 +77,24 @@ extension ContentView {
     }
 
     func openSavedResource(_ favorite: ResourceFavorite, source: FavoriteNavigation.Source) {
-        closeRelationships()
-        relatedNavigation.cancel()
-        elbNavigation.cancel()
-        profileVM.loadProfiles()
-        guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
-                                       selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
-        if favorite.service == .route53 {
-            route53VM.selectedZone = nil
-        } else {
-            profileVM.selectedRegion = favorite.region
+        let origin = (profileVM.profileSource, profileVM.selectedProfileID, profileVM.selectedRegion, destination)
+        reloadConfiguration { loaded in
+            guard loaded else { reconfigureServices(); return }
+            guard origin == (profileVM.profileSource, profileVM.selectedProfileID, profileVM.selectedRegion, destination) else { return }
+            closeRelationships()
+            relatedNavigation.cancel()
+            elbNavigation.cancel()
+            guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
+                                           selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
+            if favorite.service == .route53 {
+                route53VM.selectedZone = nil
+            } else {
+                profileVM.selectedRegion = favorite.region
+            }
+            selectedService = favorite.service
+            destination = .resources
+            reconfigureServices()
         }
-        selectedService = favorite.service
-        destination = .resources
-        reconfigureServices()
     }
 
     func cancelFavoriteIfScopeChanged() {

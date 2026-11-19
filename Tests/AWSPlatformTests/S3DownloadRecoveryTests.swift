@@ -101,10 +101,66 @@ final class S3DownloadRecoveryTests: XCTestCase {
         var writer: S3DownloadWriter? = try S3DownloadWriter(destination: .init(url: url))
         let staging = try XCTUnwrap(writer).temporaryURL
         writer?.cleanup()
+        try FileManager.default.createDirectory(at: staging.deletingLastPathComponent(), withIntermediateDirectories: false)
         try Data("new file".utf8).write(to: staging)
         writer?.cleanup()
         writer = nil
         XCTAssertEqual(try Data(contentsOf: staging), Data("new file".utf8))
+    }
+
+    func testCommitRejectsAReplacementStagingFileAndPreservesBothPaths() throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("document.txt")
+        try Data("original".utf8).write(to: url)
+        let writer = try S3DownloadWriter(destination: .init(url: url))
+        try writer.write(Data("download".utf8))
+        try Data("replacement".utf8).write(to: writer.temporaryURL, options: .atomic)
+
+        XCTAssertThrowsError(try writer.commit(expectedLength: 8)) {
+            XCTAssertEqual($0 as? S3TransferError, .destinationChanged)
+        }
+        writer.cleanup()
+        XCTAssertEqual(try Data(contentsOf: url), Data("original".utf8))
+        XCTAssertEqual(try Data(contentsOf: writer.temporaryURL), Data("replacement".utf8))
+    }
+
+    func testCleanupPreservesAReplacementStagingFileWithoutAttemptingCommit() throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("new.txt")
+        var writer: S3DownloadWriter? = try S3DownloadWriter(destination: .init(url: url))
+        let staging = try XCTUnwrap(writer).temporaryURL
+        try writer?.write(Data("partial".utf8))
+        try Data("replacement".utf8).write(to: staging, options: .atomic)
+
+        writer?.cleanup()
+        writer = nil
+        XCTAssertEqual(try Data(contentsOf: staging), Data("replacement".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    func testRecoveryPublicationCollisionKeepsDisplacedFileAndExistingEntry() throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("document.txt")
+        try Data("original".utf8).write(to: url)
+        let identifier = UUID()
+        let occupied = directory.appendingPathComponent("AWSPlatform Recovery \(identifier.uuidString)")
+        let writer = try S3DownloadWriter(destination: .init(url: url), identifier: identifier, rename: { fromFD, from, toFD, to, flags in
+            do { try Data("created concurrently".utf8).write(to: occupied) }
+            catch { XCTFail("Could not create concurrent recovery entry: \(error)") }
+            return renameatx_np(fromFD, from, toFD, to, flags)
+        })
+        try writer.write(Data("download".utf8))
+        let result = try writer.commit(expectedLength: 8)
+        let recovery = try XCTUnwrap(result.recoveryURL)
+        writer.cleanup()
+
+        XCTAssertEqual(recovery, writer.temporaryURL)
+        XCTAssertEqual(try Data(contentsOf: recovery), Data("original".utf8))
+        XCTAssertEqual(try Data(contentsOf: occupied), Data("created concurrently".utf8))
+        XCTAssertEqual(try Data(contentsOf: url), Data("download".utf8))
     }
 
     func testCancellationBeforeCommitPreservesDestinationAndCleansStaging() async throws {

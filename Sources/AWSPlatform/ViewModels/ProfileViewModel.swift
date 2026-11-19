@@ -6,6 +6,7 @@ final class ProfileViewModel: ObservableObject {
     typealias ProfileValidator = (AWSProfile, String) async throws -> AWSIdentity
     typealias BindingValidator = @MainActor (AWSServiceProvider) async throws -> AWSServiceProvider.Validation
     typealias SSOLogin = @MainActor (String, AWSConfigurationPaths) async throws -> Void
+    typealias ConfigurationLoader = @Sendable () async throws -> ConfigReader.Configuration
 
     @Published var profiles: [AWSProfile] = []
     @Published private(set) var sessions: [AWSSOSession] = []
@@ -19,6 +20,8 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var loginMessage: String?
     @Published private(set) var requiresSSOLogin = false
     @Published private(set) var identityFailureID = UUID()
+    @Published private(set) var configurationError: AWSConfigurationReadError?
+    @Published private(set) var isLoadingConfiguration = false
 
     private let savedSessionKey = "selectedSSOSessionID"
     private var hasLoadedConfiguration = false
@@ -32,6 +35,8 @@ final class ProfileViewModel: ObservableObject {
     private let ssoLogin: SSOLogin
     private var configurationGeneration = 0
     private var identityTask: Task<Void, Never>?
+    private var configurationLoadTask: Task<ConfigReader.Configuration, Error>?
+    private var configurationLoadGeneration = 0
 
     let provider: AWSServiceProvider
 
@@ -58,7 +63,7 @@ final class ProfileViewModel: ObservableObject {
     }
 
     var canSignIn: Bool {
-        selectedSession != nil && !isSigningIn && !isValidatingProfile
+        selectedSession != nil && !isSigningIn && !isValidatingProfile && !isLoadingConfiguration
     }
 
     @discardableResult
@@ -95,7 +100,10 @@ final class ProfileViewModel: ObservableObject {
         }
     }
 
-    deinit { identityTask?.cancel() }
+    deinit {
+        identityTask?.cancel()
+        configurationLoadTask?.cancel()
+    }
 
     func handleIdentityFailure(_ token: UUID) async {
         guard await provider.isCurrentIdentityFailure(token) else { return }
@@ -166,33 +174,60 @@ final class ProfileViewModel: ObservableObject {
         return "Select a profile to load resources. No account is selected automatically."
     }
 
-    func loadProfiles(_ profiles: [AWSProfile]? = nil, sessions: [AWSSOSession]? = nil,
-                      configurationLoader: () throws -> (profiles: [AWSProfile], sessions: [AWSSOSession]) = {
-                          let paths = AWSConfigurationPaths()
-                          return (try ConfigReader.readProfiles(paths: paths), try ConfigReader.readSessions(paths: paths))
-                      }) {
+    func reloadConfiguration(
+        configurationLoader: @escaping ConfigurationLoader = { try ConfigReader.readConfiguration() }
+    ) async -> Bool {
+        guard !Task.isCancelled else { return false }
+        configurationLoadTask?.cancel()
+        configurationLoadGeneration += 1
+        let generation = configurationLoadGeneration
+        isLoadingConfiguration = true
+        let task = Task.detached(priority: .utility) {
+            try Task.checkCancellation()
+            return try await configurationLoader()
+        }
+        configurationLoadTask = task
+        defer {
+            if configurationLoadGeneration == generation {
+                configurationLoadTask = nil
+                isLoadingConfiguration = false
+            }
+        }
         do {
-            let previousProfile = selectedProfile
-            let loaded = try profiles == nil ? configurationLoader() : nil
-            self.profiles = profiles ?? loaded?.profiles ?? []
-            self.sessions = sessions ?? loaded?.sessions ?? self.sessions
-            if !hasLoadedConfiguration, let saved = defaults.string(forKey: savedSessionKey),
-               self.sessions.contains(where: { $0.id == saved }) {
-                profileSource = .session(saved)
+            let loaded = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
             }
-            hasLoadedConfiguration = true
-            if case .session = profileSource, selectedSession == nil { selectSource(nil) }
-            if previousProfile != selectedProfile || selectedProfile == nil {
-                clearProfileSelection()
-            }
+            guard generation == configurationLoadGeneration, !Task.isCancelled else { return false }
+            loadProfiles(loaded.profiles, sessions: loaded.sessions)
+            return true
         } catch {
+            guard generation == configurationLoadGeneration, !Task.isCancelled, !(error is CancellationError) else { return false }
             self.profiles = []
             self.sessions = []
             profileSource = nil
             signedInSessionID = nil
             hasLoadedConfiguration = false
             clearProfileSelection()
-            profileStatus = .failed((error as? AWSConfigurationReadError ?? .unavailable).localizedDescription)
+            configurationError = error as? AWSConfigurationReadError ?? .unavailable
+            return false
+        }
+    }
+
+    func loadProfiles(_ profiles: [AWSProfile], sessions: [AWSSOSession]? = nil) {
+        let previousProfile = selectedProfile
+        self.profiles = profiles
+        self.sessions = sessions ?? self.sessions
+        configurationError = nil
+        if !hasLoadedConfiguration, let saved = defaults.string(forKey: savedSessionKey),
+           self.sessions.contains(where: { $0.id == saved }) {
+            profileSource = .session(saved)
+        }
+        hasLoadedConfiguration = true
+        if case .session = profileSource, selectedSession == nil { selectSource(nil) }
+        if previousProfile != selectedProfile || selectedProfile == nil {
+            clearProfileSelection()
         }
     }
 
@@ -338,6 +373,10 @@ final class ProfileViewModel: ObservableObject {
     }
 
     func shutdown() async {
+        configurationLoadGeneration += 1
+        configurationLoadTask?.cancel()
+        configurationLoadTask = nil
+        isLoadingConfiguration = false
         configurationGeneration += 1
         isValidatingProfile = false
         await provider.shutdown()

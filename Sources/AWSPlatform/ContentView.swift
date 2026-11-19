@@ -42,6 +42,7 @@ struct ContentView: View {
     @State var selectedService: AWSService = .ec2
     @State var s3BrowsingBucket: String?
     @State private var reconfigureTask: Task<Void, Never>?
+    @State private var configurationReloadTask: Task<Void, Never>?
     @State private var loginTask: Task<Void, Never>?
     @State var destination: WorkspaceDestination = .resources
     @State private var relationshipTopic: SNSTopic?
@@ -158,8 +159,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             ProfileBarView(vm: profileVM, onRetry: {
-                profileVM.loadProfiles()
-                reconfigureServices(forceRefresh: true)
+                reloadConfiguration { _ in reconfigureServices(forceRefresh: true) }
             }, onLogin: signIn, onCancelLogin: { loginTask?.cancel() },
                showsResourceRegion: destination != .costs && destination != .health
                     && !(destination == .resources && selectedService == .route53),
@@ -233,9 +233,8 @@ struct ContentView: View {
             recentsVM.recordVisit(resource, scope: currentRecentScope)
         }
         .onAppear {
-            profileVM.loadProfiles()
             selectedService = AWSService(rawValue: selectedServiceID) ?? .ec2
-            reconfigureServices()
+            reloadConfiguration { _ in reconfigureServices() }
         }
         .onChange(of: profileVM.selectedProfileID) { _ in
             costVM.reset()
@@ -296,6 +295,7 @@ struct ContentView: View {
             loadVisibleResourceServices()
         }
         .onDisappear {
+            configurationReloadTask?.cancel()
             s3TransferVM.reset()
             resetMonitoring()
             closeRelationships()
@@ -843,6 +843,16 @@ struct ContentView: View {
         loginTask = Task {
             _ = await profileVM.signIn()
             loginTask = nil
+        }
+    }
+
+    func reloadConfiguration(then: @escaping @MainActor (Bool) -> Void) {
+        configurationReloadTask?.cancel()
+        configurationReloadTask = Task {
+            let loaded = await profileVM.reloadConfiguration()
+            guard !Task.isCancelled else { return }
+            configurationReloadTask = nil
+            then(loaded)
         }
     }
 

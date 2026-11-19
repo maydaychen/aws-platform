@@ -11,6 +11,18 @@ enum AWSConfigurationReadError: String, LocalizedError {
 
 struct ConfigReader {
     typealias MetadataReader = (String) throws -> stat?
+    typealias Configuration = (profiles: [AWSProfile], sessions: [AWSSOSession])
+
+    static func readConfiguration(
+        paths: AWSConfigurationPaths = AWSConfigurationPaths(),
+        metadataReader: MetadataReader = fileMetadata,
+        readContents: (FileHandle) throws -> Data? = { try $0.readToEnd() }
+    ) throws -> Configuration {
+        let config = try readText(paths.config, metadataReader: metadataReader, readContents: readContents)
+        let credentials = try readText(paths.credentials, metadataReader: metadataReader, readContents: readContents)
+        let sections = parseINI(content: config)
+        return (profiles(in: sections, credentialsContent: credentials), sessions(in: sections))
+    }
 
     static func readSessions(
         paths: AWSConfigurationPaths = AWSConfigurationPaths(),
@@ -21,8 +33,12 @@ struct ConfigReader {
     }
 
     static func readSessions(configContent content: String) -> [AWSSOSession] {
+        sessions(in: parseINI(content: content))
+    }
+
+    private static func sessions(in sections: [(name: String, values: [String: String])]) -> [AWSSOSession] {
         var seenNames: Set<String> = []
-        return parseINI(content: content).compactMap { section in
+        return sections.compactMap { section in
             let sectionName = section.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard sectionName.hasPrefix("sso-session ") else { return nil }
             let name = String(sectionName.dropFirst("sso-session ".count))
@@ -36,15 +52,15 @@ struct ConfigReader {
         paths: AWSConfigurationPaths = AWSConfigurationPaths(),
         metadataReader: MetadataReader = fileMetadata
     ) throws -> [AWSProfile] {
-        let config = try readText(paths.config, metadataReader: metadataReader)
-        let credentials = try readText(paths.credentials, metadataReader: metadataReader)
-        return readProfiles(configContent: config, credentialsContent: credentials)
+        try readConfiguration(paths: paths, metadataReader: metadataReader).profiles
     }
 
-    private static func fileMetadata(_ path: String) -> stat? {
+    private static func fileMetadata(_ path: String) throws -> stat? {
         var info = stat()
         // stat follows existing symlink configurations without opening cloud placeholders.
-        return stat(path, &info) == 0 ? info : nil
+        if stat(path, &info) == 0 { return info }
+        if errno == ENOENT { return nil }
+        throw AWSConfigurationReadError.unavailable
     }
 
     private static func validate(_ info: stat) throws {
@@ -52,25 +68,36 @@ struct ConfigReader {
         guard info.st_mode & S_IFMT == S_IFREG else { throw AWSConfigurationReadError.notRegularFile }
     }
 
-    private static func readText(_ path: String, metadataReader: MetadataReader) throws -> String {
+    private static func readText(_ path: String, metadataReader: MetadataReader,
+                                 readContents: (FileHandle) throws -> Data? = { try $0.readToEnd() }) throws -> String {
         guard let expected = try metadataReader(path) else { return "" }
         try validate(expected)
         // A regular path may be replaced with a FIFO after stat. Nonblocking open
         // and the descriptor check ensure such a replacement cannot stall startup.
         let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
-        guard descriptor >= 0 else { return "" }
+        // Metadata already identified a file. Its disappearance here is a failed read.
+        guard descriptor >= 0 else { throw AWSConfigurationReadError.unavailable }
         defer { close(descriptor) }
         var actual = stat()
-        guard fstat(descriptor, &actual) == 0 else { return "" }
+        guard fstat(descriptor, &actual) == 0 else { throw AWSConfigurationReadError.unavailable }
         try validate(actual)
-        guard actual.st_dev == expected.st_dev, actual.st_ino == expected.st_ino else { return "" }
+        guard actual.st_dev == expected.st_dev, actual.st_ino == expected.st_ino else {
+            throw AWSConfigurationReadError.unavailable
+        }
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
-        guard let data = try? handle.readToEnd() else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
+        let data: Data
+        do { data = try readContents(handle) ?? Data() }
+        catch { throw AWSConfigurationReadError.unavailable }
+        guard let text = String(data: data, encoding: .utf8) else { throw AWSConfigurationReadError.unavailable }
+        return text
     }
 
     static func readProfiles(configContent content: String, credentialsContent: String = "") -> [AWSProfile] {
-        let sections = parseINI(content: content)
+        profiles(in: parseINI(content: content), credentialsContent: credentialsContent)
+    }
+
+    private static func profiles(in sections: [(name: String, values: [String: String])],
+                                 credentialsContent: String) -> [AWSProfile] {
         var names: [String] = []
         var valuesByName: [String: [String: String]] = [:]
         for section in sections {
@@ -159,15 +186,15 @@ struct AWSConfigurationPaths: Equatable, Sendable {
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) {
         func resolve(_ variable: String, fallback: String) -> String {
-            guard let value = environment[variable],
-                  !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            guard let value = environment[variable], !value.isEmpty else {
                 return homeDirectory.appendingPathComponent(fallback).path
             }
             if value == "~" { return homeDirectory.path }
             if value.hasPrefix("~/") {
-                return homeDirectory.appendingPathComponent(String(value.dropFirst(2))).path
+                return homeDirectory.path + "/" + value.dropFirst(2)
             }
-            return URL(fileURLWithPath: value).standardizedFileURL.path
+            if value.hasPrefix("/") { return value }
+            return FileManager.default.currentDirectoryPath + "/" + value
         }
         config = resolve("AWS_CONFIG_FILE", fallback: ".aws/config")
         credentials = resolve("AWS_SHARED_CREDENTIALS_FILE", fallback: ".aws/credentials")

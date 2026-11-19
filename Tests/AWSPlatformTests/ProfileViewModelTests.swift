@@ -376,6 +376,28 @@ final class ProfileViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isLoadingConfiguration)
     }
 
+    func testSelectionRevisionTracksUserChangesWithoutCountingAutomaticConfigInvalidation() async throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = ProfileViewModel(defaults: defaults)
+        let work = profile("work", session: "sso-a")
+        vm.loadProfiles([work], sessions: [.init(name: "sso-a")])
+        vm.selectSource(.session("sso-a"))
+        vm.selectProfile(id: work.id)
+        let afterUserSelect = vm.selectionRevision
+        XCTAssertGreaterThan(afterUserSelect, 0)
+
+        let loaded = await vm.reloadConfiguration { ([], []) }
+        XCTAssertTrue(loaded)
+        XCTAssertNil(vm.selectedProfileID)
+        XCTAssertNil(vm.profileSource)
+        XCTAssertEqual(vm.selectionRevision, afterUserSelect)
+
+        vm.selectSource(.other)
+        vm.selectedRegion = "eu-west-1"
+        XCTAssertGreaterThan(vm.selectionRevision, afterUserSelect)
+    }
+
     private func makeDefaults() throws -> (UserDefaults, String) {
         let suite = "ProfileViewModelTests.\(UUID().uuidString)"
         return (try XCTUnwrap(UserDefaults(suiteName: suite)), suite)

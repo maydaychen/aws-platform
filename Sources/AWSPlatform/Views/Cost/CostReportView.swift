@@ -101,7 +101,7 @@ struct CostReportView: View {
                 Spacer()
                 Text(L10n.format("%@ services", String(report.services.count), locale: locale)).font(.caption).foregroundColor(.secondary)
             }
-            Text(L10n.text("Selected period · Negative amounts include credits or refunds", locale: locale))
+            Text(L10n.text("Selected period · Shares reflect positive services · Negative amounts include credits or refunds", locale: locale))
                 .font(.caption).foregroundColor(.secondary)
             if report.services.isEmpty {
                 Text(L10n.text("No service costs returned.", locale: locale)).foregroundColor(.secondary).padding(.vertical, 12)

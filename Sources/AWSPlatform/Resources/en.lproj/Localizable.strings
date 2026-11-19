@@ -1050,7 +1050,7 @@
 "Select profile %@ in its session first, then open this recent resource. No profile was selected automatically." = "Select profile %@ in its session first, then open this recent resource. No profile was selected automatically.";
 "Select profile %@ in its session first, then open this related resource. No profile was selected automatically." = "Select profile %@ in its session first, then open this related resource. No profile was selected automatically.";
 "Select session" = "Select session";
-"Selected period · Negative amounts include credits or refunds" = "Selected period · Negative amounts include credits or refunds";
+"Selected period · Shares reflect positive services · Negative amounts include credits or refunds" = "Selected period · Shares reflect positive services · Negative amounts include credits or refunds";
 "Selected-period total: %@" = "Selected-period total: %@";
 "Service" = "Service";
 "Service principal" = "Service principal";

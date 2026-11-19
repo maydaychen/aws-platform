@@ -89,12 +89,12 @@ final class SubmoduleProviderScopeTests: XCTestCase {
     func testScopedMonitoringFactoriesAcceptSameStableRoleWithDifferentSTSSession() async throws {
         let provider = AWSServiceProvider.testProvider(identity: .init(account: "111122223333",
             arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/current-session", userID: "fixture"))
-        let scope = makeScope(arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/earlier-session")
+        let scope = makeScope(arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/earlier-session", userID: "fixture")
         try await provider.configureVerified(profile: scope.profile, region: scope.region, paths: scope.paths)
         let metrics = try await provider.cloudWatchClient(scope: scope)
         let logs = try await provider.cloudWatchLogsClient(scope: scope)
         XCTAssertTrue(metrics.client === logs.client)
-        await assertRejected(provider, scope: makeScope(arn: "arn:aws:sts::111122223333:assumed-role/WriteRole/current-session"),
+        await assertRejected(provider, scope: makeScope(arn: "arn:aws:sts::111122223333:assumed-role/WriteRole/current-session", userID: "fixture"),
                              expected: .identityChanged)
         await provider.shutdown()
     }
@@ -130,11 +130,12 @@ final class SubmoduleProviderScopeTests: XCTestCase {
 
     private func makeScope(profileName: String = "monitoring-test", account: String = "111122223333", region: String = "us-east-1",
                            arn: String = "arn:aws:iam::111122223333:user/test",
+                           userID: String = "test",
                            paths: AWSConfigurationPaths = AWSConfigurationPaths(environment: [:])) -> MonitoringScope {
         // Keep the profile's configured region stable: only the selected resource region changes.
         let profile = AWSProfile(name: profileName, region: "us-east-1", ssoStartURL: nil, ssoRegion: nil,
                                  ssoAccountID: nil, ssoRoleName: nil)
-        return MonitoringScope(profile: profile, identity: .init(account: account, arn: arn, userID: "fixture"),
+        return MonitoringScope(profile: profile, identity: .init(account: account, arn: arn, userID: userID),
                                region: region, paths: paths)
     }
 }

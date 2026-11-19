@@ -139,4 +139,22 @@ final class S3TransferSecurityTests: XCTestCase {
         }
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["file.txt"])
     }
+
+    func testDownloadWriterRejectsInheritedACLDirectoryBeforeWriting() throws {
+        let directory = try S3TransferFixtures.directory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try S3TransferFixtures.file(in: directory)
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["+a", "everyone allow read,write,file_inherit,directory_inherit", directory.path]
+        try chmod.run()
+        chmod.waitUntilExit()
+        XCTAssertEqual(chmod.terminationStatus, 0)
+
+        XCTAssertThrowsError(try S3DownloadWriter(destination: .init(url: file.url), expectedLength: 4)) {
+            XCTAssertEqual($0 as? S3TransferError, .invalidFile)
+        }
+        XCTAssertEqual(try Data(contentsOf: file.url), Data("sample".utf8))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["file.txt"])
+    }
 }

@@ -138,7 +138,7 @@ struct ServiceSidebarView: View {
                 .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10).padding(.leading, child ? WorkspaceLayout.sidebarChildIndent : 0)
                 .background(destination == .resources && selectedService == service ? Color.accentColor.opacity(0.18) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6)).contentShape(Rectangle())
+                .clipShape(RoundedRectangle(cornerRadius: WorkspaceLayout.selectionCornerRadius)).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("service.\(service.rawValue)")
@@ -201,7 +201,7 @@ private struct WorkspaceSidebarButton: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
                 .background(isSelected ? Color.accentColor.opacity(0.18) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: WorkspaceLayout.selectionCornerRadius))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

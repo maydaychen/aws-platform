@@ -55,45 +55,54 @@ struct ProfileSearchPopover: View {
                         onSelect(profiles[0].id)
                     }
                 }
-            List {
-                Button { onSelect(nil) } label: {
-                    Label(L10n.text("Clear profile selection", locale: locale), systemImage: "minus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                ForEach(profiles) { profile in
-                    let subtitle = vm.profileSubtitle(profile)
-                    let isHighlighted = highlightedID == profile.id || hoveredID == profile.id
-                    Button { onSelect(profile.id) } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(profile.name).fontWeight(.medium)
-                                    .lineLimit(1).truncationMode(.middle)
-                                if !subtitle.isEmpty {
-                                    Text(subtitle).font(.caption).foregroundColor(.secondary)
-                                        .lineLimit(2)
-                                }
-                            }
-                            Spacer(minLength: 0)
-                            if vm.selectedProfileID == profile.id { Image(systemName: "checkmark").foregroundColor(.accentColor) }
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(isHighlighted ? Color.accentColor.opacity(0.12) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
+            ScrollViewReader { proxy in
+                List {
+                    Button { onSelect(nil) } label: {
+                        Label(L10n.text("Clear profile selection", locale: locale), systemImage: "minus.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(subtitle)
-                    .onHover { hovering in
-                        hoveredID = hovering ? profile.id : (hoveredID == profile.id ? nil : hoveredID)
+                    ForEach(profiles) { profile in
+                        let subtitle = vm.profileSubtitle(profile)
+                        let isKeyboardHighlighted = highlightedID == profile.id
+                        let isHovered = hoveredID == profile.id
+                        let backgroundColor: Color = isKeyboardHighlighted
+                            ? Color.accentColor.opacity(0.14)
+                            : (isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                        Button { onSelect(profile.id) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(profile.name).fontWeight(.medium)
+                                        .lineLimit(1).truncationMode(.middle)
+                                    if !subtitle.isEmpty {
+                                        Text(subtitle).font(.caption).foregroundColor(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                Spacer(minLength: 0)
+                                if vm.selectedProfileID == profile.id { Image(systemName: "checkmark").foregroundColor(.accentColor) }
+                            }
+                            .padding(.horizontal, WorkspaceLayout.selectionRowHorizontalPadding)
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(backgroundColor, in: RoundedRectangle(cornerRadius: WorkspaceLayout.selectionCornerRadius))
+                            .contentShape(Rectangle())
+                        }
+                        .id(profile.id)
+                        .buttonStyle(.plain)
+                        .help(subtitle)
+                        .onHover { hovering in
+                            hoveredID = hovering ? profile.id : (hoveredID == profile.id ? nil : hoveredID)
+                        }
                     }
                 }
+                .listStyle(.inset)
+                .frame(height: WorkspaceLayout.profileListHeight)
+                .onChange(of: highlightedID) { id in
+                    if let id { proxy.scrollTo(id) }
+                }
             }
-            .listStyle(.inset)
-            .frame(height: WorkspaceLayout.profileListHeight)
             .onMoveCommand(perform: moveSelection)
             if profiles.isEmpty {
                 Text(L10n.text("No matching profiles", locale: locale)).font(.caption).foregroundColor(.secondary)

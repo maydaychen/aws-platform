@@ -273,14 +273,20 @@ final class S3DownloadWriter {
         var opened = stat()
         guard directory >= 0, fstat(directory, &opened) == 0,
               opened.st_dev == created.st_dev, opened.st_ino == created.st_ino,
-              S3UploadLease.ownedPrivate(opened, kind: S_IFDIR, permissions: [0o700]) else {
+              S3UploadLease.ownedPrivate(descriptor: directory, info: opened, kind: S_IFDIR, permissions: [0o700]) else {
             if directory >= 0 { close(directory) }
             Self.removeStagingDirectory(parent: parent, name: stagingName, expected: created)
             throw S3TransferError.invalidFile
         }
         let descriptor = openat(directory, temporaryName,
             O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
-        guard descriptor >= 0 else {
+        var temporaryInfo = stat()
+        guard descriptor >= 0, fstat(descriptor, &temporaryInfo) == 0,
+              S3UploadLease.ownedPrivate(descriptor: descriptor, info: temporaryInfo, kind: S_IFREG, permissions: [0o600]) else {
+            if descriptor >= 0 {
+                close(descriptor)
+                _ = unlinkat(directory, temporaryName, 0)
+            }
             close(directory)
             Self.removeStagingDirectory(parent: parent, name: stagingName, expected: opened)
             throw S3TransferError.invalidFile
@@ -319,6 +325,7 @@ final class S3DownloadWriter {
         try Task.checkCancellation()
         let parent = destination.directory.descriptor
         guard Self.matchesStagingDirectory(parent: parent, name: stagingName, expected: stagingIdentity),
+              S3UploadLease.hasNoExtendedACL(stagingDirectory),
               matchesTemporaryFile(handle) else { throw S3TransferError.destinationChanged }
         // An exchange keeps the displaced file, including edits made after the
         // fingerprint check. Never delete that recovery copy or fall back to a
@@ -351,7 +358,8 @@ final class S3DownloadWriter {
         return fstat(handle.fileDescriptor, &opened) == 0
             && fstatat(stagingDirectory, temporaryName, &entry, AT_SYMLINK_NOFOLLOW) == 0
             && opened.st_dev == entry.st_dev && opened.st_ino == entry.st_ino
-            && S3UploadLease.ownedPrivate(entry, kind: S_IFREG, permissions: [0o600])
+            && S3UploadLease.ownedPrivate(descriptor: handle.fileDescriptor, info: entry,
+                                          kind: S_IFREG, permissions: [0o600])
     }
 
     private static func matchesStagingDirectory(parent: Int32, name: String, expected: stat) -> Bool {

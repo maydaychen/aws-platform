@@ -10,7 +10,7 @@ struct S3VersionsTarget: Hashable, Sendable {
               !context.bucket.hasSuffix("--x-s3"), key.utf8.starts(with: context.prefix.utf8),
               Self.validKey(key) else { return false }
         let regionalScope = MonitoringScope(profile: context.scope.profile,
-            identity: .init(account: context.scope.accountID, arn: context.scope.principalARN, userID: ""),
+            identity: .init(account: context.scope.accountID, arn: context.scope.principalARN, userID: context.scope.principalID ?? ""),
             region: region, paths: context.scope.paths)
         return regionalScope.isValid && (context.knownRegion == nil || context.knownRegion == region)
     }

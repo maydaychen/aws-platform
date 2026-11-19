@@ -66,7 +66,7 @@ final class RDSIntegrationTests: XCTestCase {
     func testRDSAcceptsSameRoleWithNewSessionNameButRejectsDifferentRole() async throws {
         let identity = AWSIdentity(account: "111122223333",
                                    arn: "arn:aws:sts::111122223333:assumed-role/DatabaseReader/original-session",
-                                   userID: "test-role:original-session")
+                                   userID: "test:original-session")
         let provider = AWSServiceProvider.testProvider(identity: identity)
         let profile = profile()
         let paths = paths()

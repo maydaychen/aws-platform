@@ -34,5 +34,7 @@ enum WorkspaceLayout {
     static let listRowSpacing: CGFloat = 4
     static let quickFilterSpacing: CGFloat = 4
     static let quickFilterSelectionOpacity: Double = 0.18
+    static let selectionCornerRadius: CGFloat = 6
+    static let selectionRowHorizontalPadding: CGFloat = 6
     static let listRowPadding: CGFloat = 8
 }

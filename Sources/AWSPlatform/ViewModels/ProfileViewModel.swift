@@ -13,7 +13,11 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var profileSource: AWSProfileSource?
     @Published private(set) var selectedProfileID: AWSProfile.ID?
     @Published private(set) var signedInSessionID: String?
-    @Published var selectedRegion = "us-east-1"
+    @Published var selectedRegion = "us-east-1" {
+        didSet {
+            if oldValue != selectedRegion { selectionRevision += 1 }
+        }
+    }
     @Published var isValidatingProfile = false
     @Published var profileStatus: ProfileStatus = .idle
     @Published private(set) var isSigningIn = false
@@ -22,6 +26,7 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var identityFailureID = UUID()
     @Published private(set) var configurationError: AWSConfigurationReadError?
     @Published private(set) var isLoadingConfiguration = false
+    private(set) var selectionRevision = 0
 
     private let savedSessionKey = "selectedSSOSessionID"
     private var hasLoadedConfiguration = false
@@ -225,13 +230,17 @@ final class ProfileViewModel: ObservableObject {
             profileSource = .session(saved)
         }
         hasLoadedConfiguration = true
-        if case .session = profileSource, selectedSession == nil { selectSource(nil) }
+        if case .session = profileSource, selectedSession == nil { applySource(nil, trackSelection: false) }
         if previousProfile != selectedProfile || selectedProfile == nil {
             clearProfileSelection()
         }
     }
 
     func selectSource(_ source: AWSProfileSource?) {
+        applySource(source, trackSelection: true)
+    }
+
+    private func applySource(_ source: AWSProfileSource?, trackSelection: Bool) {
         let validSource: AWSProfileSource?
         if case .session(let id) = source, !sessions.contains(where: { $0.id == id }) {
             validSource = nil
@@ -239,6 +248,7 @@ final class ProfileViewModel: ObservableObject {
             validSource = source
         }
         guard profileSource != validSource else { return }
+        if trackSelection { selectionRevision += 1 }
         profileSource = validSource
         signedInSessionID = nil
         if case .session(let id) = validSource { defaults.set(id, forKey: savedSessionKey) }
@@ -249,10 +259,12 @@ final class ProfileViewModel: ObservableObject {
     func selectProfile(id: AWSProfile.ID?) {
         guard !isSigningIn else { return }
         guard let id, let profile = availableProfiles.first(where: { $0.id == id }) else {
+            if selectedProfileID != nil { selectionRevision += 1 }
             clearProfileSelection()
             return
         }
         guard selectedProfileID != id else { return }
+        selectionRevision += 1
         clearProfileSelection()
         selectedProfileID = profile.id
         selectedRegion = profile.region

@@ -22,12 +22,18 @@ final class S3UploadLease: @unchecked Sendable {
         contentURL = directory.appendingPathComponent("content")
         guard mkdirat(root, name, S_IRWXU) == 0 else { close(root); throw S3TransferError.invalidFile }
         descriptor = openat(root, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard descriptor >= 0 else {
+        var directoryInfo = stat()
+        guard descriptor >= 0, fstat(descriptor, &directoryInfo) == 0,
+              Self.ownedPrivate(descriptor: descriptor, info: directoryInfo, kind: S_IFDIR, permissions: [0o700]) else {
+            if descriptor >= 0 { close(descriptor) }
             _ = unlinkat(root, name, AT_REMOVEDIR); close(root)
             throw S3TransferError.invalidFile
         }
         lock = openat(descriptor, Self.markerName, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
-        guard lock >= 0 else {
+        var lockInfo = stat()
+        guard lock >= 0, fstat(lock, &lockInfo) == 0,
+              Self.ownedPrivate(descriptor: lock, info: lockInfo, kind: S_IFREG, permissions: [0o600]) else {
+            if lock >= 0 { close(lock); _ = unlinkat(descriptor, Self.markerName, 0) }
             close(descriptor); _ = unlinkat(root, name, AT_REMOVEDIR); close(root)
             throw S3TransferError.invalidFile
         }
@@ -47,6 +53,13 @@ final class S3UploadLease: @unchecked Sendable {
     func createContent() throws -> Int32 {
         let result = openat(descriptor, "content", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR)
         guard result >= 0 else { throw S3TransferError.invalidFile }
+        var info = stat()
+        guard fstat(result, &info) == 0,
+              Self.ownedPrivate(descriptor: result, info: info, kind: S_IFREG, permissions: [0o600]) else {
+            close(result)
+            _ = unlinkat(descriptor, "content", 0)
+            throw S3TransferError.invalidFile
+        }
         return result
     }
 
@@ -90,6 +103,20 @@ final class S3UploadLease: @unchecked Sendable {
         info.st_uid == getuid() && info.st_mode & S_IFMT == kind
             && permissions.contains(info.st_mode & 0o7777)
             && (kind == S_IFDIR || info.st_nlink == 1)
+    }
+
+    static func ownedPrivate(descriptor: Int32, info: stat, kind: mode_t, permissions: Set<mode_t>) -> Bool {
+        ownedPrivate(info, kind: kind, permissions: permissions) && hasNoExtendedACL(descriptor)
+    }
+
+    static func hasNoExtendedACL(_ descriptor: Int32) -> Bool {
+        errno = 0
+        guard let acl = acl_get_fd_np(descriptor, ACL_TYPE_EXTENDED) else {
+            return errno == ENOENT
+        }
+        defer { acl_free(UnsafeMutableRawPointer(acl)) }
+        var entry: acl_entry_t?
+        return acl_get_entry(acl, ACL_FIRST_ENTRY.rawValue, &entry) != 0
     }
 
     private static func removeKnownSnapshot(root: Int32, name: String, directory: Int32, marker: Int32,

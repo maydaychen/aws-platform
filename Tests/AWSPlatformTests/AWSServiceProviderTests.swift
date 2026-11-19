@@ -339,6 +339,57 @@ final class AWSServiceProviderTests: XCTestCase {
         await provider.shutdown()
     }
 
+    func testRecreatedSameNameRoleWithDifferentUserIDRejectsStaleScopeAcrossServices() async throws {
+        let profile = makeProfile(name: "recreated-role")
+        let initial = AWSIdentity(account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/first",
+                                  userID: "AROAfirst:first")
+        let recreated = AWSIdentity(account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/second",
+                                    userID: "AROAsecond:second")
+        let probe = ScopeIdentityProbe(initial)
+        let transport = OfflineAWSHTTPClient()
+        let provider = AWSServiceProvider(credentialFactory: { _, _ in
+            .static(accessKeyId: "offline-access", secretAccessKey: "offline-secret")
+        }, businessClientFactory: {
+            AWSClient(credentialProvider: $0, retryPolicy: .noRetry, httpClient: transport)
+        }, identityVerifier: { _, _ in await probe.current })
+
+        let staleMonitoring = MonitoringScope(profile: profile, identity: initial, region: profile.region)
+        let staleCost = CostScope(profile: profile, identity: initial, paths: staleMonitoring.paths)
+        let staleHealth = HealthScope(profile: profile, identity: initial, paths: staleMonitoring.paths)
+        let staleRoute53 = Route53Scope(profile: profile, identity: initial, paths: staleMonitoring.paths)
+        let staleAlarm = AlarmScope(profile: profile, identity: initial, region: profile.region, paths: staleMonitoring.paths)
+        let staleSNS = SNSScope(profile: profile, identity: initial, region: profile.region, paths: staleMonitoring.paths)
+
+        try await provider.configureVerified(profile: profile, region: staleMonitoring.region)
+        await probe.replace(with: recreated)
+        try await provider.configureVerified(profile: profile, region: staleMonitoring.region, forceRefresh: true)
+
+        let end = Date(timeIntervalSince1970: 1_800_000_000)
+        let range = CostDateRange(start: end.addingTimeInterval(-86_400), end: end)
+        do { _ = try await AWSCostService(provider: provider).load(scope: staleCost, query: .init(range: range, region: nil, referenceDate: end)); XCTFail("Stale Cost scope must be rejected") }
+        catch { XCTAssertEqual((error as? CostError)?.localizedDescription, CostError.invalidIdentity.localizedDescription) }
+        do { _ = try await provider.healthClient(scope: staleHealth); XCTFail("Stale Health scope must be rejected") }
+        catch { XCTAssertEqual(error as? HealthError, .invalidScope) }
+        do { _ = try await provider.route53Client(scope: staleRoute53); XCTFail("Stale Route53 scope must be rejected") }
+        catch { XCTAssertEqual(error as? Route53Error, .invalidScope) }
+        do { _ = try await AWSAlarmService(provider: provider).loadAlarms(scope: staleAlarm); XCTFail("Stale Alarm scope must be rejected") }
+        catch { XCTAssertEqual((error as? AlarmError)?.localizedDescription, AlarmError.invalidScope.localizedDescription) }
+        do { _ = try await AWSSNSService(provider: provider).loadTopics(scope: staleSNS); XCTFail("Stale SNS scope must be rejected") }
+        catch { XCTAssertEqual((error as? SNSError)?.localizedDescription, SNSError.invalidScope.localizedDescription) }
+        do { _ = try await provider.ec2Client(scope: staleMonitoring); XCTFail("Stale EC2 scope must be rejected") }
+        catch { XCTAssertEqual(error as? AWSServiceError, .identityChanged) }
+        do { _ = try await provider.s3Client(scope: staleMonitoring); XCTFail("Stale S3 scope must be rejected") }
+        catch { XCTAssertEqual(error as? AWSServiceError, .identityChanged) }
+        do { _ = try await provider.elbClient(scope: staleMonitoring); XCTFail("Stale ELB scope must be rejected") }
+        catch { XCTAssertEqual(error as? ELBError, .invalidScope) }
+        do { _ = try await AWSLogsService(provider: provider).load(query: logQuery(staleMonitoring), cursor: nil); XCTFail("Stale Logs scope must be rejected") }
+        catch { XCTAssertEqual(error as? LambdaLogsError, .invalidQuery) }
+
+        let sent = await transport.requestCount
+        XCTAssertEqual(sent, 0)
+        await provider.shutdown()
+    }
+
     private func makeProfile(name: String) -> AWSProfile {
         AWSProfile(
             name: name,

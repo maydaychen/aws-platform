@@ -8,6 +8,7 @@ struct HealthScope: Hashable, Sendable {
     let profile: AWSProfile
     let accountID: String
     let principalARN: String
+    let principalID: String?
     let configPath: String
     let credentialsPath: String
     var queryMode: HealthQueryMode = .account
@@ -23,6 +24,7 @@ struct HealthScope: Hashable, Sendable {
         self.profile = profile
         accountID = identity.account
         principalARN = identity.arn
+        principalID = (try? AWSStablePrincipal(identity))?.principalID
         configPath = paths.config
         credentialsPath = paths.credentials
     }

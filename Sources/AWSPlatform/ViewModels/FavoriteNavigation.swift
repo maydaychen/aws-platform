@@ -208,7 +208,7 @@ final class FavoriteNavigation: ObservableObject {
             finish(found: bucket != nil, loadError: s3.bucketListError)
         case .alarms:
             guard let scope = alarms.scope, matchesCurrentScope(profile: scope.profile, account: scope.accountID,
-                principal: scope.principalARN, region: scope.region, config: scope.configPath,
+                principal: scope.principalARN, principalID: scope.principalID, region: scope.region, config: scope.configPath,
                 credentials: scope.credentialsPath, current: currentScope), !alarms.isLoading, alarms.error == nil else {
                 alarms.selectedAlarm = nil
                 finish(found: false, loadError: alarms.error ?? "The saved resource list is not ready. Refresh the selected profile and try again.")
@@ -221,7 +221,7 @@ final class FavoriteNavigation: ObservableObject {
             finish(found: alarms.selectedAlarm != nil, loadError: alarms.error)
         case .sns:
             guard let scope = sns.scope, matchesCurrentScope(profile: scope.profile, account: scope.accountID,
-                principal: scope.principalARN, region: scope.region, config: scope.configPath,
+                principal: scope.principalARN, principalID: scope.principalID, region: scope.region, config: scope.configPath,
                 credentials: scope.credentialsPath, current: currentScope), !sns.isLoading, sns.error == nil else {
                 sns.selectedTopic = nil
                 finish(found: false, loadError: sns.error ?? "The saved resource list is not ready. Refresh the selected profile and try again.")
@@ -236,7 +236,8 @@ final class FavoriteNavigation: ObservableObject {
             route53?.privateFilter = nil
             guard let route53, let scope = route53.scope,
                   matchesCurrentScope(profile: scope.profile, account: scope.accountID, principal: scope.principalARN,
-                    region: nil, config: scope.configPath, credentials: scope.credentialsPath, current: currentScope),
+                    principalID: scope.principalID, region: nil, config: scope.configPath,
+                    credentials: scope.credentialsPath, current: currentScope),
                   route53.error == nil, !route53.isListStale, !route53.isLoading else {
                 route53?.selectedZone = nil
                 finish(found: false, loadError: route53?.error)
@@ -301,15 +302,16 @@ final class FavoriteNavigation: ObservableObject {
     private func matchesCurrentScope(_ scope: MonitoringScope?, current: MonitoringScope) -> Bool {
         guard let scope, scope.isValid else { return false }
         return matchesCurrentScope(profile: scope.profile, account: scope.accountID, principal: scope.principalARN,
-                                   region: scope.region, config: scope.configPath,
+                                   principalID: scope.principalID, region: scope.region, config: scope.configPath,
                                    credentials: scope.credentialsPath, current: current)
     }
 
     private func matchesCurrentScope(profile: AWSProfile, account: String, principal: String,
-                                     region: String?, config: String, credentials: String,
+                                     principalID: String?, region: String?, config: String, credentials: String,
                                      current: MonitoringScope) -> Bool {
         profile == current.profile && account == current.accountID
             && AWSStablePrincipal.normalizedARN(principal) == AWSStablePrincipal.normalizedARN(current.principalARN)
+            && principalID != nil && principalID == current.principalID
             && config == current.configPath && credentials == current.credentialsPath
             && (region == nil || region == current.region)
     }

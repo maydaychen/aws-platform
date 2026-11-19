@@ -77,15 +77,25 @@ extension ContentView {
     }
 
     func openSavedResource(_ favorite: ResourceFavorite, source: FavoriteNavigation.Source) {
-        let origin = (profileVM.profileSource, profileVM.selectedProfileID, profileVM.selectedRegion, destination)
+        let originRevision = profileVM.selectionRevision
+        let originDestination = destination
         reloadConfiguration { loaded in
-            guard loaded else { reconfigureServices(); return }
-            guard origin == (profileVM.profileSource, profileVM.selectedProfileID, profileVM.selectedRegion, destination) else { return }
+            guard originRevision == profileVM.selectionRevision,
+                  originDestination == destination else { return }
+            guard loaded else {
+                _ = favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
+                                             selectedProfileName: profileVM.selectedProfile?.name, source: source)
+                reconfigureServices()
+                return
+            }
             closeRelationships()
             relatedNavigation.cancel()
             elbNavigation.cancel()
             guard favoriteNavigation.begin(favorite, profiles: profileVM.profiles,
-                                           selectedProfileName: profileVM.selectedProfile?.name, source: source) else { return }
+                                           selectedProfileName: profileVM.selectedProfile?.name, source: source) else {
+                reconfigureServices()
+                return
+            }
             if favorite.service == .route53 {
                 route53VM.selectedZone = nil
             } else {

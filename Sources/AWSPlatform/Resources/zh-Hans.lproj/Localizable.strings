@@ -1050,7 +1050,7 @@
 "Select profile %@ in its session first, then open this recent resource. No profile was selected automatically." = "请先在对应会话中选择 Profile %1$@，再打开此最近访问资源。应用未自动选择 Profile。";
 "Select profile %@ in its session first, then open this related resource. No profile was selected automatically." = "请先在对应会话中选择 Profile %1$@，再打开此关联资源。应用未自动选择 Profile。";
 "Select session" = "选择会话";
-"Selected period · Negative amounts include credits or refunds" = "所选时间范围 · 负金额包含抵扣或退款";
+"Selected period · Shares reflect positive services · Negative amounts include credits or refunds" = "所选时间范围 · 占比基于正向费用计算 · 负金额包含抵扣或退款";
 "Selected-period total: %@" = "所选时间范围合计：%1$@";
 "Service" = "服务";
 "Service principal" = "服务主体";

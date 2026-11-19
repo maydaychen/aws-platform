@@ -2,7 +2,7 @@ import Foundation
 
 extension MonitoringScope {
     var route53Scope: Route53Scope {
-        Route53Scope(profile: profile, identity: AWSIdentity(account: accountID, arn: principalARN, userID: ""), paths: paths)
+        Route53Scope(profile: profile, identity: AWSIdentity(account: accountID, arn: principalARN, userID: principalID ?? ""), paths: paths)
     }
 
     func replacingRegion(_ region: String) -> MonitoringScope {

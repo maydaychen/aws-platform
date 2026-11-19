@@ -255,7 +255,7 @@ struct ContentView: View {
             healthVM.reset()
             route53VM.reset()
             loginTask?.cancel()
-            favoriteNavigation.cancel()
+            if favoriteNavigation.target != nil { favoriteNavigation.cancel() }
             reconfigureServices()
         }
         .onChange(of: profileVM.selectedRegion) { _ in

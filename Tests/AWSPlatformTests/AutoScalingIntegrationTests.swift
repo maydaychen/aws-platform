@@ -67,7 +67,7 @@ final class AutoScalingIntegrationTests: XCTestCase {
     func testAutoScalingAcceptsRenewedSessionForSameRoleAndRejectsAnotherRole() async throws {
         let identity = AWSIdentity(account: "111122223333",
                                    arn: "arn:aws:sts::111122223333:assumed-role/ScalingReader/first-session",
-                                   userID: "test-role:first-session")
+                                   userID: "test:first-session")
         let provider = AWSServiceProvider.testProvider(identity: identity)
         let profile = profile()
         let paths = paths()

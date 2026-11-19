@@ -113,7 +113,7 @@ struct EC2ListView: View {
             .padding(.vertical, WorkspaceLayout.quickFilterSpacing)
             .frame(maxWidth: .infinity)
             .background(selected ? Color.accentColor.opacity(WorkspaceLayout.quickFilterSelectionOpacity) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: WorkspaceLayout.selectionCornerRadius))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

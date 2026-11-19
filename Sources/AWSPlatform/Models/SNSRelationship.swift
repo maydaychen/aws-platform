@@ -129,7 +129,7 @@ extension SNSScope {
     var alarmScope: AlarmScope {
         AlarmScope(
             profile: profile,
-            identity: AWSIdentity(account: accountID, arn: principalARN, userID: ""),
+            identity: AWSIdentity(account: accountID, arn: principalARN, userID: principalID ?? ""),
             region: region,
             paths: AWSConfigurationPaths(environment: [
                 "AWS_CONFIG_FILE": configPath, "AWS_SHARED_CREDENTIALS_FILE": credentialsPath

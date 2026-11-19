@@ -162,7 +162,7 @@ actor AWSServiceProvider {
     /// Uses an explicitly selected relationship query region without reconfiguring the workspace.
     func relationshipEC2Client(scope: MonitoringScope) async throws -> EC2 {
         guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN),
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
               let awsClient else { throw SecurityGroupError.invalidScope }
         try await requireIdentity(scope: scope)
         return EC2(client: awsClient, region: .init(rawValue: scope.region))
@@ -216,7 +216,7 @@ actor AWSServiceProvider {
 
     func transferS3Client(scope: MonitoringScope, region: String) async throws -> S3 {
         guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN),
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
               currentRegion == scope.region, let awsClient else { throw S3TransferError.invalidScope }
         try await requireIdentity(scope: scope, regional: true)
         return S3(client: awsClient, region: .init(rawValue: region)).with(timeout: .minutes(30))
@@ -224,7 +224,8 @@ actor AWSServiceProvider {
 
     func costExplorerClient(scope: CostScope, partition: AWSPartition) async throws -> CostExplorer {
         guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
-                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath) else {
+                                                  principalID: scope.principalID, configPath: scope.configPath,
+                                                  credentialsPath: scope.credentialsPath) else {
             throw CostError.invalidIdentity
         }
         return CostExplorer(client: client, partition: partition)
@@ -236,7 +237,8 @@ actor AWSServiceProvider {
             "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
         ])
         guard currentProfile == scope.profile, currentPaths == paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN), let awsClient else {
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
+              let awsClient else {
             throw HealthError.invalidScope
         }
         try await requireIdentity()
@@ -252,7 +254,7 @@ actor AWSServiceProvider {
 
     func elbClient(scope: MonitoringScope) async throws -> ElasticLoadBalancingV2 {
         guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN),
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
               currentRegion == scope.region, let awsClient else { throw ELBError.invalidScope }
         try await requireIdentity(scope: scope, regional: true)
         return ElasticLoadBalancingV2(client: awsClient, region: .init(rawValue: scope.region))
@@ -260,7 +262,7 @@ actor AWSServiceProvider {
 
     func relationshipELBClient(scope: MonitoringScope) async throws -> ElasticLoadBalancingV2 {
         guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN),
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
               let awsClient else { throw ELBError.invalidScope }
         try await requireIdentity(scope: scope)
         return ElasticLoadBalancingV2(client: awsClient, region: .init(rawValue: scope.region))
@@ -272,7 +274,8 @@ actor AWSServiceProvider {
             "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
         ])
         guard currentProfile == scope.profile, currentPaths == paths,
-              matchesIdentity(account: scope.accountID, arn: scope.principalARN), let awsClient else {
+              matchesIdentity(account: scope.accountID, arn: scope.principalARN, principalID: scope.principalID),
+              let awsClient else {
             throw Route53Error.invalidScope
         }
         try await requireIdentity()
@@ -287,8 +290,8 @@ actor AWSServiceProvider {
 
     func cloudWatchClient(scope: AlarmScope) async throws -> CloudWatch {
         guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
-                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath,
-                                                  region: scope.region) else {
+                                                  principalID: scope.principalID, configPath: scope.configPath,
+                                                  credentialsPath: scope.credentialsPath, region: scope.region) else {
             throw AlarmError.invalidScope
         }
         return CloudWatch(client: client, region: .init(rawValue: scope.region))
@@ -302,8 +305,8 @@ actor AWSServiceProvider {
 
     func snsClient(scope: SNSScope) async throws -> SNS {
         guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
-                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath,
-                                                  region: scope.region) else {
+                                                  principalID: scope.principalID, configPath: scope.configPath,
+                                                  credentialsPath: scope.credentialsPath, region: scope.region) else {
             throw SNSError.invalidScope
         }
         return SNS(client: client, region: .init(rawValue: scope.region))
@@ -337,12 +340,13 @@ actor AWSServiceProvider {
 
     func isCurrentIdentityFailure(_ token: UUID) -> Bool { token == generation }
 
-    private func scopedClient(profile: AWSProfile, account: String, arn: String,
+    private func scopedClient(profile: AWSProfile, account: String, arn: String, principalID: String?,
                               configPath: String, credentialsPath: String, region: String? = nil) async throws -> AWSClient? {
         let paths = AWSConfigurationPaths(environment: [
             "AWS_CONFIG_FILE": configPath, "AWS_SHARED_CREDENTIALS_FILE": credentialsPath
         ])
-        guard currentProfile == profile, currentPaths == paths, matchesIdentity(account: account, arn: arn),
+        guard currentProfile == profile, currentPaths == paths,
+              matchesIdentity(account: account, arn: arn, principalID: principalID),
               region == nil || currentRegion == region, let awsClient else { return nil }
         try await requireIdentity()
         // A resource Region change reuses the binding and does not advance its generation.
@@ -350,21 +354,27 @@ actor AWSServiceProvider {
         return awsClient
     }
 
-    private func matchesIdentity(account: String, arn: String) -> Bool {
-        guard let identity = validatedIdentity else { return false }
-        return account == identity.account
-            && AWSStablePrincipal.normalizedARN(arn) == AWSStablePrincipal.normalizedARN(identity.arn)
+    private func matchesIdentity(account: String, arn: String, principalID: String?) -> Bool {
+        guard let identity = validatedIdentity,
+              let expected = try? AWSStablePrincipal(identity),
+              let principalID, !principalID.isEmpty else { return false }
+        return account == expected.account
+            && AWSStablePrincipal.normalizedARN(arn) == expected.arn
+            && principalID == expected.principalID
     }
 
     private func requireIdentity(scope: MonitoringScope? = nil, regional: Bool = false) async throws {
-        guard let binding, let identity = validatedIdentity else { throw AWSServiceError.notConfigured }
+        guard let binding, let identity = validatedIdentity,
+              let expected = try? AWSStablePrincipal(identity) else { throw AWSServiceError.notConfigured }
         let token = generation
         _ = try await binding.identity()
         guard token == generation else { throw AWSServiceError.identityChanged }
         if let scope {
             guard scope.isValid, currentProfile == scope.profile, currentPaths == scope.paths,
-                  scope.accountID == identity.account,
-                  AWSStablePrincipal.normalizedARN(scope.principalARN) == AWSStablePrincipal.normalizedARN(identity.arn),
+                  let principalID = scope.principalID, !principalID.isEmpty,
+                  scope.accountID == expected.account,
+                  AWSStablePrincipal.normalizedARN(scope.principalARN) == expected.arn,
+                  principalID == expected.principalID,
                   !regional || scope.region == currentRegion else { throw AWSServiceError.identityChanged }
         }
     }

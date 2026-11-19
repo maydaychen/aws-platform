@@ -136,7 +136,7 @@ Settings includes a compact **AWS CLI** section showing the installed version, i
 
 Click **Update** to update a recognized AWS CLI v2 installation through its existing channel. Official system installations download a fixed-version AWS PKG, verify Apple's trust and the AWS installer identity, then request administrator authorization through macOS. Homebrew installations run their matching `brew update` and `brew upgrade --formula awscli`; necessary dependencies may also update. Missing, v1, custom or unrecognized installations keep Update disabled and show the [official installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), without switching channels or installing automatically.
 
-An update can only start after active app-owned CLI operations and S3 transfers finish; retry if the CLI is busy. During the update, new sign-ins, CLI credential exports, Connect handoffs and S3 transfers are paused. Closing Settings keeps the update running; app quit and app-update restart wait for completion. Existing external terminal sessions remain managed by their terminal. Completion is reported only after rechecking the effective CLI entry point, source and installed version.
+An update can only start after active app-owned CLI operations and S3 transfers finish; retry if the CLI is busy. During the update, new sign-ins, CLI credential exports, Connect handoffs and S3 transfers are paused. Closing Settings keeps the update running; quitting the app waits for completion. Existing external terminal sessions remain managed by their terminal. Completion is reported only after rechecking the effective CLI entry point, source and installed version.
 
 ### Window Controls
 
@@ -419,7 +419,7 @@ Required permissions are `sns:ListTopics` with `Resource: "*"`, plus `sns:GetTop
 
 This module does not publish messages, create or delete Topics, subscribe, unsubscribe, confirm subscriptions, or modify configuration. Navigation from CloudWatch actions locates Topics only within the current Profile and Region; it never switches accounts or Regions. Missing targets and access failures produce messages.
 
-Click the relationship-view button (「调用链查看」) in Topic details to open a dialog showing configured relationships as **CloudWatch alarms → current SNS Topic → subscription targets**:
+Click `View relationships` in Topic details to open a dialog showing configured relationships as **CloudWatch alarms → current SNS Topic → subscription targets**:
 
 - Initially, resource nodes show only their names. Click a name to expand its configuration details, then click `Open alarm` or `Open Lambda function` to navigate to that service. Nodes expand and collapse independently. Longer scope explanations are under the collapsed `About this view` section. Navigable Lambda subscriptions show the function name; other subscriptions use their protocol name, keeping email addresses, phone numbers, and URLs out of node titles.
 - Upstream discovery reads Metric and Composite Alarms for the current Profile and Region, matching ALARM, OK, and INSUFFICIENT_DATA actions exactly. It shows whether actions are enabled and any returned suppression settings. Each dialog opening performs one complete paginated check, which can also be refreshed separately. This requires `cloudwatch:DescribeAlarms`, with `Resource: "*"` for Composite Alarms. Permission or query failures are marked as an incomplete check, rather than treated as no sources.
@@ -492,87 +492,37 @@ The following component preview simulates a successful login with no Profile sel
 ## Project Structure
 
 ```
-Sources/AWSPlatform/
-├── App.swift                    # App entry point
-├── ContentView.swift            # Main view
-├── Models/                      # Data models
-│   ├── AWSProfile.swift
-│   ├── AWSSOSession.swift
-│   ├── AWSService.swift
-│   ├── CloudWatchAlarm.swift
-│   ├── SNSTopic.swift
-│   ├── CostModels.swift
-│   ├── HealthModels.swift
-│   ├── Route53Models.swift
-│   ├── ELBModels.swift
-│   ├── SecurityGroupModels.swift
-│   ├── ResourceRelationModels.swift
-│   ├── WorkspaceDestination.swift
-│   ├── ResourceFavorite.swift
-│   ├── RecentResource.swift
-│   ├── EC2Instance.swift
-│   ├── LambdaFunction.swift
-│   ├── S3Bucket.swift
-│   ├── S3ObjectPage.swift
-│   └── S3Transfer.swift
-├── Services/                    # AWS service layer
-│   ├── AWSServiceProvider.swift
-│   ├── AWSS3TransferService.swift
-│   ├── S3ObjectListing.swift
-│   ├── AWSAlarmService.swift     # CloudWatch alarms, tags, and history
-│   ├── AWSSNSService.swift       # SNS Topics, configuration, tags, and subscriptions
-│   ├── AWSCostService.swift       # Cost Explorer queries and complete pagination
-│   ├── AWSHealthService.swift    # Account-specific Health events, details, and affected resources
-│   ├── AWSRoute53Service.swift   # Hosted Zones, DNS records, metadata, and tags
-│   ├── AWSELBService.swift       # Load balancers, Target Groups, routing, and target health
-│   ├── AWSSecurityGroupService.swift
-│   ├── AWSResourceRelationshipService.swift
-│   ├── AWSCLICredentialProvider.swift # SSO credential bridge for custom configuration paths
-│   └── AWSSSOLoginService.swift  # CLI login process and shared invocation configuration
-├── Utilities/                   # Utilities
-│   ├── ConfigReader.swift
-│   ├── S3FileDrop.swift
-│   ├── S3TransferFiles.swift
-│   ├── Route53LoadBalancerMatcher.swift
-│   └── UserFacingError.swift
-├── ViewModels/                  # View models
-│   ├── AlarmViewModel.swift
-│   ├── SNSViewModel.swift
-│   ├── CostViewModel.swift
-│   ├── HealthViewModel.swift
-│   ├── Route53ViewModel.swift
-│   ├── ELBViewModel.swift
-│   ├── SecurityGroupsViewModel.swift
-│   ├── ResourceRelationshipsViewModel.swift
-│   ├── EC2TargetGroupsViewModel.swift
-│   ├── ELBResourceNavigation.swift
-│   ├── EC2ViewModel.swift
-│   ├── FavoriteNavigation.swift
-│   ├── FavoritesViewModel.swift
-│   ├── RecentResourcesViewModel.swift
-│   ├── LambdaViewModel.swift
-│   ├── ProfileViewModel.swift
-│   ├── S3ViewModel.swift
-│   └── S3TransferViewModel.swift
-└── Views/                       # UI views
-    ├── CloudWatch/
-    ├── SNS/
-    ├── Cost/
-    ├── Health/
-    ├── Route53/
-    ├── ELB/
-    ├── SecurityGroups/
-    ├── Relationships/
-    ├── EC2/
-    ├── Lambda/
-    ├── S3/
-    ├── FavoritesListView.swift
-    ├── RecentResourcesListView.swift
-    ├── ProfileBarView.swift
-    ├── ServiceSidebarView.swift
-    └── SharedViews.swift
-
-Tests/AWSPlatformTests/           # Configuration parsing and ViewModel unit tests
+├── Package.swift                  # SwiftPM manifest (macOS 13+; pinned dependencies require Swift 6.2+)
+├── Assets/AppIcon/                # 1,024 × 1,024 master PNG and multi-size AppIcon.icns
+├── Sources/AWSPlatform/
+│   ├── App.swift                  # App scene and window/Settings entry point
+│   ├── ContentView.swift          # Main split-view shell (+ ContentView+SavedResources.swift)
+│   ├── Models/                    # Profile, Session, Region, service, relationship, monitoring, favorites/recents & CLI update models
+│   ├── Resources/                 # en.lproj & zh-Hans.lproj Localizable.strings and MessageArguments.json
+│   ├── Services/                  # Soto AWS clients, CLI credential/SSO/update bridges, S3 transfers, EC2 SSM handoff & quit-wait controller
+│   ├── Utilities/                 # ConfigReader, Localization, Route53LoadBalancerMatcher, S3/SSM private leases, transfer file helpers
+│   ├── ViewModels/                # Per-service, relationship, monitoring, favorites/recents, transfer & CLI update observable state
+│   └── Views/
+│       ├── AutoScaling/           # EC2 Auto Scaling groups, templates, and instance refreshes
+│       ├── CloudWatch/            # Metric/Composite Alarms and CloudWatch Logs browser
+│       ├── CodeCommit/            # Repositories, branches, source files, commit diffs, pull requests
+│       ├── Cost/                  # Cost Explorer summaries, daily trends, service breakdown
+│       ├── EC2/                   # EC2 instances, two-column overview, EBS volumes & snapshots
+│       ├── ELB/                   # ALB/NLB/GWLB listeners, rules, and Target Groups
+│       ├── Health/                # Current-account and organizational AWS Health events
+│       ├── Lambda/                # Configuration, triggers, versions, and bounded ZIP source preview
+│       ├── Monitoring/            # Shared CloudWatch metrics charts and Lambda log search
+│       ├── RDS/                   # DB instances/clusters, events, and owned snapshots
+│       ├── Relationships/         # Interactive multi-hop resource relationship sheet
+│       ├── Route53/               # Public/private Hosted Zones and DNS record sets
+│       ├── S3/                    # Bucket browser, object versions, drag-and-drop & file transfers
+│       ├── SNS/                   # Topics, policies, masked subscriptions, and relationship view
+│       ├── SecurityGroups/        # Security group inventory and consolidated rule tables
+│       ├── Shared/                # Reusable detail grids, banners, and toolbar controls
+│       └── *.swift                # ProfileBarView, ProfileIdentitySummary, ProfilePickerView, ServiceSidebarView, SettingsView, AWSCLISettingsSection, FavoritesListView, RecentResourcesListView, SharedViews, WorkspaceLayout
+├── Tests/AWSPlatformTests/        # Offline XCTest suite (config parsing, ViewModels, leases, localization)
+├── scripts/                       # Universal & anonymous release builders, license collector, privacy scan, Harness gates
+└── docs/                          # Query cost boundaries, localization, release privacy, UI previews, implementation records
 ```
 
 ## AWS Configuration
@@ -640,6 +590,6 @@ See [`ROADMAP.md`](ROADMAP.md) for the current stage, verification records, and 
 
 Original code in this project is licensed under the [MIT License](LICENSE). Third-party dependencies retain their respective licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for versions and upstream licenses.
 
-## 工程规范入口
+## Engineering Guidelines
 
-项目约定见 [AGENTS.md](AGENTS.md)，视觉规则见 [DESIGN.md](DESIGN.md)，当前进度见 [ROADMAP.md](ROADMAP.md)。静态检查：`python3 scripts/harness/verify.py --mode task`；推送检查：`scripts/verify-before-push.sh`。设计 lint 使用固定版本 `@google/design.md@0.4.0`，需要 Node.js／npm，工具缓存保存在已忽略的 `.tmp/`。
+See [AGENTS.md](AGENTS.md) for agent and engineering conventions, [DESIGN.md](DESIGN.md) for visual rules, and [ROADMAP.md](ROADMAP.md) for current status. Static checks: `python3 scripts/harness/verify.py --mode task`; pre-push gate: `scripts/verify-before-push.sh`. Design spec lint uses pinned `@google/design.md@0.4.0` (requires Node.js/npm; tool cache stays in ignored `.tmp/`).

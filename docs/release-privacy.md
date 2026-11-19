@@ -6,7 +6,7 @@
 
 ## 提交身份
 
-仅在项目仓库配置 `git config --local user.name` 和 `git config --local user.email`，使用昵称及 GitHub 提供的 `noreply` 地址；不改变其他项目的身份。GitHub 账号的邮箱隐私与阻止邮箱暴露开关仍是账号级设置，与本地 Git 配置分开管理。设置页提供的准确地址与归属规则见 [GitHub 邮箱文档](https://docs.github.com/en/account-and-profile/reference/email-addresses-reference) 。
+仅在项目仓库配置 `git config --local user.name` 和 `git config --local user.email`，使用昵称及 GitHub 提供的 `noreply` 地址；不改变其他项目的身份。GitHub 账号的邮箱隐私与阻止邮箱暴露开关仍是账号级设置，与本地 Git 配置分开管理。设置页提供的准确地址与归属规则见 [GitHub 邮箱文档](https://docs.github.com/en/account-and-profile/reference/email-addresses-reference)。
 
 GitHub 公开昵称可保留在提交身份、项目自有版权署名和更新链接中。隐私清理针对私人姓名、公司邮箱、私有地址及本机绝对路径，不将公开昵称判作泄漏；`noreply` 不隐藏 GitHub 用户名。
 

@@ -23,6 +23,7 @@
 
 ## 最近验证
 
+- 2026-11-19 23:00：双语 README、`AGENTS.md`、`DESIGN.md`、`ROADMAP.md` 及 `docs/`／`scripts/` 核对修正通过 `audit_readme.py` 静态链接检查（0 断链）、`verify-before-push.sh` 全量门禁及 57 项脚本单元测试与隐私导出扫描。
 - 2026-11-19 02:10：0.4.3（28）Universal 匿名 Release 构建与校验通过（`build-anonymous-release.sh` 与 `anonymous_release_check.py` 验证 App／ZIP／只读 DMG 均为 `Signature=adhoc` 与 `TeamIdentifier=not set`、含 26 个第三方依赖许可及深度隐私扫描 0 命中）；`verify-before-push.sh` 全量门禁（`AWSPlatformTests` 1,581 项与结构门禁，保留 12 个既有文件规模警告）及 57 项脚本单元测试通过。该结论不包含 Universal 实机启动、Gatekeeper 手动放行、Intel／macOS 13 实机或真实 AWS 验证。
 - 2026-10-26 15:05：0.4.2（27）ARM Release 构建、签名、ZIP 完整性及展开归档隐私检查通过；本机安装文件与构建包指纹一致，启动窗口显示新版本且未自动选择 Profile，核对的 2 项偏好字段未变。设置页交互检查因工具自动审批超时未完成；未建立真实 SSM 会话。
 - 2026-10-26 11:15：先用假 CLI 复现目录非空导致脚本退出 `1`、未启动会话的问题；修复后 35 项 SSM 定向测试全部通过，覆盖删除权限不足、真实退出码保留、目录／链接保护、启动锁及锁包装进程终止。task 静态门禁通过，保留 12 个既有文件规模警告。本轮未重跑全项目测试，未执行真实 AWS、打包或安装。
@@ -75,6 +76,7 @@
 
 ## 最近完成
 
+- 2026-11-19 23:00：核对并修正双语 README、`AGENTS.md`、`DESIGN.md` 与中文辅助文档：`README.md`／`README.zh-CN.md` 同步删除 `app-update restart`／`应用更新重启`、统一 SNS `View relationships`／「查看关联」按钮名、更新模块级结构树、补齐中文 EC2 的 Auto Scaling 说明与双语工程规范入口、补充 `AGENTS.md` 核心目录及 Swift 6.2+ 工具链指针，并修复 `# AWS Platform 设计系统` 及中文链接后缀空格排版。
 - 2026-11-19 02:10：完成 0.4.3（28）匿名通用分发与开源准备：移除 Sparkle 自动更新器及签名更新清单、设置页改用 GitHub Releases 链接、新增 Universal 匿名打包与结构校验脚本（`anonymous_release_check.py`／`build-anonymous-release.sh`），并修复 `privacy_scan.py` 的跨分块边界汇编归属误报与短二进制噪声误报。
 - 2026-10-26 15:05：将 SSM 简化修复打包安装为本机 0.4.2（27）ARM 临时签名预览，保留旧应用供回退；未推送、发布或修改更新清单。
 - 2026-10-26 11:15：简化 SSM 交接清理：专属私有父目录替代全局临时目录游标，移除文件隔离／恢复及对应测试钩子；清理器由 297 行减至 212 行。清理不完整在终端显示双语警告与残留目录，保持会话退出码；目录归属、标记、符号链接、硬链接和活动锁保护保留。旧布局保守保留；仅完成源码阶段。

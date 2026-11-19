@@ -27,7 +27,7 @@
 - 验证两个架构、最低系统版本、资源 bundle、`Info.plist` 和本地 ad-hoc 签名后，才替换现有交付产物。
 - 输出 `dist/AWSPlatform.app` 和 `dist/AWSPlatform-universal.zip`。解压后可将应用复制到「应用程序」目录。
 - Bundle ID 保持为 `AWSPlatform`，与既有 `swift run` 的偏好域一致，延续收藏和 Session 偏好。
-- 将 `Assets/AppIcon/AppIcon.icns` 放入 `Contents/Resources` 并在 `Info.plist` 中声明图标；缺少图标时停止构建。修改 PNG 主图后先运行 `./scripts/generate-app-icon.sh`，生成说明见 [App Icon](../Assets/AppIcon/README.md) 。
+- 将 `Assets/AppIcon/AppIcon.icns` 放入 `Contents/Resources` 并在 `Info.plist` 中声明图标；缺少图标时停止构建。修改 PNG 主图后先运行 `./scripts/generate-app-icon.sh`，生成说明见 [App Icon](../Assets/AppIcon/README.md)。
 
 产物使用本地 ad-hoc 签名，没有使用 Developer ID，也没有进行 Apple 公证。此脚本提供本地构建和架构兼容产物，不代表已通过其他 Mac 的 Gatekeeper 或 Intel 实机验收。
 

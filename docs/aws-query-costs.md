@@ -22,10 +22,10 @@
 
 ## 官方来源
 
-- [CloudWatch 定价](https://aws.amazon.com/cloudwatch/pricing/) 与 [收费项目／API 对照](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_billing.html) 。
-- [CloudWatch us-east-1 当前公开价格表](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudWatch/current/us-east-1/index.json) 。
-- [RDS 定价](https://aws.amazon.com/rds/pricing/) 。
-- [S3 定价](https://aws.amazon.com/s3/pricing/) 。
-- [CodeCommit 定价](https://aws.amazon.com/codecommit/pricing/) 、[FAQ](https://aws.amazon.com/codecommit/faqs/) 、[加密说明](https://docs.aws.amazon.com/codecommit/latest/userguide/encryption.html) 与 [KMS 定价](https://aws.amazon.com/kms/pricing/) 。
-- [EC2 Auto Scaling 定价](https://aws.amazon.com/ec2/autoscaling/pricing/) 。
-- [Cost Explorer 定价](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/) 。
+- [CloudWatch 定价](https://aws.amazon.com/cloudwatch/pricing/) 与 [收费项目／API 对照](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_billing.html)。
+- [CloudWatch us-east-1 当前公开价格表](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonCloudWatch/current/us-east-1/index.json)。
+- [RDS 定价](https://aws.amazon.com/rds/pricing/)。
+- [S3 定价](https://aws.amazon.com/s3/pricing/)。
+- [CodeCommit 定价](https://aws.amazon.com/codecommit/pricing/)、[FAQ](https://aws.amazon.com/codecommit/faqs/)、[加密说明](https://docs.aws.amazon.com/codecommit/latest/userguide/encryption.html) 与 [KMS 定价](https://aws.amazon.com/kms/pricing/)。
+- [EC2 Auto Scaling 定价](https://aws.amazon.com/ec2/autoscaling/pricing/)。
+- [Cost Explorer 定价](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/)。

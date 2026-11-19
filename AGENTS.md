@@ -6,15 +6,19 @@ AWS Platform 是面向 AWS 使用者的原生 macOS 资源与费用浏览工具�
 
 本仓库通过 Swift Package 组织 macOS SwiftUI 应用 `AWSPlatform`。
 
-- `Package.swift`：定义可执行目标、macOS 13 最低版本、Swift 5.9 工具版本和 Soto 依赖。
-- `Sources/AWSPlatform/App.swift`：应用入口；`ContentView.swift` 承载主界面框架。
-- `Sources/AWSPlatform/Models/`：AWS Profile、EC2、Lambda 和 S3 等轻量领域模型。
-- `Sources/AWSPlatform/Services/`：AWS 客户端与服务提供方集成。
-- `Sources/AWSPlatform/ViewModels/`：可观察的界面状态。
-- `Sources/AWSPlatform/Views/`：按 AWS 服务组织的 SwiftUI 视图及共享框架组件。
-- `Tests/AWSPlatformTests/`：配置解析与视图模型单元测试。
-- `docs/superpowers/`：设计式样与实施规划记录。
-- `ROADMAP.md`：当前进度和验证状态的事实源。
+- `Package.swift`：声明可执行目标、macOS 13 最低版本、Swift 5.9 包清单格式与 Soto 依赖；`Package.resolved` 当前锁定的依赖需使用提供 Swift 6.2+ 的完整 Xcode 工具链构建。
+- `Sources/AWSPlatform/App.swift`：应用入口；`ContentView.swift` 与 `ContentView+SavedResources.swift` 承载主界面框架。
+- `Sources/AWSPlatform/Models/`：AWS Profile、Session、区域、EC2／EBS／Auto Scaling、Lambda、S3、CloudWatch、SNS、CodeCommit、RDS、Route 53、ELBv2、安全组、Cost、Health、收藏／最近访问及 CLI 更新模型。
+- `Sources/AWSPlatform/Resources/`：`en.lproj` 与 `zh-Hans.lproj` 双语 `Localizable.strings` 及 `MessageArguments.json`。
+- `Sources/AWSPlatform/Services/`：Soto AWS 客户端、CLI 凭据／SSO／更新桥接、S3 传输、EC2 SSM 会话交接与退出等待协调。
+- `Sources/AWSPlatform/Utilities/`：`ConfigReader`、本地化解析、Route 53 负载均衡器匹配、S3／SSM 私有租约及传输文件辅助。
+- `Sources/AWSPlatform/ViewModels/`：各 AWS 服务、关联关系、监控、收藏／最近访问、传输及 CLI 更新的可观察状态。
+- `Sources/AWSPlatform/Views/`：按 AWS 服务与工作区组织的 SwiftUI 视图、公共组件（`Shared/`）与设置／顶栏／侧栏控件。
+- `Tests/AWSPlatformTests/`：离线 XCTest 单元测试套件（配置解析、视图模型、租约与本地化等）。
+- `Assets/AppIcon/`：应用图标主图与多尺寸 ICNS 资产及生成说明。
+- `scripts/`：通用构建（`build-universal.sh`）、匿名 Release 打包（`build-anonymous-release.sh`）、匿名结构断言（`anonymous_release_check.py`）、依赖许可收集（`collect-licenses.py`）、隐私扫描与公开导出（`privacy_scan.py`、`export-public-source.py`）、Harness／推送门禁（`verify-before-push.sh`、`harness/verify.py`）及离线脚本测试（`tests/`）。
+- `docs/`：查询费用边界（`aws-query-costs.md`）、本地化规范（`localization.md`）、发布隐私说明（`release-privacy.md`）、界面预览图与 `superpowers/` 历史设计／实施记录。
+- `DESIGN.md`、`THIRD_PARTY_NOTICES.md`、`ROADMAP.md`：分别记录视觉设计规范、26 个上游依赖许可索引与当前进度／验证状态。
 
 非简单解析逻辑和视图模型状态流转须由现有测试目标覆盖。
 
@@ -23,7 +27,7 @@ AWS Platform 是面向 AWS 使用者的原生 macOS 资源与费用浏览工具�
 ```bash
 swift build
 ```
-构建 Swift 包并解析 Soto 依赖。
+构建 Swift 包并解析 Soto 依赖（当前锁定依赖需使用提供 Swift 6.2+ 的完整 Xcode 工具链）。
 
 ```bash
 swift run
@@ -84,7 +88,7 @@ PR 应包含简要说明、验证步骤（适用时运行 `swift build`、`swift
 
 ## 匿名分发信任边界
 
-- 发布安装包统一使用 Universal（`arm64` + `x86_64`）本地 Ad-hoc 签名构建，不嵌入个人 Developer ID 证书或非空 `TeamIdentifier`，也不集成依赖团队签名校验的应用内更新框架。
+- 发布安装包统一使用 Universal（`arm64` + `x86_64`）本地 Ad-hoc 签名构建，不嵌入个人 Developer ID 证书或非空 `TeamIdentifier`，也不集成依赖团队签名校验的应用内更新框架；公开打包入口为 `scripts/build-anonymous-release.sh`（输出 DMG／ZIP、`SHA256SUMS.txt` 与双语 `RELEASE_NOTES.md`），本地调试包入口为 `scripts/build-universal.sh`。
 - 打包前须通过 `collect-licenses.py` 随包收集已锁定依赖的完整第三方许可，并通过构建路径重映射、调试符号剥离、`privacy_scan.py`（配合外置私有词表）及 `anonymous_release_check.py` 结构化匿名断言。
 - 自动化测试只运行离线校验逻辑，不访问真实签名身份、钥匙串私有配置或远端发布接口。
 

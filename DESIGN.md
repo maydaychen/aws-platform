@@ -28,7 +28,7 @@
 }
 ---
 
-# AWS Platform设计系统
+# AWS Platform 设计系统
 
 ## Overview
 

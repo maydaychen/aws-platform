@@ -83,6 +83,7 @@ final class S3ViewModel: ObservableObject {
 
     func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         reset()
+        guard scope.isValid else { return }
         self.provider = provider
         self.scope = scope
         bucketLoader = {
@@ -139,6 +140,10 @@ final class S3ViewModel: ObservableObject {
     func reset() {
         cancelLoading()
         hasAttemptedLoad = false
+        if provider != nil {
+            bucketLoader = nil
+            detailLoader = nil
+        }
         provider = nil
         scope = nil
         buckets = []

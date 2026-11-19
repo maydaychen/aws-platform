@@ -35,6 +35,7 @@ final class EC2ViewModel: ObservableObject {
     private var imageNameLoader: ImageNameLoader?
     private var detailLoader: DetailLoader?
     private var sectionLoader: SectionLoader?
+    private var hasProductionLoaders = false
     private var sectionTasks: [EC2DetailSection: Task<Void, Never>] = [:]
     private var sectionGenerations: [EC2DetailSection: Int] = [:]
     private var requestedSections: Set<EC2DetailSection> = []
@@ -48,12 +49,14 @@ final class EC2ViewModel: ObservableObject {
         instanceLoader: InstanceLoader? = nil,
         imageNameLoader: ImageNameLoader? = nil,
         detailLoader: DetailLoader? = nil,
-        sectionLoader: SectionLoader? = nil
+        sectionLoader: SectionLoader? = nil,
+        scope: MonitoringScope? = nil
     ) {
         self.instanceLoader = instanceLoader
         self.imageNameLoader = imageNameLoader
         self.detailLoader = detailLoader
         self.sectionLoader = sectionLoader
+        self.scope = scope
     }
 
     var availableStates: [String] {
@@ -93,6 +96,9 @@ final class EC2ViewModel: ObservableObject {
     }
 
     func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
+        reset()
+        guard scope.isValid else { return }
+        hasProductionLoaders = true
         instanceLoader = {
             let client = try await provider.ec2Client(scope: scope)
             return try await EC2DataLoader.fetchInstances(client: client)
@@ -109,7 +115,6 @@ final class EC2ViewModel: ObservableObject {
             let client = try await provider.ec2Client(scope: scope)
             return try await EC2DataLoader.fetchSection(base: base, section: section, client: client)
         }
-        reset()
         self.scope = scope
         if refreshImmediately { refresh() }
     }
@@ -155,6 +160,13 @@ final class EC2ViewModel: ObservableObject {
     func reset() {
         scope = nil
         cancelLoading()
+        if hasProductionLoaders {
+            instanceLoader = nil
+            imageNameLoader = nil
+            detailLoader = nil
+            sectionLoader = nil
+            hasProductionLoaders = false
+        }
         hasAttemptedLoad = false
         hasLoadedList = false
         isStale = false

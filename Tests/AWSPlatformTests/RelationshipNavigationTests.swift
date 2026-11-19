@@ -36,14 +36,15 @@ final class RelationshipNavigationTests: XCTestCase {
         XCTAssertTrue(nav.beginRelationship(reference, currentScope: current, profiles: [current.profile]))
         XCTAssertFalse(nav.matches(profileName: current.profile.name, region: current.region))
         XCTAssertTrue(nav.matches(profileName: current.profile.name, region: destination.region))
-        XCTAssertTrue(nav.validateRelationshipScope(destination))
+        XCTAssertEqual(nav.validatedTarget(in: destination), reference.favoriteDestination)
         for changed in [current, scope(region: destination.region, principal: "arn:aws:iam::111122223333:user/changed"),
                         scope(region: destination.region, config: "/example/new-config"),
                         scope(account: "222222222222", region: destination.region)] {
             XCTAssertTrue(nav.beginRelationship(reference, currentScope: current, profiles: [current.profile]))
-            XCTAssertFalse(nav.validateRelationshipScope(changed))
+            XCTAssertNil(nav.validatedTarget(in: changed))
             XCTAssertNil(nav.target)
             XCTAssertNil(nav.relationshipReference)
+            XCTAssertNotNil(nav.error)
         }
     }
 
@@ -92,7 +93,7 @@ final class RelationshipNavigationTests: XCTestCase {
             resourceID: "arn:aws:lambda:eu-west-1:111122223333:function:handler:live", name: "handler:live")
         for row in [function(), function(arn: "arn:aws:lambda:eu-west-1:222222222222:function:handler"),
                     function(arn: qualified.resourceID)] {
-            let vm = LambdaViewModel()
+            let vm = LambdaViewModel(scope: current)
             vm.functions = [row]
             vm.searchText = "hidden"
             vm.stateFilter = "Failed"
@@ -124,7 +125,7 @@ final class RelationshipNavigationTests: XCTestCase {
         let requested = instance()
         let other = instance(id: "i-87654321")
         for state in ["missing", "failed", "loading"] {
-            let vm = EC2ViewModel()
+            let vm = EC2ViewModel(scope: current)
             vm.instances = state == "missing" ? [other] : [requested, other]
             vm.selectedInstance = other
             vm.error = state == "failed" ? "Cached list is stale" : nil
@@ -136,6 +137,39 @@ final class RelationshipNavigationTests: XCTestCase {
             XCTAssertNil(nav.target)
             XCTAssertTrue(nav.error?.contains("Open Relationships again") == true)
         }
+    }
+
+    func testRelationshipCannotSelectFromAnInstanceListWithAnotherScope() async {
+        let current = scope()
+        let ec2 = EC2ViewModel(scope: scope(account: "222222222222"))
+        ec2.instances = [instance()]
+        let nav = FavoriteNavigation()
+        XCTAssertTrue(nav.beginRelationship(reference(.ec2), currentScope: current, profiles: [current.profile]))
+        await resolve(nav, ec2: ec2, latestScope: { current })
+        XCTAssertNil(ec2.selectedInstance)
+        XCTAssertNil(nav.target)
+        XCTAssertEqual(nav.error, ResourceRelationError.invalidScope.localizedDescription)
+    }
+
+    func testRelationshipRejectsStaleFunctionListEvenWithoutAnError() async {
+        let current = scope()
+        let row = function()
+        var shouldFail = false
+        let lambda = LambdaViewModel(functionLoader: {
+            if shouldFail { throw ResourceRelationError.invalidScope }
+            return [row]
+        }, scope: current)
+        await lambda.loadFunctions(selectFirstIfNeeded: false)
+        shouldFail = true
+        await lambda.loadFunctions(selectFirstIfNeeded: false)
+        XCTAssertTrue(lambda.isStale)
+        lambda.error = nil
+        let nav = FavoriteNavigation()
+        XCTAssertTrue(nav.beginRelationship(reference(.lambda), currentScope: current, profiles: [current.profile]))
+        await resolve(nav, lambda: lambda, latestScope: { current })
+        XCTAssertNil(lambda.selectedFunction)
+        XCTAssertNil(nav.target)
+        XCTAssertNotNil(nav.error)
     }
 
     func testSecurityGroupRelationshipRejectsSharedOrUnknownOwnerButSavedNavigationRemainsReadable() async {
@@ -294,7 +328,7 @@ final class RelationshipNavigationTests: XCTestCase {
         XCTAssertTrue(nav.beginRelationship(reference(.route53, recordID: record.id), currentScope: current, profiles: [current.profile]))
         let old = Task { await self.resolve(nav, route53: vm, latestScope: { current }) }
         await gate.waitForEntry()
-        let lambda = LambdaViewModel()
+        let lambda = LambdaViewModel(scope: current)
         lambda.functions = [function()]
         XCTAssertTrue(nav.beginRelationship(reference(.lambda), currentScope: current, profiles: [current.profile]))
         await resolve(nav, lambda: lambda, latestScope: { current })

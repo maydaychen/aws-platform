@@ -359,6 +359,60 @@ final class IdentityBoundCredentialProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testInvalidationDeliveredBeforeValidationPublishesReadiness() async throws {
+        let source = RenewableTestCredentials()
+        let provider = AWSServiceProvider(credentialFactory: { _, _ in .custom { _ in source } },
+            identityVerifier: { value, _ in Self.identity(account: value.sessionToken == "first" ? "111122223333" : "444455556666") })
+        let suite = "security-profile-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let profile = AWSProfile(name: "offline", region: "us-east-1", ssoStartURL: nil, ssoRegion: nil, ssoAccountID: nil, ssoRoleName: nil)
+        let gate = TestGate()
+        var validatingGeneration: UUID?
+        let vm = ProfileViewModel(defaults: defaults, provider: provider, bindingValidator: { provider in
+            let validation = try await provider.validateBinding()
+            if await provider.currentRegion == "us-west-2" {
+                validatingGeneration = validation.generation
+                await gate.wait()
+            }
+            return validation
+        })
+        vm.loadProfiles([profile], sessions: [])
+        vm.selectSource(.other)
+        vm.selectProfile(id: profile.id)
+        let initiallyReady = await vm.configureProvider()
+        XCTAssertTrue(initiallyReady)
+        let scope = MonitoringScope(profile: profile, identity: Self.identity(), region: "us-east-1")
+        let client = try await provider.s3Client(scope: scope)
+        let oldFailure = vm.identityFailureID
+
+        vm.selectedRegion = "us-west-2"
+        let validation = Task { await vm.configureProvider() }
+        await gate.waitForEntry()
+        XCTAssertEqual(vm.profileStatus, .checking)
+        await source.replace("changed")
+        do { _ = try await client.client.credentialProvider.getCredential(logger: logger); XCTFail("The old client must reject a different identity") }
+        catch { XCTAssertEqual(error as? AWSServiceError, .identityChanged) }
+        // Deliver the event through the same handler before validation can resume.
+        if let validatingGeneration { await vm.handleIdentityFailure(validatingGeneration) }
+        else { XCTFail("The paused validation must identify its binding") }
+        await gate.open()
+
+        let ready = await validation.value
+        XCTAssertFalse(ready)
+        XCTAssertFalse(vm.isProfileReady)
+        XCTAssertEqual(vm.profileStatus, .failed(AWSServiceError.identityChanged.localizedDescription))
+        XCTAssertNotEqual(vm.identityFailureID, oldFailure)
+        vm.selectedRegion = "us-east-1"
+        await source.replace("first")
+        let reverified = await vm.configureProvider(forceRefresh: true)
+        XCTAssertTrue(reverified)
+        if let validatingGeneration { await vm.handleIdentityFailure(validatingGeneration) }
+        XCTAssertTrue(vm.isProfileReady, "A previous binding's failure cannot invalidate the new binding")
+        await vm.shutdown()
+    }
+
+    @MainActor
     func testInvalidationClearsProfileReadinessAndRequiresExplicitRetry() async throws {
         let source = RenewableTestCredentials()
         let provider = AWSServiceProvider(credentialFactory: { _, _ in .custom { _ in source } },

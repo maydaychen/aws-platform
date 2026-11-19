@@ -122,7 +122,7 @@ struct AWSLogsService: Sendable {
         try Task.checkCancellation()
         if let injected { return injected }
         guard let provider else { throw LambdaLogsError.invalidQuery }
-        let client = try await provider.cloudWatchLogsClient(profile: scope.profile, paths: scope.paths, region: scope.region)
+        let client = try await provider.cloudWatchLogsClient(scope: scope)
         return Operations(streams: { try await client.describeLogStreams($0) }, events: { try await client.filterLogEvents($0) })
     }
 

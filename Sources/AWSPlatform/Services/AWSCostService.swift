@@ -39,11 +39,7 @@ struct AWSCostService: Sendable {
             let costs: CostLoader
             let dimensions: DimensionLoader
             if let provider {
-                let paths = AWSConfigurationPaths(environment: [
-                    "AWS_CONFIG_FILE": scope.configPath,
-                    "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
-                ])
-                let client = try await provider.costExplorerClient(profile: scope.profile, paths: paths, partition: partition)
+                let client = try await provider.costExplorerClient(scope: scope, partition: partition)
                 costs = { try await client.getCostAndUsage($0) }
                 dimensions = { try await client.getDimensionValues($0) }
             } else if let costLoader, let dimensionLoader {

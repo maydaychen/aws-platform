@@ -16,7 +16,7 @@ final class ELBIntegrationTests: XCTestCase {
         let firstScope = makeScope()
         try await provider.configureVerified(profile: profile, region: firstScope.region, paths: paths)
         let first = try await provider.elbClient(scope: firstScope)
-        let cost = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        let cost = try await provider.costExplorerClient(scope: .init(profile: profile, identity: identity, paths: paths), partition: .aws)
         XCTAssertEqual(first.config.region.rawValue, "eu-west-1")
         XCTAssertEqual(first.config.endpoint, "https://elasticloadbalancing.eu-west-1.amazonaws.com")
 

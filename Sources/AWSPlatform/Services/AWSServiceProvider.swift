@@ -15,6 +15,11 @@ import SotoRoute53
 import SotoElasticLoadBalancingV2
 
 actor AWSServiceProvider {
+    struct Validation: Sendable {
+        let identity: AWSIdentity
+        let generation: UUID
+    }
+
     private var awsClient: AWSClient?
     private var ec2: EC2?
     private var lambda: Lambda?
@@ -28,15 +33,18 @@ actor AWSServiceProvider {
     private let verifier: IdentityBoundCredentialProvider.Verifier
     private let credentialFactory: (@Sendable (AWSProfile, AWSConfigurationPaths) -> CredentialProviderFactory)?
     private let cliCredentialRunner: AWSCLICredentialProvider.Runner?
+    private let businessClientFactory: @Sendable (CredentialProviderFactory) -> AWSClient
     nonisolated let identityInvalidations: AsyncStream<UUID>
     private let identityEvents: AsyncStream<UUID>.Continuation
 
     init(credentialFactory: (@Sendable (AWSProfile, AWSConfigurationPaths) -> CredentialProviderFactory)? = nil,
          cliCredentialRunner: AWSCLICredentialProvider.Runner? = nil,
+         businessClientFactory: @escaping @Sendable (CredentialProviderFactory) -> AWSClient = { AWSClient(credentialProvider: $0) },
          identityVerifier: @escaping IdentityBoundCredentialProvider.Verifier = { try await IdentityBoundCredentialProvider.verify($0, region: $1) }) {
         self.credentialFactory = credentialFactory
         self.cliCredentialRunner = cliCredentialRunner
         self.verifier = identityVerifier
+        self.businessClientFactory = businessClientFactory
         let stream = AsyncStream<UUID>.makeStream(bufferingPolicy: .bufferingNewest(8))
         identityInvalidations = stream.stream
         identityEvents = stream.continuation
@@ -123,7 +131,7 @@ actor AWSServiceProvider {
             region: region, expectedAccount: profile.roleARN == nil ? profile.ssoAccountID : profile.roleAccountID,
             verifier: profileVerifier,
             onInvalidation: { events.yield(nextGeneration) })
-        let nextClient = AWSClient(credentialProvider: .custom { _ in nextBinding })
+        let nextClient = businessClientFactory(.custom { _ in nextBinding })
 
         // Replace the actor state before the first suspension point. A second
         // configure call can then only replace and close this new client; an
@@ -193,13 +201,17 @@ actor AWSServiceProvider {
     }
 
     func validateIdentity() async throws -> AWSIdentity {
+        try await validateBinding().identity
+    }
+
+    func validateBinding() async throws -> Validation {
         guard let awsClient, let binding else { throw AWSServiceError.notConfigured }
         let token = generation
         _ = try await awsClient.credentialProvider.getCredential(logger: AWSClient.loggingDisabled)
         let identity = try await binding.identity()
         guard token == generation else { throw AWSServiceError.identityChanged }
         validatedIdentity = identity
-        return identity
+        return Validation(identity: identity, generation: token)
     }
 
     func transferS3Client(scope: MonitoringScope, region: String) async throws -> S3 {
@@ -210,12 +222,12 @@ actor AWSServiceProvider {
         return S3(client: awsClient, region: .init(rawValue: region)).with(timeout: .minutes(30))
     }
 
-    func costExplorerClient(profile: AWSProfile, paths: AWSConfigurationPaths, partition: AWSPartition) async throws -> CostExplorer {
-        guard currentProfile == profile, currentPaths == paths, let awsClient else {
+    func costExplorerClient(scope: CostScope, partition: AWSPartition) async throws -> CostExplorer {
+        guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
+                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath) else {
             throw CostError.invalidIdentity
         }
-        try await requireIdentity()
-        return CostExplorer(client: awsClient, partition: partition)
+        return CostExplorer(client: client, partition: partition)
     }
 
     func healthClient(scope: HealthScope) async throws -> Health {
@@ -273,12 +285,13 @@ actor AWSServiceProvider {
         return Route53(client: awsClient, partition: partition)
     }
 
-    func cloudWatchClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) async throws -> CloudWatch {
-        guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
+    func cloudWatchClient(scope: AlarmScope) async throws -> CloudWatch {
+        guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
+                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath,
+                                                  region: scope.region) else {
             throw AlarmError.invalidScope
         }
-        try await requireIdentity()
-        return CloudWatch(client: awsClient, region: .init(rawValue: region))
+        return CloudWatch(client: client, region: .init(rawValue: scope.region))
     }
 
     func cloudWatchClient(scope: MonitoringScope) async throws -> CloudWatch {
@@ -287,20 +300,13 @@ actor AWSServiceProvider {
         return CloudWatch(client: awsClient, region: .init(rawValue: scope.region))
     }
 
-    func snsClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) async throws -> SNS {
-        guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
+    func snsClient(scope: SNSScope) async throws -> SNS {
+        guard let client = try await scopedClient(profile: scope.profile, account: scope.accountID, arn: scope.principalARN,
+                                                  configPath: scope.configPath, credentialsPath: scope.credentialsPath,
+                                                  region: scope.region) else {
             throw SNSError.invalidScope
         }
-        try await requireIdentity()
-        return SNS(client: awsClient, region: .init(rawValue: region))
-    }
-
-    func cloudWatchLogsClient(profile: AWSProfile, paths: AWSConfigurationPaths, region: String) async throws -> CloudWatchLogs {
-        guard currentProfile == profile, currentPaths == paths, currentRegion == region, let awsClient else {
-            throw AWSServiceError.notConfigured
-        }
-        try await requireIdentity()
-        return CloudWatchLogs(client: awsClient, region: .init(rawValue: region))
+        return SNS(client: client, region: .init(rawValue: scope.region))
     }
 
     func cloudWatchLogsClient(scope: MonitoringScope) async throws -> CloudWatchLogs {
@@ -330,6 +336,19 @@ actor AWSServiceProvider {
     }
 
     func isCurrentIdentityFailure(_ token: UUID) -> Bool { token == generation }
+
+    private func scopedClient(profile: AWSProfile, account: String, arn: String,
+                              configPath: String, credentialsPath: String, region: String? = nil) async throws -> AWSClient? {
+        let paths = AWSConfigurationPaths(environment: [
+            "AWS_CONFIG_FILE": configPath, "AWS_SHARED_CREDENTIALS_FILE": credentialsPath
+        ])
+        guard currentProfile == profile, currentPaths == paths, matchesIdentity(account: account, arn: arn),
+              region == nil || currentRegion == region, let awsClient else { return nil }
+        try await requireIdentity()
+        // A resource Region change reuses the binding and does not advance its generation.
+        guard region == nil || currentRegion == region else { return nil }
+        return awsClient
+    }
 
     private func matchesIdentity(account: String, arn: String) -> Bool {
         guard let identity = validatedIdentity else { return false }

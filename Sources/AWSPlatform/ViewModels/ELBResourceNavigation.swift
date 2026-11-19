@@ -34,10 +34,18 @@ final class ELBResourceNavigation: ObservableObject {
             reloadList = false
             elb.selectedTargetGroup = nil
         case .ec2:
+            guard ec2.scope == reference.scope else {
+                error = ResourceRelationError.invalidScope.localizedDescription
+                return false
+            }
             reloadList = ec2.isLoading
             ec2.cancelLoading()
             ec2.selectedInstance = nil
         case .lambda:
+            guard lambda.scope == reference.scope else {
+                error = ResourceRelationError.invalidScope.localizedDescription
+                return false
+            }
             reloadList = lambda.isLoading
             lambda.cancelLoading()
             lambda.selectedFunction = nil
@@ -71,11 +79,13 @@ final class ELBResourceNavigation: ObservableObject {
                     await elb.loadTargetGroups()
                 }
             case .ec2:
-                if reloadList || ec2.error != nil || !ec2.instances.contains(where: { $0.instanceId == reference.resourceID }) {
+                guard ec2.scope == reference.scope else { failScopeChange(); return }
+                if reloadList || ec2.isStale || ec2.error != nil || !ec2.instances.contains(where: { $0.instanceId == reference.resourceID }) {
                     await ec2.loadInstances(selectFirstIfNeeded: false)
                 }
             case .lambda:
-                if reloadList || lambda.error != nil || !lambda.functions.contains(where: { Self.matches($0, reference) }) {
+                guard lambda.scope == reference.scope else { failScopeChange(); return }
+                if reloadList || lambda.isStale || lambda.error != nil || !lambda.functions.contains(where: { Self.matches($0, reference) }) {
                     await lambda.loadFunctions(selectFirstIfNeeded: false)
                 }
             default: return
@@ -113,7 +123,8 @@ final class ELBResourceNavigation: ObservableObject {
                 elb.targetTypeFilter = "All"
                 elb.selectedTargetGroup = row
             case .ec2:
-                guard ec2.error == nil, !ec2.isLoading else {
+                guard ec2.scope == reference.scope else { failScopeChange(); return }
+                guard ec2.error == nil, !ec2.isLoading, !ec2.isStale else {
                     fail("Unable to load the related instance. Check EC2 access and retry.")
                     return
                 }
@@ -125,7 +136,8 @@ final class ELBResourceNavigation: ObservableObject {
                 ec2.stateFilter = "All"
                 ec2.selectedInstance = row
             case .lambda:
-                guard lambda.error == nil, !lambda.isLoading else {
+                guard lambda.scope == reference.scope else { failScopeChange(); return }
+                guard lambda.error == nil, !lambda.isLoading, !lambda.isStale else {
                     fail("Unable to load the related function. Check Lambda access and retry.")
                     return
                 }

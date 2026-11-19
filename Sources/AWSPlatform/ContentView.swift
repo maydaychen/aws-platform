@@ -279,14 +279,7 @@ struct ContentView: View {
             if s3BrowsingBucket != nil { s3VM.leaveObjectBrowser() }
             s3BrowsingBucket = nil
             selectedServiceID = selectedService.rawValue
-            loadVisibleCoreServices()
-            loadVisibleAlarms()
-            loadVisibleSNS()
-            loadVisibleMetadataServices()
-            loadVisibleRoute53()
-            loadVisibleELB()
-            loadVisibleSecurityGroups()
-            loadVisibleEBS()
+            loadVisibleResourceServices()
         }
         .onChange(of: destination) { selection in
             if selection != .resources { s3TransferVM.leaveBrowser() }
@@ -300,14 +293,7 @@ struct ContentView: View {
             if selection != .resources { favoriteNavigation.cancel() }
             if selection == .costs { configureCosts() }
             if selection == .health { configureHealth() }
-            loadVisibleCoreServices()
-            loadVisibleAlarms()
-            loadVisibleSNS()
-            loadVisibleMetadataServices()
-            loadVisibleRoute53()
-            loadVisibleELB()
-            loadVisibleSecurityGroups()
-            loadVisibleEBS()
+            loadVisibleResourceServices()
         }
         .onDisappear {
             s3TransferVM.reset()
@@ -380,6 +366,17 @@ struct ContentView: View {
               case .valid(let identity) = profileVM.profileStatus else { return }
         alarmsVM.configure(scope: AlarmScope(profile: profile, identity: identity, region: profileVM.selectedRegion))
         loadVisibleAlarms()
+    }
+
+    private func loadVisibleResourceServices() {
+        loadVisibleCoreServices()
+        loadVisibleAlarms()
+        loadVisibleSNS()
+        loadVisibleMetadataServices()
+        loadVisibleRoute53()
+        loadVisibleELB()
+        loadVisibleSecurityGroups()
+        loadVisibleEBS()
     }
 
     private func loadVisibleCoreServices() {
@@ -905,57 +902,25 @@ struct ContentView: View {
                 }
                 return
             }
+            guard let scope = currentMonitoringScope else { return }
             configureCosts()
             configureHealth()
             configureRoute53()
-            let target = favoriteNavigation.target
-            if target != nil {
-                guard case .valid(let identity) = profileVM.profileStatus,
-                      favoriteNavigation.verifyAccount(identity.account) else { return }
-                if favoriteNavigation.relationshipReference != nil,
-                   !favoriteNavigation.validateRelationshipScope(currentMonitoringScope) { return }
-            }
-            guard let scope = currentMonitoringScope else { return }
             ec2VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
             lambdaVM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
             s3VM.configure(provider: profileVM.provider, scope: scope, refreshImmediately: false)
-            s3TransferVM.configure(scope: currentMonitoringScope)
+            s3TransferVM.configure(scope: scope)
             configureAlarms()
             configureSNS()
             configureMetadataServices()
             configureELB()
             configureSecurityGroups()
             configureEBS()
-            loadVisibleCoreServices()
-            guard let target else { return }
-            switch target.service {
-            case .logs: break
-            case .codeCommit: codeCommitVM.refresh(); await codeCommitVM.waitForLoading()
-            case .rds: rdsVM.refresh(); await rdsVM.waitForLoading()
-            case .autoScaling: autoScalingVM.refresh(); await autoScalingVM.waitForLoading()
-            case .ec2: await ec2VM.loadInstances(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
-            case .lambda: await lambdaVM.loadFunctions(selectFirstIfNeeded: favoriteNavigation.relationshipReference == nil)
-            case .s3: await s3VM.loadBuckets()
-            case .alarms: await alarmsVM.loadAlarms()
-            case .sns: await snsVM.loadTopics()
-            case .route53: await route53VM.loadZones()
-            case .loadBalancers: await elbVM.loadLoadBalancers()
-            case .targetGroups: await elbVM.loadTargetGroups()
-            case .securityGroups: await securityGroupsVM.loadGroups()
-            case .ebsVolumes: await volumesVM.loadResources()
-            case .ebsSnapshots: await snapshotsVM.loadResources()
+            guard let target = favoriteNavigation.validatedTarget(in: scope) else {
+                loadVisibleResourceServices()
+                return
             }
-            guard !Task.isCancelled, favoriteNavigation.target?.id == target.id else { return }
-            if favoriteNavigation.relationshipReference != nil {
-                await favoriteNavigation.resolveRelationship(ec2: ec2VM, lambda: lambdaVM, s3: s3VM,
-                    alarms: alarmsVM, sns: snsVM, route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
-                    latestScope: { currentMonitoringScope })
-            } else {
-                favoriteNavigation.resolve(ec2: ec2VM, lambda: lambdaVM, s3: s3VM, alarms: alarmsVM, sns: snsVM,
-                                           route53: route53VM, elb: elbVM, securityGroups: securityGroupsVM,
-                                           volumes: volumesVM, snapshots: snapshotsVM, codeCommit: codeCommitVM,
-                                           rds: rdsVM, autoScaling: autoScalingVM, currentScope: currentMonitoringScope)
-            }
+            await resolveResourceNavigation(target)
         }
     }
 }

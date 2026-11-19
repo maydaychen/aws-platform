@@ -145,10 +145,7 @@ struct AWSAlarmService: Sendable {
         try Task.checkCancellation()
         if let injected { return injected }
         guard let provider else { throw AlarmError.invalidScope }
-        let paths = AWSConfigurationPaths(environment: [
-            "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
-        ])
-        let client = try await provider.cloudWatchClient(profile: scope.profile, paths: paths, region: scope.region)
+        let client = try await provider.cloudWatchClient(scope: scope)
         return Operations(
             alarms: { try await client.describeAlarms($0) },
             tags: { try await client.listTagsForResource($0) },

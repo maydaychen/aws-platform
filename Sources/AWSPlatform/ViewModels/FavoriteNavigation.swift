@@ -98,6 +98,14 @@ final class FavoriteNavigation: ObservableObject {
         return true
     }
 
+    func validatedTarget(in scope: MonitoringScope) -> ResourceFavorite? {
+        guard let target, verifyAccount(scope.accountID) else { return nil }
+        if relationshipReference != nil { return validateRelationshipScope(scope) ? target : nil }
+        if matchesSavedScope(scope, resource: target) { return target }
+        fail("The saved resource list is not ready. Refresh the selected profile and try again.")
+        return nil
+    }
+
     func finish(found: Bool, loadError: String?) {
         guard let target else { return }
         if let loadError {
@@ -340,9 +348,13 @@ final class FavoriteNavigation: ObservableObject {
 
         switch reference.service {
         case .ec2:
+            guard ec2.scope == reference.scope else {
+                fail(ResourceRelationError.invalidScope.localizedDescription)
+                return
+            }
             ec2.selectedInstance = nil
-            guard ec2.error == nil, !ec2.isLoading else {
-                finish(found: false, loadError: ec2.error ?? "The instance list is still loading.")
+            guard ec2.error == nil, !ec2.isLoading, !ec2.isStale else {
+                finish(found: false, loadError: ec2.error ?? "The saved resource list is not ready. Refresh the selected profile and try again.")
                 return
             }
             ec2.searchText = ""
@@ -350,9 +362,13 @@ final class FavoriteNavigation: ObservableObject {
             ec2.selectedInstance = ec2.instances.first { $0.instanceId == reference.resourceID }
             finish(found: ec2.selectedInstance != nil, loadError: nil)
         case .lambda:
+            guard lambda.scope == reference.scope else {
+                fail(ResourceRelationError.invalidScope.localizedDescription)
+                return
+            }
             lambda.selectedFunction = nil
-            guard lambda.error == nil, !lambda.isLoading else {
-                finish(found: false, loadError: lambda.error ?? "The function list is still loading.")
+            guard lambda.error == nil, !lambda.isLoading, !lambda.isStale else {
+                finish(found: false, loadError: lambda.error ?? "The saved resource list is not ready. Refresh the selected profile and try again.")
                 return
             }
             let baseARN = reference.resourceID.split(separator: ":").prefix(7).joined(separator: ":")

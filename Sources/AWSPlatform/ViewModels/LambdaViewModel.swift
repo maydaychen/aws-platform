@@ -57,13 +57,15 @@ final class LambdaViewModel: ObservableObject {
         detailLoader: DetailLoader? = nil,
         summaryLoader: SummaryLoader? = nil,
         codeLoader: CodeLoader? = nil,
-        sectionLoader: SectionLoader? = nil
+        sectionLoader: SectionLoader? = nil,
+        scope: MonitoringScope? = nil
     ) {
         self.functionLoader = functionLoader
         self.detailLoader = detailLoader
         self.summaryLoader = summaryLoader
         self.codeLoader = codeLoader
         self.sectionLoader = sectionLoader
+        self.scope = scope
     }
 
     var availableStates: [String] {
@@ -95,6 +97,7 @@ final class LambdaViewModel: ObservableObject {
 
     func configure(provider: AWSServiceProvider, scope: MonitoringScope, refreshImmediately: Bool = true) {
         reset()
+        guard scope.isValid else { return }
         self.provider = provider
         self.scope = scope
         functionLoader = {
@@ -153,6 +156,12 @@ final class LambdaViewModel: ObservableObject {
     func reset() {
         cancelLoading()
         hasAttemptedLoad = false
+        if provider != nil {
+            functionLoader = nil
+            summaryLoader = nil
+            detailLoader = nil
+            sectionLoader = nil
+        }
         provider = nil
         scope = nil
         functions = []

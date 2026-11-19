@@ -92,6 +92,42 @@ final class ELBResourceNavigationTests: XCTestCase {
         }
     }
 
+    func testRegionalDestinationsRequireConfiguredViewModels() throws {
+        let models = models()
+        let current = scope()
+        for service in [AWSService.ec2, .lambda] {
+            let nav = ELBResourceNavigation()
+            XCTAssertFalse(nav.open(try reference(service), currentScope: current, latestScope: { current },
+                                    elb: models.elb, ec2: EC2ViewModel(), lambda: LambdaViewModel()))
+            XCTAssertNil(nav.target)
+            XCTAssertNotNil(nav.error)
+        }
+        XCTAssertTrue(models.calls.lists.isEmpty)
+    }
+
+    func testStaleRegionalDestinationsMustReloadBeforeSelection() async throws {
+        let models = models()
+        await models.ec2.loadInstances(selectFirstIfNeeded: false)
+        await models.lambda.loadFunctions(selectFirstIfNeeded: false)
+        models.calls.fail = true
+        await models.ec2.loadInstances(selectFirstIfNeeded: false)
+        await models.lambda.loadFunctions(selectFirstIfNeeded: false)
+        XCTAssertTrue(models.ec2.isStale)
+        XCTAssertTrue(models.lambda.isStale)
+        models.ec2.error = nil
+        models.lambda.error = nil
+
+        for service in [AWSService.ec2, .lambda] {
+            let nav = ELBResourceNavigation()
+            XCTAssertTrue(open(nav, try reference(service), models: models))
+            await nav.waitForNavigation()
+            XCTAssertEqual(models.calls.lists[service], 3)
+            XCTAssertNotNil(nav.error)
+        }
+        XCTAssertNil(models.ec2.selectedInstance)
+        XCTAssertNil(models.lambda.selectedFunction)
+    }
+
     func testValidCachedResourcesDoNotReloadLists() async throws {
         let models = models()
         await models.elb.loadLoadBalancers()
@@ -179,7 +215,7 @@ final class ELBResourceNavigationTests: XCTestCase {
                     "arn:aws:lambda:us-east-1:111111111111:function:handler:production"] {
             let models = models()
             let wrong = function(arn: arn)
-            let lambda = LambdaViewModel(functionLoader: { [wrong] })
+            let lambda = LambdaViewModel(functionLoader: { [wrong] }, scope: scope())
             lambda.functions = [wrong]
             let nav = ELBResourceNavigation()
             let current = scope()
@@ -377,7 +413,7 @@ final class ELBResourceNavigationTests: XCTestCase {
             calls += 1
             if calls == 1 { await gate.wait() }
             return [row]
-        })
+        }, scope: scope())
         let background = Task { await ec2.loadInstances() }
         await gate.waitForEntry()
         let models = models()
@@ -401,7 +437,7 @@ final class ELBResourceNavigationTests: XCTestCase {
             calls += 1
             if calls == 1 { await gate.wait() }
             return [row]
-        })
+        }, scope: scope())
         let background = Task { await lambda.loadFunctions() }
         await gate.waitForEntry()
         let models = models()
@@ -426,7 +462,7 @@ final class ELBResourceNavigationTests: XCTestCase {
             calls += 1
             if calls == 1 { await navigationGate.wait() } else { await refreshGate.wait() }
             return [row]
-        })
+        }, scope: scope())
         let models = models()
         let nav = ELBResourceNavigation()
         let current = scope()
@@ -507,8 +543,8 @@ final class ELBResourceNavigationTests: XCTestCase {
             healthLoader: { _, _ in await calls.recordDetail(); return [] }
         )
         elb.configure(scope: scope())
-        let ec2 = EC2ViewModel(instanceLoader: { try await beforeLoad(.ec2); return [ec2Row] })
-        let lambda = LambdaViewModel(functionLoader: { try await beforeLoad(.lambda); return [lambdaRow] })
+        let ec2 = EC2ViewModel(instanceLoader: { try await beforeLoad(.ec2); return [ec2Row] }, scope: scope())
+        let lambda = LambdaViewModel(functionLoader: { try await beforeLoad(.lambda); return [lambdaRow] }, scope: scope())
         return Models(elb: elb, ec2: ec2, lambda: lambda, calls: calls)
     }
 

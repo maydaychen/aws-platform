@@ -4,6 +4,7 @@ import SotoCore
 @MainActor
 final class ProfileViewModel: ObservableObject {
     typealias ProfileValidator = (AWSProfile, String) async throws -> AWSIdentity
+    typealias BindingValidator = @MainActor (AWSServiceProvider) async throws -> AWSServiceProvider.Validation
     typealias SSOLogin = @MainActor (String, AWSConfigurationPaths) async throws -> Void
 
     @Published var profiles: [AWSProfile] = []
@@ -23,8 +24,11 @@ final class ProfileViewModel: ObservableObject {
     private var hasLoadedConfiguration = false
     private var validatedProfileID: String?
     private var validatedRegion: String?
+    private var validatedBindingGeneration: UUID?
+    private var invalidatedBindingGeneration: UUID?
     private let defaults: UserDefaults
     private let profileValidator: ProfileValidator?
+    private let bindingValidator: BindingValidator
     private let ssoLogin: SSOLogin
     private var configurationGeneration = 0
     private var identityTask: Task<Void, Never>?
@@ -71,6 +75,7 @@ final class ProfileViewModel: ObservableObject {
         defaults: UserDefaults = .standard,
         provider: AWSServiceProvider = AWSServiceProvider(),
         profileValidator: ProfileValidator? = nil,
+        bindingValidator: @escaping BindingValidator = { try await $0.validateBinding() },
         ssoLogin: @escaping SSOLogin = { session, paths in
             try await AWSSSOLoginService().login(session: session, paths: paths)
         }
@@ -78,6 +83,7 @@ final class ProfileViewModel: ObservableObject {
         self.defaults = defaults
         self.provider = provider
         self.profileValidator = profileValidator
+        self.bindingValidator = bindingValidator
         self.ssoLogin = ssoLogin
         defaults.removeObject(forKey: "profileAccountNames.v1")
         identityTask = Task { [weak self, weak provider] in
@@ -91,13 +97,18 @@ final class ProfileViewModel: ObservableObject {
 
     deinit { identityTask?.cancel() }
 
-    private func handleIdentityFailure(_ token: UUID) async {
-        let expected = configurationGeneration
-        guard await provider.isCurrentIdentityFailure(token), expected == configurationGeneration,
-              isProfileReady else { return }
-        configurationGeneration += 1
+    func handleIdentityFailure(_ token: UUID) async {
+        guard await provider.isCurrentIdentityFailure(token) else { return }
+        // A reused binding can fail while its validation result is in flight.
+        invalidatedBindingGeneration = token
+        guard validatedBindingGeneration == token, case .valid = profileStatus else { return }
+        reportIdentityFailure()
+    }
+
+    private func reportIdentityFailure() {
         validatedProfileID = nil
         validatedRegion = nil
+        validatedBindingGeneration = nil
         profileStatus = .failed(AWSServiceError.identityChanged.localizedDescription)
         identityFailureID = UUID()
     }
@@ -217,6 +228,7 @@ final class ProfileViewModel: ObservableObject {
         selectedProfileID = nil
         validatedProfileID = nil
         validatedRegion = nil
+        validatedBindingGeneration = nil
         loginMessage = nil
         requiresSSOLogin = false
         isValidatingProfile = false
@@ -286,17 +298,25 @@ final class ProfileViewModel: ObservableObject {
         do {
             try Task.checkCancellation()
             let identity: AWSIdentity
+            let bindingGeneration: UUID?
             if let profileValidator {
                 identity = try await profileValidator(profile, region)
+                bindingGeneration = nil
             } else {
                 await provider.configure(profile: profile, region: region, forceRefresh: forceRefresh)
                 try Task.checkCancellation()
-                identity = try await provider.validateIdentity()
+                let validation = try await bindingValidator(provider)
+                identity = validation.identity
+                bindingGeneration = validation.generation
             }
             try Task.checkCancellation()
             guard generation == configurationGeneration else { return false }
+            if let bindingGeneration, bindingGeneration == invalidatedBindingGeneration {
+                throw AWSServiceError.identityChanged
+            }
             validatedProfileID = profile.id
             validatedRegion = region
+            validatedBindingGeneration = bindingGeneration
             profileStatus = .valid(identity)
             return true
         } catch is CancellationError {
@@ -306,6 +326,10 @@ final class ProfileViewModel: ObservableObject {
             return false
         } catch {
             guard generation == configurationGeneration else { return false }
+            if error as? AWSServiceError == .identityChanged {
+                reportIdentityFailure()
+                return false
+            }
             requiresSSOLogin = profile.isSSO && UserFacingError.requiresSSOLogin(error)
             if requiresSSOLogin { signedInSessionID = nil }
             profileStatus = .failed(UserFacingError.loginMessage(for: error, profileName: profile.name))

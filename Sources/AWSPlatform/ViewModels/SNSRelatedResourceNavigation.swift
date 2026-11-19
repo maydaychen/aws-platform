@@ -29,6 +29,11 @@ final class SNSRelatedResourceNavigation: ObservableObject {
             error = "SNS is not configured for this action's profile and region."
             return false
         }
+        let monitoringScope = resource.scope.monitoringScope
+        if resource.service == .lambda, lambda.scope != monitoringScope {
+            error = ResourceRelationError.invalidScope.localizedDescription
+            return false
+        }
         target = resource
         let request = generation
         switch resource.service {
@@ -50,7 +55,12 @@ final class SNSRelatedResourceNavigation: ObservableObject {
                     await alarms.loadAlarms()
                 }
             case .lambda:
-                if lambda.error != nil || !lambda.functions.contains(where: { Self.matches($0, resource) }) {
+                guard lambda.scope == monitoringScope else {
+                    fail(ResourceRelationError.invalidScope.localizedDescription)
+                    return
+                }
+                if lambda.isLoading { await lambda.waitForCurrentLoad() }
+                else if lambda.isStale || lambda.error != nil || !lambda.functions.contains(where: { Self.matches($0, resource) }) {
                     cancelLoad = { lambda.cancelLoading() }
                     await lambda.loadFunctions(selectFirstIfNeeded: false)
                 }
@@ -86,7 +96,11 @@ final class SNSRelatedResourceNavigation: ObservableObject {
                 alarms.kindFilter = nil
                 alarms.selectedAlarm = alarm
             case .lambda:
-                guard lambda.error == nil else {
+                guard lambda.scope == monitoringScope else {
+                    fail(ResourceRelationError.invalidScope.localizedDescription)
+                    return
+                }
+                guard lambda.error == nil, !lambda.isLoading, !lambda.isStale else {
                     fail("Unable to load the related function. Check Lambda access and retry.")
                     return
                 }

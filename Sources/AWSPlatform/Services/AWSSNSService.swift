@@ -152,10 +152,7 @@ struct AWSSNSService: Sendable {
         try Task.checkCancellation()
         if let injected { return injected }
         guard let provider else { throw SNSError.invalidScope }
-        let paths = AWSConfigurationPaths(environment: [
-            "AWS_CONFIG_FILE": scope.configPath, "AWS_SHARED_CREDENTIALS_FILE": scope.credentialsPath
-        ])
-        let client = try await provider.snsClient(profile: scope.profile, paths: paths, region: scope.region)
+        let client = try await provider.snsClient(scope: scope)
         return Operations(
             topics: { try await client.listTopics($0) }, attributes: { try await client.getTopicAttributes($0) },
             tags: { try await client.listTagsForResource($0) }, subscriptions: { try await client.listSubscriptionsByTopic($0) }

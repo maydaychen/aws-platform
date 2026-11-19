@@ -92,7 +92,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
         let nav = SNSRelatedResourceNavigation()
         let resource = try target(.lambda)
         var calls = 0
-        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [] })
+        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [] }, scope: scope().monitoringScope)
         for current in [nil, scope(region: "eu-west-1"), scope(profileName: "other")] {
             XCTAssertFalse(nav.open(resource, currentScope: current, latestScope: { current },
                                     alarms: alarms(), lambda: lambda))
@@ -104,7 +104,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
 
     func testCachedLambdaOpensWithoutListReadAndClearsFilters() async throws {
         var calls = 0
-        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [] })
+        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [] }, scope: scope().monitoringScope)
         let row = function()
         lambda.functions = [row]
         lambda.searchText = "hidden"
@@ -124,10 +124,47 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
         XCTAssertEqual(resource.qualifier, "live")
     }
 
+    func testLambdaRejectsMismatchedViewModelScopeWithoutCallingTheLoader() throws {
+        let scope = scope()
+        let lambda = LambdaViewModel(functionLoader: {
+            XCTFail("A foreign view model must not be loaded")
+            return []
+        }, scope: self.scope(profileName: "other").monitoringScope)
+        lambda.functions = [function()]
+        let nav = SNSRelatedResourceNavigation()
+        XCTAssertFalse(nav.open(try target(.lambda), currentScope: scope, latestScope: { scope },
+                                alarms: alarms(), lambda: lambda))
+        XCTAssertNil(lambda.selectedFunction)
+        XCTAssertNil(nav.target)
+        XCTAssertNotNil(nav.error)
+    }
+
+    func testStaleLambdaCacheIsReloadedBeforeSelection() async throws {
+        let scope = scope()
+        let row = function()
+        var calls = 0
+        let lambda = LambdaViewModel(functionLoader: {
+            calls += 1
+            if calls > 1 { throw ResourceRelationError.invalidScope }
+            return [row]
+        }, scope: scope.monitoringScope)
+        await lambda.loadFunctions(selectFirstIfNeeded: false)
+        await lambda.loadFunctions(selectFirstIfNeeded: false)
+        XCTAssertTrue(lambda.isStale)
+        lambda.error = nil
+        let nav = SNSRelatedResourceNavigation()
+        XCTAssertTrue(nav.open(try target(.lambda), currentScope: scope, latestScope: { scope },
+                               alarms: alarms(), lambda: lambda))
+        await nav.waitForNavigation()
+        XCTAssertEqual(calls, 3)
+        XCTAssertNil(lambda.selectedFunction)
+        XCTAssertNotNil(nav.error)
+    }
+
     func testOnlyRequestedServiceLoadsWhenNotCached() async throws {
         var calls = 0
         let row = function()
-        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [row] })
+        let lambda = LambdaViewModel(functionLoader: { calls += 1; return [row] }, scope: scope().monitoringScope)
         let alarmVM = AlarmViewModel(listLoader: { _ in XCTFail("Must not load alarms"); return [] },
                                      tagLoader: { _, _ in [:] }, historyLoader: { _, _ in [] })
         let nav = SNSRelatedResourceNavigation()
@@ -142,7 +179,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
 
     func testSameNameWrongAccountARNDoesNotOpen() async throws {
         let wrong = function(arn: "arn:aws:lambda:us-east-1:222222222222:function:handler")
-        let lambda = LambdaViewModel(functionLoader: { [wrong] })
+        let lambda = LambdaViewModel(functionLoader: { [wrong] }, scope: scope().monitoringScope)
         lambda.functions = [wrong]
         let nav = SNSRelatedResourceNavigation()
         let scope = scope()
@@ -161,7 +198,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
         let lambda = LambdaViewModel(functionLoader: { rows }, detailLoader: { _ in
             XCTFail("A missing relationship target must not request another function's details")
             throw CancellationError()
-        })
+        }, scope: scope().monitoringScope)
         let nav = SNSRelatedResourceNavigation()
         let scope = scope()
         _ = nav.open(try target(.lambda), currentScope: scope, latestScope: { scope },
@@ -232,7 +269,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
     func testChangedIdentityWhileLoadingNeverSelectsResource() async throws {
         let gate = TestGate()
         let row = function()
-        let lambda = LambdaViewModel(functionLoader: { await gate.wait(); return [row] })
+        let lambda = LambdaViewModel(functionLoader: { await gate.wait(); return [row] }, scope: scope().monitoringScope)
         let nav = SNSRelatedResourceNavigation()
         var current: SNSScope? = scope()
         _ = nav.open(try target(.lambda), currentScope: current, latestScope: { current },
@@ -248,7 +285,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
     func testCancelledLateResponseDoesNotSelectOrReportError() async throws {
         let gate = TestGate()
         let row = function()
-        let lambda = LambdaViewModel(functionLoader: { await gate.wait(); return [row] })
+        let lambda = LambdaViewModel(functionLoader: { await gate.wait(); return [row] }, scope: scope().monitoringScope)
         let nav = SNSRelatedResourceNavigation()
         let scope = scope()
         _ = nav.open(try target(.lambda), currentScope: scope, latestScope: { scope },
@@ -267,7 +304,7 @@ final class SNSRelatedResourceNavigationTests: XCTestCase {
     func testFailureDoesNotLeakRawErrorOrLeaveOldSelection() async throws {
         let lambda = LambdaViewModel(functionLoader: {
             throw NSError(domain: "sensitive-endpoint-value", code: 403)
-        })
+        }, scope: scope().monitoringScope)
         lambda.selectedFunction = function(arn: "arn:aws:lambda:us-east-1:111111111111:function:other")
         let nav = SNSRelatedResourceNavigation()
         let scope = scope()

@@ -1,7 +1,93 @@
+import SotoCore
 import XCTest
 @testable import AWSPlatform
 
 final class AWSServiceProviderTests: XCTestCase {
+    private let testIdentity = AWSIdentity(account: "111122223333", arn: "arn:aws:iam::111122223333:user/test", userID: "test")
+
+    func testRevalidatingSameProfileForAnotherAccountOrRoleRejectsAllFourServiceRequests() async throws {
+        let profile = makeProfile(name: "reused")
+        let initial = Self.roleIdentity(role: "ReadOnly", session: "first")
+        for replacement in [Self.roleIdentity(account: "222233334444", role: "ReadOnly", session: "second"),
+                            Self.roleIdentity(role: "OtherRole", session: "second")] {
+            let identity = ScopeIdentityProbe(initial)
+            let transport = OfflineAWSHTTPClient()
+            let provider = AWSServiceProvider(credentialFactory: { _, _ in
+                .static(accessKeyId: "offline-access", secretAccessKey: "offline-secret")
+            }, businessClientFactory: {
+                AWSClient(credentialProvider: $0, retryPolicy: .noRetry, httpClient: transport)
+            }, identityVerifier: { _, _ in await identity.current })
+            let stale = MonitoringScope(profile: profile, identity: initial, region: profile.region)
+            try await provider.configureVerified(profile: profile, region: stale.region)
+            await identity.replace(with: replacement)
+            try await provider.configureVerified(profile: profile, region: stale.region, forceRefresh: true)
+
+            let cost = AWSCostService(provider: provider)
+            let end = Date(timeIntervalSince1970: 1_800_000_000)
+            let range = CostDateRange(start: end.addingTimeInterval(-86_400), end: end)
+            do {
+                _ = try await cost.load(scope: .init(profile: profile, identity: initial, paths: stale.paths),
+                                        query: .init(range: range, region: nil, referenceDate: end))
+                XCTFail("The stale Cost scope must be rejected")
+            } catch { XCTAssertEqual((error as? CostError)?.localizedDescription, CostError.invalidIdentity.localizedDescription) }
+            await assertRegionalRequestsRejected(provider, scope: stale, identity: initial)
+            let sent = await transport.requestCount
+            XCTAssertEqual(sent, 0)
+            await provider.shutdown()
+        }
+    }
+
+    func testValidSessionNameChangeWorksAndOldRegionRequestsDoNotReachTransport() async throws {
+        let profile = makeProfile(name: "rotating")
+        let initial = Self.roleIdentity(role: "ReadOnly", session: "first")
+        let renewed = Self.roleIdentity(role: "ReadOnly", session: "second")
+        let transport = OfflineAWSHTTPClient()
+        let provider = AWSServiceProvider.testProvider(identity: renewed, transport: transport)
+        let scope = MonitoringScope(profile: profile, identity: initial, region: profile.region)
+        try await provider.configureVerified(profile: profile, region: scope.region)
+        let costScope = CostScope(profile: profile, identity: initial, paths: scope.paths)
+        let firstCost = try await provider.costExplorerClient(scope: costScope, partition: .aws)
+        _ = try await provider.cloudWatchClient(scope: AlarmScope(profile: profile, identity: initial, region: scope.region))
+        _ = try await provider.snsClient(scope: .init(profile: profile, identity: initial, region: scope.region))
+        let page = try await AWSLogsService(provider: provider).load(query: logQuery(scope), cursor: nil)
+        XCTAssertTrue(page.events.isEmpty)
+
+        try await provider.configureVerified(profile: profile, region: "us-west-2")
+        await assertRegionalRequestsRejected(provider, scope: scope, identity: initial)
+        let nextCost = try await provider.costExplorerClient(scope: costScope, partition: .aws)
+        XCTAssertTrue(nextCost.client === firstCost.client)
+        let sent = await transport.requestCount
+        XCTAssertEqual(sent, 1, "Only the valid Lambda Logs request should have reached HTTP transport")
+        await provider.shutdown()
+    }
+
+    private func assertRegionalRequestsRejected(_ provider: AWSServiceProvider, scope: MonitoringScope, identity: AWSIdentity) async {
+        do {
+            _ = try await AWSAlarmService(provider: provider).loadAlarms(scope: .init(
+                profile: scope.profile, identity: identity, region: scope.region, paths: scope.paths))
+            XCTFail("The stale Alarm scope must be rejected")
+        } catch { XCTAssertEqual((error as? AlarmError)?.localizedDescription, AlarmError.invalidScope.localizedDescription) }
+        do {
+            _ = try await AWSSNSService(provider: provider).loadTopics(scope: .init(
+                profile: scope.profile, identity: identity, region: scope.region, paths: scope.paths))
+            XCTFail("The stale SNS scope must be rejected")
+        } catch { XCTAssertEqual((error as? SNSError)?.localizedDescription, SNSError.invalidScope.localizedDescription) }
+        do {
+            _ = try await AWSLogsService(provider: provider).load(query: logQuery(scope), cursor: nil)
+            XCTFail("The stale Lambda Logs scope must be rejected")
+        } catch { XCTAssertEqual(error as? LambdaLogsError, .invalidQuery) }
+    }
+
+    private func logQuery(_ scope: MonitoringScope) -> LambdaLogQuery {
+        let end = Date(timeIntervalSince1970: 1_800_000_000)
+        return LambdaLogQuery(scope: scope, context: .init(functionName: "handler", configuredLogGroup: nil),
+                              startTime: end.addingTimeInterval(-3_600), endTime: end, filterPattern: "")
+    }
+
+    private static func roleIdentity(account: String = "111122223333", role: String, session: String) -> AWSIdentity {
+        .init(account: account, arn: "arn:aws:sts::\(account):assumed-role/\(role)/\(session)", userID: "AROAoffline:\(session)")
+    }
+
     func testHealthPreservesGlobalClientWhenResourceRegionChanges() async throws {
         let provider = AWSServiceProvider.testProvider(identity: .init(account: "111122223333",
             arn: "arn:aws:sts::111122223333:assumed-role/ReadOnly/session", userID: "test"))
@@ -74,11 +160,11 @@ final class AWSServiceProviderTests: XCTestCase {
         let profile = makeProfile(name: "sns-profile")
         let paths = AWSConfigurationPaths(environment: [:])
         try await provider.configureVerified(profile: profile, region: "ap-southeast-1", paths: paths)
-        let first = try await provider.snsClient(profile: profile, paths: paths, region: "ap-southeast-1")
-        let cost = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        let first = try await provider.snsClient(scope: SNSScope(profile: profile, identity: testIdentity, region: "ap-southeast-1", paths: paths))
+        let cost = try await provider.costExplorerClient(scope: .init(profile: profile, identity: testIdentity, paths: paths), partition: .aws)
         XCTAssertEqual(first.config.region.rawValue, "ap-southeast-1")
         try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
-        let next = try await provider.snsClient(profile: profile, paths: paths, region: "eu-west-1")
+        let next = try await provider.snsClient(scope: SNSScope(profile: profile, identity: testIdentity, region: "eu-west-1", paths: paths))
         XCTAssertEqual(next.config.region.rawValue, "eu-west-1")
         XCTAssertTrue(next.client === first.client)
         XCTAssertTrue(next.client === cost.client)
@@ -97,13 +183,13 @@ final class AWSServiceProviderTests: XCTestCase {
             (profile, paths, "eu-west-1")
         ] {
             do {
-                _ = try await provider.snsClient(profile: requestedProfile, paths: requestedPaths, region: region)
+                _ = try await provider.snsClient(scope: SNSScope(profile: requestedProfile, identity: testIdentity, region: region, paths: requestedPaths))
                 XCTFail("A stale request must not borrow another scope's client")
             } catch { XCTAssertTrue(error is SNSError) }
         }
         await provider.shutdown()
         do {
-            _ = try await provider.snsClient(profile: profile, paths: paths, region: "us-east-1")
+            _ = try await provider.snsClient(scope: SNSScope(profile: profile, identity: testIdentity, region: "us-east-1", paths: paths))
             XCTFail("Cleared profile must have no client")
         } catch { XCTAssertTrue(error is SNSError) }
     }
@@ -113,11 +199,11 @@ final class AWSServiceProviderTests: XCTestCase {
         let profile = makeProfile(name: "alarm-profile")
         let paths = AWSConfigurationPaths(environment: [:])
         try await provider.configureVerified(profile: profile, region: "ap-southeast-1", paths: paths)
-        let first = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "ap-southeast-1")
-        let cost = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        let first = try await provider.cloudWatchClient(scope: AlarmScope(profile: profile, identity: testIdentity, region: "ap-southeast-1", paths: paths))
+        let cost = try await provider.costExplorerClient(scope: .init(profile: profile, identity: testIdentity, paths: paths), partition: .aws)
         XCTAssertEqual(first.config.region.rawValue, "ap-southeast-1")
         try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
-        let next = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "eu-west-1")
+        let next = try await provider.cloudWatchClient(scope: AlarmScope(profile: profile, identity: testIdentity, region: "eu-west-1", paths: paths))
         XCTAssertEqual(next.config.region.rawValue, "eu-west-1")
         XCTAssertTrue(next.client === first.client)
         XCTAssertTrue(next.client === cost.client)
@@ -136,13 +222,13 @@ final class AWSServiceProviderTests: XCTestCase {
             (profile, paths, "eu-west-1")
         ] {
             do {
-                _ = try await provider.cloudWatchClient(profile: requestedProfile, paths: requestedPaths, region: region)
+                _ = try await provider.cloudWatchClient(scope: AlarmScope(profile: requestedProfile, identity: testIdentity, region: region, paths: requestedPaths))
                 XCTFail("A stale request must not borrow another scope's client")
             } catch { XCTAssertTrue(error is AlarmError) }
         }
         await provider.shutdown()
         do {
-            _ = try await provider.cloudWatchClient(profile: profile, paths: paths, region: "us-east-1")
+            _ = try await provider.cloudWatchClient(scope: AlarmScope(profile: profile, identity: testIdentity, region: "us-east-1", paths: paths))
             XCTFail("Cleared profile must have no client")
         } catch { XCTAssertTrue(error is AlarmError) }
     }
@@ -152,9 +238,9 @@ final class AWSServiceProviderTests: XCTestCase {
         let profile = makeProfile(name: "cost-profile")
         let paths = AWSConfigurationPaths(environment: [:])
         try await provider.configureVerified(profile: profile, region: "ap-southeast-1", paths: paths)
-        let first = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        let first = try await provider.costExplorerClient(scope: .init(profile: profile, identity: testIdentity, paths: paths), partition: .aws)
         try await provider.configureVerified(profile: profile, region: "eu-west-1", paths: paths)
-        let second = try await provider.costExplorerClient(profile: profile, paths: paths, partition: .aws)
+        let second = try await provider.costExplorerClient(scope: .init(profile: profile, identity: testIdentity, paths: paths), partition: .aws)
         XCTAssertTrue(first.client === second.client)
         XCTAssertEqual(second.config.region.rawValue, "us-east-1")
         let region = await provider.currentRegion
@@ -168,12 +254,12 @@ final class AWSServiceProviderTests: XCTestCase {
         let paths = AWSConfigurationPaths(environment: [:])
         try await provider.configureVerified(profile: profile, region: "us-east-1", paths: paths)
         do {
-            _ = try await provider.costExplorerClient(profile: makeProfile(name: "other"), paths: paths, partition: .aws)
+            _ = try await provider.costExplorerClient(scope: .init(profile: makeProfile(name: "other"), identity: testIdentity, paths: paths), partition: .aws)
             XCTFail("A different profile must not reuse this client's credentials")
         } catch { XCTAssertTrue(error is CostError) }
         do {
             let otherPaths = AWSConfigurationPaths(environment: ["AWS_CONFIG_FILE": "/example/other-config"])
-            _ = try await provider.costExplorerClient(profile: profile, paths: otherPaths, partition: .aws)
+            _ = try await provider.costExplorerClient(scope: .init(profile: profile, identity: testIdentity, paths: otherPaths), partition: .aws)
             XCTFail("A different configuration source must not reuse this client's credentials")
         } catch { XCTAssertTrue(error is CostError) }
         await provider.shutdown()
@@ -274,4 +360,10 @@ private actor ConfiguredRoleIdentityProbe {
         return .init(account: "111122223333", arn: "arn:aws:sts::111122223333:assumed-role/\(role)/offline",
                      userID: "AROAoffline:offline")
     }
+}
+
+private actor ScopeIdentityProbe {
+    private(set) var current: AWSIdentity
+    init(_ identity: AWSIdentity) { current = identity }
+    func replace(with identity: AWSIdentity) { current = identity }
 }

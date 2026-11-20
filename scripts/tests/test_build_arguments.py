@@ -136,6 +136,17 @@ raise SystemExit(73)
             self.assertNotIn(str(project).encode(), executable.read_bytes())
             self.assertEqual(subprocess.check_output([str(executable)]), expected)
 
+    def test_per_slice_strip_runs_before_lipo_create_to_avoid_fat64_stdlib_tool_skip(self):
+        script_text = SCRIPT.read_text(encoding="utf-8")
+        slice_strip = 'xcrun strip -S "$stage_dir/$architecture/$app_name"'
+        lipo_create = 'xcrun lipo -create "$stage_dir/arm64/$app_name" "$stage_dir/x86_64/$app_name"'
+        stdlib_copy = "xcrun swift-stdlib-tool --copy"
+        collect_licenses = 'scripts/collect-licenses.py" --output'
+        self.assertIn(slice_strip, script_text)
+        self.assertLess(script_text.index(slice_strip), script_text.index(lipo_create))
+        self.assertLess(script_text.index(lipo_create), script_text.index(stdlib_copy))
+        self.assertLess(script_text.index(stdlib_copy), script_text.index(collect_licenses))
+
 
 if __name__ == "__main__":
     unittest.main()

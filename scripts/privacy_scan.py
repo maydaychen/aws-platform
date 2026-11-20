@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import struct
 import sys
 from typing import NamedTuple
 
@@ -15,8 +16,22 @@ CHUNK_SIZE = 1024 * 1024
 EMAIL_MARKER_GUARD_BYTES = 256
 PATTERNS_ENV = "AWSPLATFORM_PRIVACY_PATTERNS_FILE"
 MAX_PATTERN_FILE_BYTES = 1024 * 1024
+MH_MAGIC_64 = 0xFEEDFACF
+FAT_MAGIC = 0xCAFEBABE
+FAT_MAGIC_64 = 0xCAFEBABF
+LC_SEGMENT_64 = 0x19
+LC_CODE_SIGNATURE = 0x1D
+CSMAGIC_EMBEDDED_SIGNATURE = 0xFADE0CC0
+CSMAGIC_CODEDIRECTORY = 0xFADE0C02
+S_ATTR_PURE_INSTRUCTIONS = 0x80000000
+MAX_FAT_SLICES = 16
+MAX_LOAD_COMMANDS = 4096
+MAX_SIZEOF_CMDS = 4 * 1024 * 1024
+MAX_CS_BLOBS = 64
 HOME_PATH = re.compile(r"(?:/(?:Users|home)/|[a-z]:\\+Users\\+)([^/\\\x00\s\"'<>:]{1,255})[/\\]", re.I)
-EMAIL = re.compile(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@([a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+)", re.I)
+EMAIL_PATTERN = r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@([a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+)"
+EMAIL = re.compile(EMAIL_PATTERN, re.I)
+EMAIL_BYTES = re.compile(EMAIL_PATTERN.encode("ascii"), re.I)
 PLACEHOLDER_USERS = {"user", "username", "your_user", "your_username", "your_name", "example",
                      "example-user", "test", "testuser", "placeholder", "shared", "public"}
 EXAMPLE_DOMAINS = {"example.com", "example.net", "example.org"}
@@ -69,10 +84,140 @@ def _example_email(domain):
             or any(domain == item or domain.endswith("." + item) for item in EXAMPLE_DOMAINS))
 
 
-def _binary_boundary(char):
-    return bool(char) and (
-        char == "\ufffd" or (ord(char) < 32 and char not in "\0\t\n\r") or ord(char) == 127
-    )
+def _pread_exact(fd, size, offset):
+    chunks = []
+    remaining = size
+    cursor = offset
+    while remaining > 0:
+        piece = os.pread(fd, remaining, cursor)
+        if not piece:
+            return None
+        chunks.append(piece)
+        remaining -= len(piece)
+        cursor += len(piece)
+    return b"".join(chunks)
+
+
+def _code_signature_hash_ranges(fd, s_off, s_size, cmds_end, dataoff, datasize):
+    """Return byte intervals for CodeDirectory cryptographic hash arrays in LC_CODE_SIGNATURE."""
+    if datasize < 12 or dataoff < cmds_end or dataoff + datasize > s_size:
+        return ()
+    sig_off = s_off + dataoff
+    sb_hdr = _pread_exact(fd, 12, sig_off)
+    if not sb_hdr:
+        return ()
+    sb_magic, sb_len, sb_count = struct.unpack(">III", sb_hdr)
+    if (sb_magic != CSMAGIC_EMBEDDED_SIGNATURE or sb_len < 12 or sb_len > datasize
+            or not (0 < sb_count <= MAX_CS_BLOBS) or 12 + sb_count * 8 > sb_len):
+        return ()
+    index_bytes = _pread_exact(fd, sb_count * 8, sig_off + 12)
+    if not index_bytes:
+        return ()
+    ranges = []
+    min_blob_off = 12 + sb_count * 8
+    for blob_index in range(sb_count):
+        _, b_off = struct.unpack_from(">II", index_bytes, blob_index * 8)
+        if b_off < min_blob_off or b_off + 8 > sb_len:
+            return ()
+        cd_abs = sig_off + b_off
+        cd_hdr = _pread_exact(fd, min(52, sb_len - b_off), cd_abs)
+        if not cd_hdr or len(cd_hdr) < 8:
+            return ()
+        b_magic, cd_len = struct.unpack_from(">II", cd_hdr, 0)
+        if b_magic != CSMAGIC_CODEDIRECTORY:
+            continue
+        if len(cd_hdr) < 44 or cd_len < 44 or b_off + cd_len > sb_len:
+            return ()
+        ver, _, hash_off, ident_off, n_special, n_code, _, hash_size, _ = struct.unpack_from(
+            ">IIIIIIIBB", cd_hdr, 8
+        )
+        if not (0x20000 <= ver < 0x30000) or hash_size not in (20, 32, 48, 64):
+            return ()
+        team_off = struct.unpack_from(">I", cd_hdr, 48)[0] if ver >= 0x20200 and cd_len >= 52 and len(cd_hdr) >= 52 else 0
+        hash_rel_start = hash_off - n_special * hash_size
+        hash_rel_end = hash_off + n_code * hash_size
+        if (hash_rel_start < 44 or not (44 <= ident_off < hash_rel_start)
+                or (team_off != 0 and not (44 <= team_off < hash_rel_start))
+                or hash_rel_start >= hash_rel_end or hash_rel_end > cd_len):
+            return ()
+        ranges.append((cd_abs + hash_rel_start, cd_abs + hash_rel_end))
+    return tuple(ranges)
+
+
+def _macho_non_string_ranges(fd, file_size):
+    """Return sorted file byte intervals for Mach-O machine instructions and CodeDirectory hash arrays."""
+    if file_size < 32:
+        return ()
+    try:
+        top = _pread_exact(fd, 8, 0)
+        if not top:
+            return ()
+        le_magic = struct.unpack("<I", top[:4])[0]
+        be_magic = struct.unpack(">I", top[:4])[0]
+        slices = []
+        if le_magic == MH_MAGIC_64:
+            slices.append((0, file_size))
+        elif be_magic in (FAT_MAGIC, FAT_MAGIC_64):
+            nfat = struct.unpack(">I", top[4:8])[0]
+            if not (1 <= nfat <= MAX_FAT_SLICES):
+                return ()
+            entry_fmt = ">IIQQII" if be_magic == FAT_MAGIC_64 else ">IIIII"
+            entry_size = struct.calcsize(entry_fmt)
+            table_end = 8 + nfat * entry_size
+            if table_end > file_size:
+                return ()
+            table = _pread_exact(fd, nfat * entry_size, 8)
+            if not table:
+                return ()
+            for index in range(nfat):
+                fields = struct.unpack_from(entry_fmt, table, index * entry_size)
+                s_off, s_size = fields[2], fields[3]
+                if s_off < table_end or s_size < 32 or s_off + s_size > file_size:
+                    return ()
+                slices.append((s_off, s_size))
+        else:
+            return ()
+
+        ranges = []
+        for s_off, s_size in slices:
+            hdr = _pread_exact(fd, 32, s_off)
+            if not hdr:
+                return ()
+            smagic, _, _, _, ncmds, sizeofcmds, _, _ = struct.unpack("<IIIIIIII", hdr)
+            if smagic != MH_MAGIC_64 or ncmds > MAX_LOAD_COMMANDS or sizeofcmds > MAX_SIZEOF_CMDS:
+                return ()
+            if 32 + sizeofcmds > s_size:
+                return ()
+            cmds = _pread_exact(fd, sizeofcmds, s_off + 32)
+            if cmds is None:
+                return ()
+            pos = 0
+            for _ in range(ncmds):
+                if pos + 8 > sizeofcmds:
+                    return ()
+                cmd, cmdsize = struct.unpack_from("<II", cmds, pos)
+                if cmdsize < 8 or pos + cmdsize > sizeofcmds:
+                    return ()
+                if cmd == LC_SEGMENT_64 and cmdsize >= 72:
+                    nsects = struct.unpack_from("<I", cmds, pos + 64)[0]
+                    if 72 + nsects * 80 > cmdsize:
+                        return ()
+                    for sect_index in range(nsects):
+                        sect_pos = pos + 72 + sect_index * 80
+                        size, offset, _, _, _, flags = struct.unpack_from("<QIIIII", cmds, sect_pos + 40)
+                        if (flags & S_ATTR_PURE_INSTRUCTIONS) and size > 0 and offset + size <= s_size:
+                            ranges.append((s_off + offset, s_off + offset + size))
+                elif cmd == LC_CODE_SIGNATURE and cmdsize >= 16:
+                    dataoff, datasize = struct.unpack_from("<II", cmds, pos + 8)
+                    ranges.extend(_code_signature_hash_ranges(fd, s_off, s_size, 32 + sizeofcmds, dataoff, datasize))
+                pos += cmdsize
+        return tuple(sorted(ranges))
+    except OSError:
+        return ()
+
+
+def _raw_instruction_boundary(byte):
+    return byte >= 0x80 or byte == 0x7F or (byte < 0x20 and byte not in (0x00, 0x09, 0x0A, 0x0D))
 
 
 def _email_candidate(text, match):
@@ -82,10 +227,6 @@ def _email_candidate(text, match):
         return False
     if re.fullmatch(r"[123]x\.(?:png|jpe?g|gif|icns|pdf|svg|webp)", domain, re.I):
         return False
-    before = text[match.start() - 1] if match.start() > 0 else ""
-    after = text[match.end()] if match.end() < len(text) else ""
-    if len(match.group()) < 12 and _binary_boundary(before) and _binary_boundary(after):
-        return False
     local = match.group().rsplit("@", 1)[0]
     if (local.startswith("//") and local[2:].casefold() in PLACEHOLDER_USERS
             and text[max(0, match.start() - 6):match.start()].endswith(("http:", "https:"))):
@@ -93,7 +234,7 @@ def _email_candidate(text, match):
     return True
 
 
-def _email_scan_data(data, prefix=b""):
+def _email_scan_data(data, prefix=b"", window_offset=0, instruction_ranges=()):
     # These exact public author markers are retained by the pinned BoringSSL ASM.
     # Mask only for mailbox detection; home paths and deny literals use raw data.
     address = "appro" + "@" + "openssl.org"
@@ -105,6 +246,25 @@ def _email_scan_data(data, prefix=b""):
             if value in combined:
                 combined = combined.replace(value, b"\0" * len(value))
                 changed = True
+    if instruction_ranges and b"@" in combined:
+        comb_offset = window_offset - len(prefix)
+        comb_end = comb_offset + len(combined)
+        if any(r_end > comb_offset and r_start < comb_end for r_start, r_end in instruction_ranges):
+            buf = None
+            for match in EMAIL_BYTES.finditer(combined):
+                if match.end() - match.start() >= 12 or match.start() == 0 or match.end() == len(combined):
+                    continue
+                abs_start = comb_offset + match.start()
+                abs_end = comb_offset + match.end()
+                if not any(r_start <= abs_start and abs_end <= r_end for r_start, r_end in instruction_ranges):
+                    continue
+                if _raw_instruction_boundary(combined[match.start() - 1]) and _raw_instruction_boundary(combined[match.end()]):
+                    if buf is None:
+                        buf = bytearray(combined)
+                    buf[match.start():match.end()] = b"\0" * (match.end() - match.start())
+                    changed = True
+            if buf is not None:
+                combined = bytes(buf)
     if not changed:
         return data
     return combined[len(prefix):]
@@ -143,9 +303,12 @@ def _text_views(data):
                 yield value.decode(encoding, errors="replace")
 
 
-def _rules_in(data, patterns, license_file, final, email_prefix=b""):
+def _rules_in(data, patterns, license_file, final, email_prefix=b"", window_offset=0, instruction_ranges=()):
     found = set()
-    email_data = _email_scan_data(data, email_prefix) if not license_file else data
+    email_data = (
+        _email_scan_data(data, email_prefix, window_offset=window_offset, instruction_ranges=instruction_ranges)
+        if not license_file else data
+    )
     for text in _text_views(data):
         if any(match.group(1).casefold() not in PLACEHOLDER_USERS for match in HOME_PATH.finditer(text)):
             found.add("private-home-path")
@@ -180,16 +343,26 @@ def _scan_file(path, relative, patterns):
                 return {"special-file"}
             overlap = max(4096, max((len(item.encode("utf-8")) * 4 for item in patterns), default=0))
             carry = b""
+            bytes_read = 0
             license_file = _license_file(relative)
+            instruction_ranges = _macho_non_string_ranges(source.fileno(), before.st_size) if not license_file else ()
             while True:
                 tail = carry[-overlap:]
                 email_prefix = carry[:-overlap]
                 chunk = source.read(CHUNK_SIZE)
                 if not chunk:
-                    found.update(_rules_in(tail, patterns, license_file, final=True, email_prefix=email_prefix))
+                    found.update(_rules_in(
+                        tail, patterns, license_file, final=True, email_prefix=email_prefix,
+                        window_offset=bytes_read - len(tail), instruction_ranges=instruction_ranges,
+                    ))
                     break
+                window_offset = bytes_read - len(tail)
+                bytes_read += len(chunk)
                 window = tail + chunk
-                found.update(_rules_in(window, patterns, license_file, final=False, email_prefix=email_prefix))
+                found.update(_rules_in(
+                    window, patterns, license_file, final=False, email_prefix=email_prefix,
+                    window_offset=window_offset, instruction_ranges=instruction_ranges,
+                ))
                 carry = (email_prefix + window)[-(overlap + EMAIL_MARKER_GUARD_BYTES):]
             after = os.fstat(source.fileno())
             if (before.st_size, before.st_mtime_ns, before.st_ino) != (

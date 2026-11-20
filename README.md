@@ -12,7 +12,7 @@ Download **[v0.4.3 (28)](https://github.com/maydaychen/aws-platform/releases/tag
 | --- | --- | --- |
 | Universal (Apple Silicon & Intel) | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.zip) |
 
-This release uses local ad-hoc signing (`Signature=adhoc`, `TeamIdentifier=not set`) without a Developer ID certificate or Apple notarization. Verify downloads with [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt). On first launch, if macOS warns that the app cannot be verified, click **Done**, open **System Settings -> Privacy & Security**, and click **Open Anyway** (or run `xattr -cr /Applications/AWSPlatform.app`).
+`AWSPlatform.app` uses local ad-hoc signing (`Signature=adhoc`, `TeamIdentifier=not set`) without a Developer ID certificate or Apple notarization, and the outer `.dmg` container is unsigned. Verify downloads with [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt). On first launch, if macOS warns that the app cannot be verified, click **Done**, open **System Settings -> Privacy & Security**, and click **Open Anyway** (see [Apple Support](https://support.apple.com/102445); or run `xattr -d com.apple.quarantine /Applications/AWSPlatform.app` after verifying `SHA256SUMS.txt`).
 
 ## Features
 

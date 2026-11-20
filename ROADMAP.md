@@ -3,7 +3,7 @@
 ## 当前状态
 
 - 已切换为 **0.4.3（28）**通用匿名构建（Universal `arm64` + `x86_64`，macOS 13+），保留 **MIT License** 与 GitHub 公开提交身份：移除依赖 Developer ID 证书签名的 Sparkle 自动更新器及更新清单，设置页提供 GitHub Releases 直达入口；包含 EC2 SSM 交接临时脚本租约与过期残留回收加固，保留规则与边界见 [实施记录](docs/superpowers/plans/2026-10-26-ssm-script-cleanup.md) 与 [发布隐私门禁](docs/release-privacy.md)。
-- Universal App／ZIP／DMG 均采用纯本地 ad-hoc 签名（`Signature=adhoc`、`TeamIdentifier=not set`），已完成打包、结构化匿名断言、26 个第三方依赖许可与深度隐私扫描；Universal 实机启动、Gatekeeper 首次手动放行、Intel／macOS 13 实机及真实 AWS 账号尚未运行验收。
+- Universal `AWSPlatform.app`（含 ZIP 与 DMG 盘内应用）采用纯本地 ad-hoc 签名（`Signature=adhoc`、`TeamIdentifier=not set`），外层 DMG 容器本身未签名，已完成打包、结构化匿名断言、26 个第三方依赖许可与深度隐私扫描；Universal 实机启动、Gatekeeper 首次手动放行、Intel／macOS 13 实机及真实 AWS 账号尚未运行验收。
 - 用户已确认此前版本既有功能的真实账号日常使用通过；平台、权限、数据量及失败路径的专项覆盖仍需补充，不重新作为整体日常使用验收的阻塞。
 
 ## 已实现能力
@@ -23,6 +23,8 @@
 
 ## 最近验证
 
+- 2026-11-20 14:06：修复 Codex 联合复核与重编发现的匿名发布门禁问题：`privacy_scan.py` 改为仅对 Mach-O 纯指令节（`S_ATTR_PURE_INSTRUCTIONS`）与 `LC_CODE_SIGNATURE` 的 `CodeDirectory` 页哈希区收窄短二进制噪声误报（消除带长度前缀记录漏检并保留标识符／证书／权限块完整扫描）、`build-universal.sh` 在 `lipo` 合包前逐架构执行 `strip -S` 避免超过 4 GiB 触发 `FAT_MAGIC_64` 致 `swift-stdlib-tool` 静默跳过运行库并将 `collect-licenses.py` 移至嵌入 `libswift*.dylib` 之后、`anonymous_release_check.py` 增加逐切片签名与许可清单校验和／`PROVENANCE.json`／ZIP 归档头与未签名 DMG 根目录白名单断言、`build-anonymous-release.sh` 拒绝覆盖既有 `--output-dir`；64 项脚本测试、`verify-before-push.sh`（1,622 项 `AWSPlatformTests`）、`audit_readme.py`、公开源码导出与重新构建的 0.4.3（28）Universal 匿名包校验全部通过。
+- 2026-11-20 01:44：全量 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 1,622 项测试全部通过（0 失败、0 编译器警告），`./scripts/verify-before-push.sh` 全量门禁通过（`source-file-lines` 376 个文件、11 个超 500 行警告，`swift-package-build`、`swift-package-test`、`git-diff-check`、`design-spec-lint` 均 PASS）；包含 Codex 与 Antigravity 联合只读 Review 发现及回归验证。真实 AWS 账号、真实 SSM／SSO 登录、真实 PKG／Homebrew 安装、macOS 13／Intel 实机与真实窗口 Charts `AxisValueLabel` 检查尚未实测。
 - 2026-11-19 23:00：双语 README、`AGENTS.md`、`DESIGN.md`、`ROADMAP.md` 及 `docs/`／`scripts/` 核对修正通过 `audit_readme.py` 静态链接检查（0 断链）、`verify-before-push.sh` 全量门禁及 57 项脚本单元测试与隐私导出扫描。
 - 2026-11-19 02:10：0.4.3（28）Universal 匿名 Release 构建与校验通过（`build-anonymous-release.sh` 与 `anonymous_release_check.py` 验证 App／ZIP／只读 DMG 均为 `Signature=adhoc` 与 `TeamIdentifier=not set`、含 26 个第三方依赖许可及深度隐私扫描 0 命中）；`verify-before-push.sh` 全量门禁（`AWSPlatformTests` 1,581 项与结构门禁，保留 12 个既有文件规模警告）及 57 项脚本单元测试通过。该结论不包含 Universal 实机启动、Gatekeeper 手动放行、Intel／macOS 13 实机或真实 AWS 验证。
 - 2026-10-26 15:05：0.4.2（27）ARM Release 构建、签名、ZIP 完整性及展开归档隐私检查通过；本机安装文件与构建包指纹一致，启动窗口显示新版本且未自动选择 Profile，核对的 2 项偏好字段未变。设置页交互检查因工具自动审批超时未完成；未建立真实 SSM 会话。
@@ -76,6 +78,8 @@
 
 ## 最近完成
 
+- 2026-11-20 14:06：落实 Codex 复核反馈并完成基于最新 `main` 的 0.4.3（28）匿名通用发布包重构：收窄 `privacy_scan.py` 至 Mach-O 纯指令节与 `CodeDirectory` 页哈希区、修复 `build-universal.sh` 合包前分片 `strip -S` 与运行库许可采集顺序、改为拒绝覆盖既有 `--output-dir` 并原子移入已校验产物、补齐 `anonymous_release_check.py` 逐切片签名与许可哈希／ZIP 归档头／未签名 DMG 核验并统一双语文档口径。
+- 2026-11-20 01:44：联合完成全部三批功能／安全修复、第 2 阶段 UI 交互优化与最终联合 Review 收口。第 1–3 批补齐服务端稳定主体与身份代次绑定、SSM 终端交接主体校验与配置异步加载、S3 下载原子提交与继承 ACL 防护、S3 桶详情加载拆分、Auto Scaling 默认启动模板版本解析、共享格式化锁、Fake-Process CLI 测试，以及统一重置解绑／导航校验；UI 阶段完成 `AWSService.displayTitle(locale:)` 本地化补齐、S3 详情加载／重试入口、S3 对象行与原生 `List` 选区协作、EC2 状态色／快速筛选／复制提示组件复用、`LambdaDetailView` 视图拆分（317／392 行）、Profile 键盘列表滚动高亮、费用正占比说明，以及配置重读使当前 Profile 失效时的收藏跳转错误提示保留。
 - 2026-11-19 23:00：核对并修正双语 README、`AGENTS.md`、`DESIGN.md` 与中文辅助文档：`README.md`／`README.zh-CN.md` 同步删除 `app-update restart`／`应用更新重启`、统一 SNS `View relationships`／「查看关联」按钮名、更新模块级结构树、补齐中文 EC2 的 Auto Scaling 说明与双语工程规范入口、补充 `AGENTS.md` 核心目录及 Swift 6.2+ 工具链指针，并修复 `# AWS Platform 设计系统` 及中文链接后缀空格排版。
 - 2026-11-19 02:10：完成 0.4.3（28）匿名通用分发与开源准备：移除 Sparkle 自动更新器及签名更新清单、设置页改用 GitHub Releases 链接、新增 Universal 匿名打包与结构校验脚本（`anonymous_release_check.py`／`build-anonymous-release.sh`），并修复 `privacy_scan.py` 的跨分块边界汇编归属误报与短二进制噪声误报。
 - 2026-10-26 15:05：将 SSM 简化修复打包安装为本机 0.4.2（27）ARM 临时签名预览，保留旧应用供回退；未推送、发布或修改更新清单。

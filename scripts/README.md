@@ -4,7 +4,7 @@
 
 - `build-universal.sh`：本地 ad-hoc 通用包或单架构包构建。
 - `build-anonymous-release.sh`：匿名 Universal（`arm64` + `x86_64`）Release DMG／ZIP 打包与结构化匿名校验。
-- `anonymous_release_check.py`：检验应用包及 DMG 不含证书 `Authority`、非空 `TeamIdentifier`、Sparkle 或描述文件，且通过双架构与隐私扫描门禁。
+- `anonymous_release_check.py`：逐架构切片检验应用包不含证书 `Authority`、非空 `TeamIdentifier`、Sparkle 或描述文件，核对 `Licenses/manifest.json` 校验和与 `PROVENANCE.json` 嵌入运行库记录，校验 DMG 未签名且通过双架构与隐私扫描门禁。
 - `generate-app-icon.sh`：用 macOS 原生 `sips`／`iconutil` 将 PNG 主图转换为多尺寸 ICNS。
 - `collect-licenses.py` 与 `licenses/`：按锁定依赖收集完整许可，固定补充许可的来源见 `licenses/README.md`。
 - `privacy_scan.py` 与 `export-public-source.py`：工作区构建路径与敏感词扫描，以及无历史干净源码副本导出。
@@ -45,11 +45,11 @@ export AWSPLATFORM_PRIVACY_PATTERNS_FILE="$HOME/Library/Application Support/AWSP
 ./scripts/build-anonymous-release.sh --version 0.4.3 --build-number 28
 ```
 
-脚本会在 `.tmp/anonymous-release/` 临时目录内构建 Universal `AWSPlatform.app`、随包附带 26 个已锁定依赖与 Swift 运行时的许可声明、执行构建路径重映射与 `strip -S`，并在生成与解压 `.zip`、创建并只读挂载 `.dmg` 后分别运行 `anonymous_release_check.py` 与 `privacy_scan.py`。
+脚本会在 `.tmp/anonymous-release/` 临时目录内构建 Universal `AWSPlatform.app`、嵌入 Swift 兼容运行库并随包附带 26 个已锁定依赖与运行库许可、执行构建路径重映射与 `strip -S`，并在生成与解压 `.zip`、创建并只读挂载 `.dmg` 后分别运行 `anonymous_release_check.py` 与 `privacy_scan.py`。为防止误删或覆盖已有产物，若 `--output-dir` 指向已存在的路径会直接拒绝构建。
 
-校验通过后在 `.tmp/release/v<版本>/` 输出：
+全部解包／挂载载荷、归档头与发布说明文件校验通过后，整体原子移入新建的 `.tmp/release/v<版本>/`（不覆盖已有目录）：
 
-- `AWSPlatform-<版本>-universal.dmg` 与 `AWSPlatform-<版本>-universal.zip`（均满足 `Signature=adhoc`、`TeamIdentifier=not set`、无 `Authority=`、无描述文件及 `._*` 元数据）。
+- `AWSPlatform-<版本>-universal.dmg` 与 `AWSPlatform-<版本>-universal.zip`（盘内及包内 App 均满足 `Signature=adhoc`、`TeamIdentifier=not set`、无 `Authority=`、无描述文件及 `._*` 元数据，外层 DMG 容器未签名）。
 - `SHA256SUMS.txt`：DMG 与 ZIP 的 SHA-256 校验文件。
 - `RELEASE_NOTES.md`：包含首次打开 Gatekeeper 放行指南的双语发布说明。
 

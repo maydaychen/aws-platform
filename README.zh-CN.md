@@ -12,7 +12,7 @@ macOS 原生 AWS 资源与费用浏览工具，支持用户主动发起 S3 文�
 | --- | --- | --- |
 | Universal（Apple Silicon & Intel） | [DMG](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.dmg) | [ZIP](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/AWSPlatform-0.4.3-universal.zip) |
 
-本版本采用本地 ad-hoc 签名（`Signature=adhoc`、`TeamIdentifier=not set`），不包含 Developer ID 证书或 Apple 公证，校验值见 [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt)。首次打开若遇系统安全提示，点击「完成」后前往 **系统设置 -> 隐私与安全性** 点击 **「仍要打开」**（或执行 `xattr -cr /Applications/AWSPlatform.app`）。
+包内 `AWSPlatform.app` 采用本地 ad-hoc 签名（`Signature=adhoc`、`TeamIdentifier=not set`），外层 `.dmg` 容器本身未签名，不包含 Developer ID 证书或 Apple 公证，校验值见 [SHA256SUMS.txt](https://github.com/maydaychen/aws-platform/releases/download/v0.4.3/SHA256SUMS.txt)。首次打开若遇系统安全提示，优先点击「完成」后前往 **系统设置 -> 隐私与安全性** 点击 **「仍要打开」**（见 [Apple 官方指引](https://support.apple.com/zh-cn/102445)；或核对 `SHA256SUMS.txt` 后执行 `xattr -d com.apple.quarantine /Applications/AWSPlatform.app`）。
 
 ## 功能
 

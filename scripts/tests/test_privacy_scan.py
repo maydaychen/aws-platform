@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,152 @@ spec.loader.exec_module(privacy)
 HOME_PREFIX = "/" + "Users" + "/"
 PRIVATE_HOME = HOME_PREFIX + "fixture-person" + "/workspace/main.c"
 PRIVATE_EMAIL = "fixture-owner" + "@" + "fixture-company" + ".com"
+
+
+def _minimal_macho_64(text_bytes, data_bytes):
+    """Build a valid 64-bit Mach-O binary with __TEXT,__text and __DATA,__const."""
+    text_offset = 32 + 72 + 2 * 80
+    data_offset = text_offset + len(text_bytes)
+    header = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 2, 1, 72 + 2 * 80, 0, 0)
+    segment = struct.pack(
+        "<II16sQQQQIIII",
+        0x19,
+        72 + 2 * 80,
+        b"__TEXT",
+        0x100000000,
+        data_offset + len(data_bytes),
+        0,
+        data_offset + len(data_bytes),
+        7,
+        5,
+        2,
+        0,
+    )
+    text_sect = struct.pack(
+        "<16s16sQQIIIIIIII",
+        b"__text",
+        b"__TEXT",
+        0x100000000 + text_offset,
+        len(text_bytes),
+        text_offset,
+        2,
+        0,
+        0,
+        0x80000400,
+        0,
+        0,
+        0,
+    )
+    data_sect = struct.pack(
+        "<16s16sQQIIIIIIII",
+        b"__const",
+        b"__DATA",
+        0x100000000 + data_offset,
+        len(data_bytes),
+        data_offset,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+    return header + segment + text_sect + data_sect + text_bytes + data_bytes
+
+
+def _minimal_macho_64_signed(text_bytes, data_bytes, ident_bytes, hash_slots_bytes, cms_bytes=b""):
+    """Build a 64-bit Mach-O binary with LC_CODE_SIGNATURE SuperBlob and CodeDirectory."""
+    seg_cmd_size = 72 + 2 * 80
+    sig_cmd_size = 16
+    sizeofcmds = seg_cmd_size + sig_cmd_size
+    text_offset = 32 + sizeofcmds
+    data_offset = text_offset + len(text_bytes)
+    sig_offset = data_offset + len(data_bytes)
+
+    ident_off = 52
+    n_special = 1
+    assert len(hash_slots_bytes) >= 64 and len(hash_slots_bytes) % 32 == 0
+    n_code = (len(hash_slots_bytes) // 32) - n_special
+    hash_off = ident_off + len(ident_bytes) + n_special * 32
+    cd_len = ident_off + len(ident_bytes) + len(hash_slots_bytes)
+    cd_header = struct.pack(
+        ">IIIIIIIIIBBBBIII",
+        0xFADE0C02,
+        cd_len,
+        0x20400,
+        0,
+        hash_off,
+        ident_off,
+        n_special,
+        n_code,
+        sig_offset,
+        32,
+        2,
+        0,
+        12,
+        0,
+        0,
+        0,
+    )
+    cd_blob = cd_header + ident_bytes + hash_slots_bytes
+    cms_blob = struct.pack(">II", 0xFADE0B01, 8 + len(cms_bytes)) + cms_bytes
+    index_size = 12 + 2 * 8
+    sb_len = index_size + len(cd_blob) + len(cms_blob)
+    superblob = (
+        struct.pack(">III", 0xFADE0CC0, sb_len, 2)
+        + struct.pack(">IIII", 0, index_size, 0x10000, index_size + len(cd_blob))
+        + cd_blob
+        + cms_blob
+    )
+
+    header = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 2, 2, sizeofcmds, 0, 0)
+    segment = struct.pack(
+        "<II16sQQQQIIII",
+        0x19,
+        seg_cmd_size,
+        b"__TEXT",
+        0x100000000,
+        sig_offset + sb_len,
+        0,
+        sig_offset + sb_len,
+        7,
+        5,
+        2,
+        0,
+    )
+    text_sect = struct.pack(
+        "<16s16sQQIIIIIIII",
+        b"__text",
+        b"__TEXT",
+        0x100000000 + text_offset,
+        len(text_bytes),
+        text_offset,
+        2,
+        0,
+        0,
+        0x80000400,
+        0,
+        0,
+        0,
+    )
+    data_sect = struct.pack(
+        "<16s16sQQIIIIIIII",
+        b"__const",
+        b"__DATA",
+        0x100000000 + data_offset,
+        len(data_bytes),
+        data_offset,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )
+    sig_cmd = struct.pack("<IIII", 0x1D, sig_cmd_size, sig_offset, sb_len)
+    return header + segment + text_sect + data_sect + sig_cmd + text_bytes + data_bytes + superblob
 
 
 class PrivacyScanTests(unittest.TestCase):
@@ -78,9 +225,20 @@ class PrivacyScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.write(root, "icon.png", b"\x89PNG\r\n\x1a\n\xff\xffr" + b"@" + b"x.y\xfe\xff")
-            self.write(root, "arm64.bin", b"\x02h" + b"@" + b"y.Qc\xff\xfe")
+            self.write(
+                root,
+                "macho-clean",
+                _minimal_macho_64(b"\x02h" + b"@" + b"y.Qc\xff\xfe", b"safe"),
+            )
             self.assertEqual(privacy.scan_tree(root), [])
-            self.write(root, "nul.bin", b"\0h" + b"@" + b"y.qc\0")
+            self.write(root, "record.bin", b"\x06h" + b"@" + b"y.qc\xff")
+            self.write(root, "macho-data", _minimal_macho_64(b"\0", b"\x06h" + b"@" + b"y.qc\xff"))
+            self.write(root, "macho-nul", _minimal_macho_64(b"\0h" + b"@" + b"y.qc\0", b"\0"))
+            self.write(
+                root,
+                "macho-real",
+                _minimal_macho_64(b"\xff" + PRIVATE_EMAIL.encode() + b"\xfe", b"\0"),
+            )
             self.write(root, "app", b"\xff\0" + PRIVATE_EMAIL.encode() + b"\0\xfe")
             self.write(root, "app-raw", b"\xff" + PRIVATE_EMAIL.encode() + b"\xfe")
             self.assertEqual(
@@ -88,7 +246,56 @@ class PrivacyScanTests(unittest.TestCase):
                 [
                     privacy.Finding("app", "non-example-email"),
                     privacy.Finding("app-raw", "non-example-email"),
-                    privacy.Finding("nul.bin", "non-example-email"),
+                    privacy.Finding("macho-data", "non-example-email"),
+                    privacy.Finding("macho-nul", "non-example-email"),
+                    privacy.Finding("macho-real", "non-example-email"),
+                    privacy.Finding("record.bin", "non-example-email"),
+                ],
+            )
+
+    def test_code_directory_hash_slots_filter_short_digest_noise_but_keep_ident_cms_and_long_emails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            noisy_slots = (b"\xff" * 8 + b"\x02h" + b"@" + b"y.Qc\xff\xfe").ljust(64, b"\xab")
+            self.write(
+                root,
+                "signed-clean",
+                _minimal_macho_64_signed(b"safe", b"safe", b"AWSPlatform\0", noisy_slots),
+            )
+            self.assertEqual(privacy.scan_tree(root), [])
+            self.write(
+                root,
+                "signed-ident",
+                _minimal_macho_64_signed(b"safe", b"safe", b"AWS\x02h" + b"@" + b"y.qc\xff\0", b"\xaa" * 64),
+            )
+            self.write(
+                root,
+                "signed-cms",
+                _minimal_macho_64_signed(
+                    b"safe", b"safe", b"AWSPlatform\0", b"\xaa" * 64, b"\x06h" + b"@" + b"y.qc\xff"
+                ),
+            )
+            self.write(
+                root,
+                "signed-nul-slot",
+                _minimal_macho_64_signed(
+                    b"safe", b"safe", b"AWSPlatform\0", (b"\x00h" + b"@" + b"y.qc\x00").ljust(64, b"\xaa")
+                ),
+            )
+            self.write(
+                root,
+                "signed-real-slot",
+                _minimal_macho_64_signed(
+                    b"safe", b"safe", b"AWSPlatform\0", (b"\xff" + PRIVATE_EMAIL.encode() + b"\xfe").ljust(64, b"\xaa")
+                ),
+            )
+            self.assertEqual(
+                privacy.scan_tree(root),
+                [
+                    privacy.Finding("signed-cms", "non-example-email"),
+                    privacy.Finding("signed-ident", "non-example-email"),
+                    privacy.Finding("signed-nul-slot", "non-example-email"),
+                    privacy.Finding("signed-real-slot", "non-example-email"),
                 ],
             )
 

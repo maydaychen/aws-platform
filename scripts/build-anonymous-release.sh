@@ -30,6 +30,13 @@ done
 if [ -z "$output_dir" ]; then
     output_dir="$project_root/.tmp/release/v$version"
 fi
+if [ "$output_dir" != "/" ]; then
+    output_dir="${output_dir%/}"
+fi
+if [ -e "$output_dir" ] || [ -L "$output_dir" ]; then
+    printf 'Error: output directory already exists; refusing to overwrite: %s\n' "$output_dir" >&2
+    exit 1
+fi
 
 [ -d "$project_root/.build/checkouts" ] || {
     printf 'Error: missing .build/checkouts; run swift package --force-resolved-versions resolve first.\n' >&2
@@ -70,6 +77,8 @@ COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --keepParent "$app_path" "$zip_
 /usr/bin/unzip -t -q "$zip_stage"
 mkdir -p "$stage_dir/zip-verify"
 /usr/bin/ditto -x -k "$zip_stage" "$stage_dir/zip-verify"
+python3 "$project_root/scripts/anonymous_release_check.py" --zip "$zip_stage"
+python3 "$project_root/scripts/privacy_scan.py" "$stage_dir/zip-verify"
 python3 "$project_root/scripts/anonymous_release_check.py" "$stage_dir/zip-verify/AWSPlatform.app"
 
 dmg_src="$stage_dir/dmg-source"
@@ -83,24 +92,23 @@ python3 "$project_root/scripts/anonymous_release_check.py" --dmg "$dmg_stage"
 mount_dir="$stage_dir/dmg-mount"
 mkdir -p "$mount_dir"
 hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$dmg_stage" >/dev/null
-python3 "$project_root/scripts/anonymous_release_check.py" "$mount_dir/AWSPlatform.app"
+python3 "$project_root/scripts/anonymous_release_check.py" --dmg-mount "$mount_dir"
 hdiutil detach "$mount_dir" >/dev/null
 mount_dir=""
 
-rm -rf "$output_dir"
-mkdir -p "$output_dir"
-mv "$zip_stage" "$output_dir/$zip_name"
-mv "$dmg_stage" "$output_dir/$dmg_name"
-(cd "$output_dir" && shasum -a 256 "$dmg_name" "$zip_name" > SHA256SUMS.txt)
+metadata_dir="$stage_dir/release-metadata"
+mkdir -p "$metadata_dir"
+(cd "$stage_dir" && shasum -a 256 "$dmg_name" "$zip_name" > "$metadata_dir/SHA256SUMS.txt")
 
-cat > "$output_dir/RELEASE_NOTES.md" <<EOF
+cat > "$metadata_dir/RELEASE_NOTES.md" <<EOF
 # AWSPlatform ${version} (${build_number})
 
-Universal macOS build (Apple Silicon & Intel, macOS 13+). Built with local ad-hoc signing (\`Signature=adhoc\`, \`TeamIdentifier=not set\`, no Developer ID certificate or Apple notarization) and scanned against build-path and privacy checks.
+Universal macOS build (Apple Silicon & Intel, macOS 13+). \`AWSPlatform.app\` uses local ad-hoc signing (\`Signature=adhoc\`, \`TeamIdentifier=not set\`, no Developer ID certificate or Apple notarization), the outer \`.dmg\` disk image container is unsigned, and both build paths and packaged payloads pass privacy verification.
 
 ## Changes
 
 - Build and distribute a single **Universal** (\`arm64\` + \`x86_64\`) anonymous package with bundled third-party licenses.
+- Harden profile/credential generation scope isolation, async AWS config loading, S3 download commit/ACL safety, Auto Scaling default template version resolution, and keyboard/detail UI interactions.
 - Harden EC2 SSM handoff script lease tracking and expired temporary script cleanup.
 - Remove the Sparkle in-app updater and certificate-bound update feeds; settings now link directly to GitHub Releases.
 
@@ -108,18 +116,19 @@ Universal macOS build (Apple Silicon & Intel, macOS 13+). Built with local ad-ho
 
 1. Download \`${dmg_name}\` (or \`${zip_name}\`), verify \`SHA256SUMS.txt\`, and move \`AWSPlatform.app\` into \`/Applications\`.
 2. On first launch, macOS warns that the app is not notarized ([Apple Support](https://support.apple.com/102445)):
-   - **System Settings**: Click **Done**, open **System Settings -> Privacy & Security**, scroll down, and click **Open Anyway**.
-   - **Terminal**: Run \`xattr -cr /Applications/AWSPlatform.app\` once before opening.
+   - **Recommended (System Settings)**: Click **Done**, open **System Settings -> Privacy & Security**, scroll down, and click **Open Anyway**.
+   - **Alternative (Terminal, after verifying \`SHA256SUMS.txt\`)**: Run \`xattr -d com.apple.quarantine /Applications/AWSPlatform.app\` once before opening.
 
 ---
 
 # AWSPlatform ${version} (${build_number})（通用匿名构建）
 
-支持 Apple Silicon 与 Intel 的 Universal 通用 macOS 构建（要求 macOS 13 或更高版本）。安装包采用纯本地 ad-hoc 签名（\`Signature=adhoc\`、\`TeamIdentifier=not set\`，不含 Developer ID 实名证书或 Apple 公证），并已完成构建路径映射与隐私扫描。
+支持 Apple Silicon 与 Intel 的 Universal 通用 macOS 构建（要求 macOS 13 或更高版本）。应用 \`AWSPlatform.app\` 采用纯本地 ad-hoc 签名（\`Signature=adhoc\`、\`TeamIdentifier=not set\`，不含 Developer ID 实名证书或 Apple 公证），外层 \`.dmg\` 磁盘映像容器本身未签名，已完成构建路径映射与隐私扫描。
 
 ## 更新内容
 
 - 切换为单一 **Universal**（\`arm64\` + \`x86_64\`）匿名安装包，并在应用内附带完整第三方依赖许可证。
+- 补齐服务端身份代次与作用域隔离、AWS 配置异步读取、S3 下载原子提交与继承 ACL 防护、Auto Scaling 默认启动模板版本解析及列表／详情交互细节。
 - 加固 EC2 SSM 会话交接临时脚本租约追踪与过期残留回收逻辑。
 - 移除依赖证书签名的 Sparkle 应用内更新器与更新清单，设置页提供 GitHub Releases 直达入口。
 
@@ -127,9 +136,24 @@ Universal macOS build (Apple Silicon & Intel, macOS 13+). Built with local ad-ho
 
 1. 下载 \`${dmg_name}\`（或 \`${zip_name}\`），建议先对照 \`SHA256SUMS.txt\` 校验哈希，再将 \`AWSPlatform.app\` 拖入「应用程序」。
 2. 因未接入实名 Apple 公证，首次打开时 macOS 会弹出未验证提示（见 [Apple 官方指引](https://support.apple.com/zh-cn/102445)）：
-   - **图形界面**：点击弹窗「完成」，打开 **系统设置 -> 隐私与安全性**，滑到底部点击 **「仍要打开」** 即可。
-   - **终端放行**：执行一次 \`xattr -cr /Applications/AWSPlatform.app\` 清除下载隔离标记后即可直接打开。
+   - **推荐（图形界面）**：点击弹窗「完成」，打开 **系统设置 -> 隐私与安全性**，滑到底部点击 **「仍要打开」** 即可。
+   - **备选（终端，请先核对 \`SHA256SUMS.txt\`）**：执行一次 \`xattr -d com.apple.quarantine /Applications/AWSPlatform.app\` 移除下载隔离属性后再打开。
 EOF
+
+python3 "$project_root/scripts/privacy_scan.py" "$metadata_dir"
+release_bundle="$stage_dir/release-bundle"
+mkdir -p "$release_bundle"
+mv "$zip_stage" "$release_bundle/$zip_name"
+mv "$dmg_stage" "$release_bundle/$dmg_name"
+mv "$metadata_dir/SHA256SUMS.txt" "$release_bundle/SHA256SUMS.txt"
+mv "$metadata_dir/RELEASE_NOTES.md" "$release_bundle/RELEASE_NOTES.md"
+(cd "$release_bundle" && shasum -a 256 -c SHA256SUMS.txt >/dev/null)
+if [ -e "$output_dir" ] || [ -L "$output_dir" ]; then
+    printf 'Error: output directory already exists; refusing to overwrite: %s\n' "$output_dir" >&2
+    exit 1
+fi
+mkdir -p "$(dirname "$output_dir")"
+mv "$release_bundle" "$output_dir"
 
 ls -lh "$output_dir"
 cat "$output_dir/SHA256SUMS.txt"

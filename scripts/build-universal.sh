@@ -130,6 +130,9 @@ build_architecture() {
     [ -x "$bin_path/$app_name" ] || fail "Missing executable for $architecture: $bin_path/$app_name"
     mkdir -p "$stage_dir/$architecture/resources"
     cp "$bin_path/$app_name" "$stage_dir/$architecture/$app_name"
+    # Strip STABS debug records per slice before lipo -create so Universal binaries stay < 4 GiB
+    # (32-bit FAT_MAGIC); swift-stdlib-tool silently ignores 64-bit FAT_MAGIC_64 executables.
+    xcrun strip -S "$stage_dir/$architecture/$app_name"
     xcrun lipo "$stage_dir/$architecture/$app_name" -verify_arch "$architecture"
 
     # Capture each build immediately: some SwiftPM engines share their output path.
@@ -224,14 +227,14 @@ done
 # Include Swift back-deployment libraries before removing build-machine search paths.
 frameworks_dir="$app_path/Contents/Frameworks"
 mkdir -p "$frameworks_dir"
-if [ -d "$project_root/.build/checkouts" ]; then
-    python3 "$project_root/scripts/collect-licenses.py" --output "$app_path/Contents/Resources/Licenses"
-fi
-find "$app_path" \( -name "*.provisionprofile" -o -name "embedded.mobileprovision" -o -name "._*" -o -name ".DS_Store" \) -delete
 xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$executable" \
     --destination "$frameworks_dir" --sign -
 # The tool may retain a backup when re-signing copied libraries.
 rm -f "$frameworks_dir"/*.dylib.original
+if [ -d "$project_root/.build/checkouts" ]; then
+    python3 "$project_root/scripts/collect-licenses.py" --output "$app_path/Contents/Resources/Licenses"
+fi
+find "$app_path" \( -name "*.provisionprofile" -o -name "embedded.mobileprovision" -o -name "._*" -o -name ".DS_Store" \) -delete
 while IFS= read -r build_rpath; do
     case "$build_rpath" in
         /usr/lib/swift) ;;

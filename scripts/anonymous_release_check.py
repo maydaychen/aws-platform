@@ -123,7 +123,7 @@ def verify_anonymous_app(app_path, run=_default_run, check_privacy=True, pattern
         archs = set(out.split())
         if not {"arm64", "x86_64"}.issubset(archs):
             raise RuntimeError(f"Expected universal arm64+x86_64 in {binary.name}; found {sorted(archs)}")
-        for arch in ("arm64", "x86_64"):
+        for arch in sorted(archs):
             arc_rc, arc_out, arc_err = run("codesign", "--arch", arch, "-dvvv", str(binary))
             if arc_rc != 0:
                 raise RuntimeError(f"codesign --arch {arch} inspect failed for {binary.name}")

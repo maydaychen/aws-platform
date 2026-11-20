@@ -5,14 +5,16 @@ project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="0.4.3"
 build_number="28"
 output_dir=""
+allow_dirty=0
 
 usage() {
-    printf 'Usage: %s [--version VERSION] [--build-number NUMBER] [--output-dir DIRECTORY]\n' "$0"
+    printf 'Usage: %s [--version VERSION] [--build-number NUMBER] [--output-dir DIRECTORY] [--allow-dirty]\n' "$0"
 }
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --help|-h) usage; exit 0 ;;
+        --allow-dirty) allow_dirty=1; shift ;;
         --version|--build-number|--output-dir)
             [ "$#" -ge 2 ] && [ -n "$2" ] || { usage >&2; exit 2; }
             case "$1" in
@@ -36,6 +38,22 @@ fi
 if [ -e "$output_dir" ] || [ -L "$output_dir" ]; then
     printf 'Error: output directory already exists; refusing to overwrite: %s\n' "$output_dir" >&2
     exit 1
+fi
+
+source_commit=""
+working_tree_clean="false"
+if [ "$allow_dirty" -eq 0 ]; then
+    if ! source_commit="$(git -C "$project_root" rev-parse --verify HEAD 2>/dev/null)"; then
+        printf 'Error: unable to resolve Git HEAD in %s (pass --allow-dirty to bypass).\n' "$project_root" >&2
+        exit 1
+    fi
+    if [ -n "$(git -C "$project_root" status --porcelain --untracked-files=normal)" ]; then
+        printf 'Error: working tree is not clean; commit or stash changes before building an anonymous release (or pass --allow-dirty for local testing).\n' >&2
+        exit 1
+    fi
+    working_tree_clean="true"
+else
+    source_commit="$(git -C "$project_root" rev-parse --verify HEAD 2>/dev/null || true)"
 fi
 
 [ -d "$project_root/.build/checkouts" ] || {
@@ -75,9 +93,9 @@ dmg_stage="$stage_dir/$dmg_name"
 
 COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --keepParent "$app_path" "$zip_stage"
 /usr/bin/unzip -t -q "$zip_stage"
+python3 "$project_root/scripts/anonymous_release_check.py" --zip "$zip_stage"
 mkdir -p "$stage_dir/zip-verify"
 /usr/bin/ditto -x -k "$zip_stage" "$stage_dir/zip-verify"
-python3 "$project_root/scripts/anonymous_release_check.py" --zip "$zip_stage"
 python3 "$project_root/scripts/privacy_scan.py" "$stage_dir/zip-verify"
 python3 "$project_root/scripts/anonymous_release_check.py" "$stage_dir/zip-verify/AWSPlatform.app"
 
@@ -140,12 +158,45 @@ Universal macOS build (Apple Silicon & Intel, macOS 13+). \`AWSPlatform.app\` us
    - **备选（终端，请先核对 \`SHA256SUMS.txt\`）**：执行一次 \`xattr -d com.apple.quarantine /Applications/AWSPlatform.app\` 移除下载隔离属性后再打开。
 EOF
 
+if [ "$allow_dirty" -eq 0 ]; then
+    current_head="$(git -C "$project_root" rev-parse --verify HEAD)"
+    if [ "$current_head" != "$source_commit" ] || [ -n "$(git -C "$project_root" status --porcelain --untracked-files=normal)" ]; then
+        printf 'Error: Git HEAD or working tree changed during release build (expected clean %s).\n' "$source_commit" >&2
+        exit 1
+    fi
+fi
+
+python3 - "$stage_dir" "$metadata_dir/BUILD_PROVENANCE.json" "$version" "$build_number" "$source_commit" "$working_tree_clean" "$dmg_name" "$zip_name" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+stage = Path(sys.argv[1])
+out_path = Path(sys.argv[2])
+version, build_number, source_commit, clean_flag, dmg_name, zip_name = sys.argv[3:9]
+artifacts = {
+    name: hashlib.sha256((stage / name).read_bytes()).hexdigest()
+    for name in (dmg_name, zip_name)
+}
+payload = {
+    "schema_version": 1,
+    "version": version,
+    "build_number": int(build_number),
+    "source_commit": source_commit or None,
+    "working_tree_clean": clean_flag == "true",
+    "artifacts": artifacts,
+}
+out_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
 python3 "$project_root/scripts/privacy_scan.py" "$metadata_dir"
 release_bundle="$stage_dir/release-bundle"
 mkdir -p "$release_bundle"
 mv "$zip_stage" "$release_bundle/$zip_name"
 mv "$dmg_stage" "$release_bundle/$dmg_name"
 mv "$metadata_dir/SHA256SUMS.txt" "$release_bundle/SHA256SUMS.txt"
+mv "$metadata_dir/BUILD_PROVENANCE.json" "$release_bundle/BUILD_PROVENANCE.json"
 mv "$metadata_dir/RELEASE_NOTES.md" "$release_bundle/RELEASE_NOTES.md"
 (cd "$release_bundle" && shasum -a 256 -c SHA256SUMS.txt >/dev/null)
 if [ -e "$output_dir" ] || [ -L "$output_dir" ]; then

@@ -23,6 +23,7 @@
 
 ## 最近验证
 
+- 2026-11-20 14:22：`anonymous_release_check.py` 改为按 `lipo -archs` 返回的全部架构切片循环校验签名（自动覆盖 `arm64e` 等运行库切片），`build-anonymous-release.sh` 将 `--zip` 归档头与路径校验前置到解包之前，默认要求 Git 工作区干净并在输出目录写入绑定 `source_commit`、`working_tree_clean` 与 DMG／ZIP SHA-256 哈希的 `BUILD_PROVENANCE.json`；65 项脚本测试、文档链接检查及公开发布门禁验证通过。
 - 2026-11-20 14:06：修复 Codex 联合复核与重编发现的匿名发布门禁问题：`privacy_scan.py` 改为仅对 Mach-O 纯指令节（`S_ATTR_PURE_INSTRUCTIONS`）与 `LC_CODE_SIGNATURE` 的 `CodeDirectory` 页哈希区收窄短二进制噪声误报（消除带长度前缀记录漏检并保留标识符／证书／权限块完整扫描）、`build-universal.sh` 在 `lipo` 合包前逐架构执行 `strip -S` 避免超过 4 GiB 触发 `FAT_MAGIC_64` 致 `swift-stdlib-tool` 静默跳过运行库并将 `collect-licenses.py` 移至嵌入 `libswift*.dylib` 之后、`anonymous_release_check.py` 增加逐切片签名与许可清单校验和／`PROVENANCE.json`／ZIP 归档头与未签名 DMG 根目录白名单断言、`build-anonymous-release.sh` 拒绝覆盖既有 `--output-dir`；64 项脚本测试、`verify-before-push.sh`（1,622 项 `AWSPlatformTests`）、`audit_readme.py`、公开源码导出与重新构建的 0.4.3（28）Universal 匿名包校验全部通过。
 - 2026-11-20 01:44：全量 `swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` 1,622 项测试全部通过（0 失败、0 编译器警告），`./scripts/verify-before-push.sh` 全量门禁通过（`source-file-lines` 376 个文件、11 个超 500 行警告，`swift-package-build`、`swift-package-test`、`git-diff-check`、`design-spec-lint` 均 PASS）；包含 Codex 与 Antigravity 联合只读 Review 发现及回归验证。真实 AWS 账号、真实 SSM／SSO 登录、真实 PKG／Homebrew 安装、macOS 13／Intel 实机与真实窗口 Charts `AxisValueLabel` 检查尚未实测。
 - 2026-11-19 23:00：双语 README、`AGENTS.md`、`DESIGN.md`、`ROADMAP.md` 及 `docs/`／`scripts/` 核对修正通过 `audit_readme.py` 静态链接检查（0 断链）、`verify-before-push.sh` 全量门禁及 57 项脚本单元测试与隐私导出扫描。

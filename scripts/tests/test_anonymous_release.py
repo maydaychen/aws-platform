@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -93,6 +94,18 @@ class AnonymousReleaseTests(unittest.TestCase):
                 CHECK.verify_anonymous_app(
                     app,
                     run=self.fake_runner(slice_outputs={"x86_64": leaked_x86}),
+                    check_privacy=False,
+                    package_resolved=pkg,
+                )
+
+            leaked_arm64e = "Authority=Apple Development: Example\nTeamIdentifier=ABCDEFGHIJ\n"
+            with self.assertRaisesRegex(RuntimeError, "arm64e"):
+                CHECK.verify_anonymous_app(
+                    app,
+                    run=self.fake_runner(
+                        archs="arm64 arm64e x86_64",
+                        slice_outputs={"arm64e": leaked_arm64e},
+                    ),
                     check_privacy=False,
                     package_resolved=pkg,
                 )
@@ -228,6 +241,29 @@ class AnonymousReleaseTests(unittest.TestCase):
             (extra_root / ".DS_Store").write_bytes(b"bad")
             with self.assertRaisesRegex(RuntimeError, "Unexpected entries in DMG root"):
                 CHECK.verify_mounted_dmg_root(extra_root)
+
+    def test_build_anonymous_release_refuses_dirty_working_tree(self):
+        script = SCRIPTS_DIR / "build-anonymous-release.sh"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repo = root / "repo"
+            (repo / "scripts").mkdir(parents=True)
+            copied_script = repo / "scripts/build-anonymous-release.sh"
+            shutil.copy2(script, copied_script)
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test User"], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(repo), "add", "scripts/build-anonymous-release.sh"], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
+
+            (repo / "dirty.txt").write_text("uncommitted", encoding="utf-8")
+            result = subprocess.run(
+                [str(copied_script), "--output-dir", str(root / "new-release")],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("working tree is not clean", result.stderr)
 
 
 if __name__ == "__main__":

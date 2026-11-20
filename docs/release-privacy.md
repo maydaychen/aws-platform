@@ -46,7 +46,7 @@ python3 scripts/export-public-source.py --output-dir dist/public-source
 
 构建与审计日志只保存相对路径或 `~`，不记录私有匹配词；核验完成后清理本次生成的私人路径缓存和临时旧安装副本。对外分享使用通过门禁的源码导出或 App／ZIP，不直接压缩整个开发目录。
 
-本地打包与匿名公开构建均在 ad-hoc 签名前检查 App，并在解压 ZIP 与只读挂载 DMG 后复扫包内载荷；结构化匿名校验逐架构切片断言无 `Authority=`、非空 `TeamIdentifier` 或遗留描述文件，同时核对全部依赖许可清单校验和与 Swift 运行库记录；匿名公开构建拒绝覆盖既有输出目录，失败保留旧产物，不继续发布目标目录。
+本地打包与匿名公开构建均在 ad-hoc 签名前检查 App，并在前置校验 `.zip` 归档头与路径后解压 ZIP、在只读挂载 DMG 后复扫包内载荷；结构化匿名校验逐架构切片（覆盖 `lipo -archs` 全部架构）断言无 `Authority=`、非空 `TeamIdentifier` 或遗留描述文件，同时核对全部依赖许可清单校验和与 Swift 运行库记录；匿名公开构建默认要求 Git 工作区干净、写入绑定 `source_commit` 与 DMG／ZIP 哈希的 `BUILD_PROVENANCE.json`，并拒绝覆盖既有输出目录，失败保留旧产物，不继续发布目标目录。
 
 ## 保留的身份与范围
 
